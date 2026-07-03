@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUM Web — Iniciar Sesión</title>
+
+  <!-- Tokens compartidos: mismos colores que la app Next.js -->
+  <link rel="stylesheet" href="../../../packages/design-tokens/tokens.css" />
+
+  <style>
+    /* Reset mínimo */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--pum-font-sans);
+      font-size: var(--pum-font-size-base);
+      background-color: var(--pum-color-bg);
+      color: var(--pum-color-text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--pum-space-4);
+    }
+
+    /* ── Tarjeta de login ── */
+    .login-card {
+      background: var(--pum-color-surface);
+      border: 1px solid var(--pum-color-border);
+      border-radius: var(--pum-radius-lg);
+      box-shadow: var(--pum-shadow-md);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--pum-space-6);
+    }
+
+    /* ── Logo / encabezado ── */
+    .login-header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--pum-space-2);
+    }
+
+    .login-logo {
+      width: 56px;
+      height: 56px;
+      background: var(--pum-color-primary);
+      border-radius: var(--pum-radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--pum-color-text-inverse);
+      font-size: 1.5rem;
+      font-weight: var(--pum-font-weight-bold);
+      letter-spacing: -0.02em;
+    }
+
+    .login-title {
+      font-size: var(--pum-font-size-xl);
+      font-weight: var(--pum-font-weight-semibold);
+      color: var(--pum-color-text);
+      line-height: var(--pum-line-height-tight);
+    }
+
+    .login-subtitle {
+      font-size: var(--pum-font-size-sm);
+      color: var(--pum-color-text-muted);
+    }
+
+    /* ── Divider ── */
+    .login-divider {
+      width: 100%;
+      border: none;
+      border-top: 1px solid var(--pum-color-border);
+    }
+
+    /* ── Mensaje de error ── */
+    .login-error {
+      width: 100%;
+      background: var(--pum-color-error-light);
+      border: 1px solid var(--pum-color-error);
+      border-radius: var(--pum-radius-md);
+      padding: var(--pum-space-3) var(--pum-space-4);
+      display: flex;
+      gap: var(--pum-space-2);
+      align-items: flex-start;
+    }
+
+    .login-error-icon {
+      font-size: 1rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .login-error-text {
+      font-size: var(--pum-font-size-sm);
+      color: var(--pum-color-error);
+      line-height: var(--pum-line-height-normal);
+    }
+
+    .login-error-text strong {
+      font-weight: var(--pum-font-weight-semibold);
+      display: block;
+    }
+
+    /* ── Botón Google ── */
+    .btn-google {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--pum-space-3);
+      padding: 0.7rem var(--pum-space-4);
+      background: var(--pum-color-primary);
+      color: var(--pum-color-text-inverse);
+      border: none;
+      border-radius: var(--pum-radius-md);
+      font-family: var(--pum-font-sans);
+      font-size: var(--pum-font-size-base);
+      font-weight: var(--pum-font-weight-medium);
+      cursor: pointer;
+      transition: background var(--pum-transition-fast);
+      text-decoration: none;
+    }
+
+    .btn-google:hover {
+      background: var(--pum-color-primary-hover);
+    }
+
+    .btn-google:active {
+      transform: translateY(1px);
+    }
+
+    /* SVG de Google dentro del botón */
+    .google-icon {
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Nota de seguridad ── */
+    .login-security {
+      font-size: var(--pum-font-size-xs);
+      color: var(--pum-color-text-muted);
+      text-align: center;
+      line-height: var(--pum-line-height-relaxed);
+    }
+
+    /* ── Variantes de estado (para prototipo ?state=) ── */
+    .state-normal   .login-error              { display: none; }
+    .state-error    .login-error.type-generic  { display: flex; }
+    .state-error    .login-error.type-domain   { display: none; }
+    .state-domain   .login-error.type-domain   { display: flex; }
+    .state-domain   .login-error.type-generic  { display: none; }
+
+    /* ── Pie de página ── */
+    .login-footer {
+      margin-top: var(--pum-space-8);
+      font-size: var(--pum-font-size-xs);
+      color: var(--pum-color-text-muted);
+      text-align: center;
+    }
+
+    /* ── Selector de estado (solo en prototipo) ── */
+    .prototype-states {
+      position: fixed;
+      top: var(--pum-space-4);
+      right: var(--pum-space-4);
+      background: var(--pum-color-surface);
+      border: 1px solid var(--pum-color-border);
+      border-radius: var(--pum-radius-md);
+      padding: var(--pum-space-3);
+      font-size: var(--pum-font-size-xs);
+      box-shadow: var(--pum-shadow-sm);
+    }
+
+    .prototype-states p {
+      font-weight: var(--pum-font-weight-semibold);
+      margin-bottom: var(--pum-space-2);
+      color: var(--pum-color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .prototype-states a {
+      display: block;
+      color: var(--pum-color-primary);
+      text-decoration: none;
+      padding: 2px 0;
+    }
+
+    .prototype-states a:hover { text-decoration: underline; }
+    .prototype-states a.active { font-weight: var(--pum-font-weight-semibold); }
+  </style>
+</head>
+
+<body>
+  <!-- Clase de estado aplicada desde JavaScript al cargar la página -->
+  <div id="app-root" class="state-normal" style="display: contents;">
+
+    <!-- Tarjeta principal de login -->
+    <main>
+      <div class="login-card">
+
+        <!-- Encabezado -->
+        <header class="login-header">
+          <div class="login-logo" aria-hidden="true">P</div>
+          <h1 class="login-title">Sistema PUM</h1>
+          <p class="login-subtitle" id="institution-name">Institución Educativa</p>
+        </header>
+
+        <hr class="login-divider" />
+
+        <!-- Mensaje de error — OAuth genérico -->
+        <div class="login-error type-generic" role="alert" aria-live="polite">
+          <span class="login-error-icon">⚠️</span>
+          <div class="login-error-text">
+            <strong>Error al iniciar sesión</strong>
+            Hubo un problema al conectar con Google. Por favor intenta nuevamente.
+          </div>
+        </div>
+
+        <!-- Mensaje de error — Dominio no autorizado -->
+        <div class="login-error type-domain" role="alert" aria-live="polite">
+          <span class="login-error-icon">🚫</span>
+          <div class="login-error-text">
+            <strong>Acceso no autorizado</strong>
+            Tu cuenta de Google no pertenece al dominio institucional.
+            Usa tu correo <strong>@colegio.edu.ec</strong> para ingresar.
+          </div>
+        </div>
+
+        <!-- Botón de inicio de sesión -->
+        <a href="#" class="btn-google" role="button" aria-label="Iniciar sesión con Google">
+          <span class="google-icon" aria-hidden="true">
+            <!-- Google "G" simplificado -->
+            <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </span>
+          Continuar con Google
+        </a>
+
+        <!-- Nota de seguridad -->
+        <p class="login-security">
+          Al ingresar, aceptas el uso institucional del sistema.<br />
+          Solo se permite acceso con email <strong>@dominio-institucional</strong>.
+        </p>
+      </div>
+    </main>
+
+    <!-- Pie de página -->
+    <footer class="login-footer">
+      Sistema PUM Web &nbsp;·&nbsp; Uso exclusivo institucional
+    </footer>
+
+  </div><!-- #app-root -->
+
+  <!-- ── Control de estados para el prototipo HTML (no existe en Next.js) ── -->
+  <nav class="prototype-states" aria-label="Variantes del prototipo">
+    <p>Estado</p>
+    <a href="?state=normal" id="link-normal">Normal</a>
+    <a href="?state=error"  id="link-error">Error OAuth</a>
+    <a href="?state=domain" id="link-domain">Dominio inválido</a>
+  </nav>
+
+  <script>
+    // Lee el parámetro ?state= de la URL y aplica la clase correspondiente
+    const params = new URLSearchParams(window.location.search);
+    const state  = params.get("state") || "normal";
+    const root   = document.getElementById("app-root");
+
+    root.className = "state-" + state;
+
+    // Marca el enlace activo en el selector de estados
+    const activeLink = document.getElementById("link-" + state);
+    if (activeLink) activeLink.className = "active";
+
+    // Nombre de la institución desde localStorage (demo)
+    const instName = localStorage.getItem("pum_institution") || "Colegio Ejemplo";
+    document.getElementById("institution-name").textContent = instName;
+  </script>
+</body>
+</html>

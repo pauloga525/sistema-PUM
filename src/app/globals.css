@@ -1,26 +1,288 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/* Design tokens institucionales — inlineados para compatibilidad con Turbopack */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Fondos ────────────────────────────────────────────────────────────── */
+  --pum-color-bg: #f8f9fa;
+  --pum-color-surface: #ffffff;
+  --pum-color-surface-alt: #edeeef;
+  --pum-color-surface-low: #f3f4f5;
+  --pum-color-surface-container: #edeeef;
+  --pum-color-surface-high: #e7e8e9;
+  --pum-color-surface-dim: #d9dadb;
+
+  /* ── Texto ─────────────────────────────────────────────────────────────── */
+  --pum-color-text: #191c1d;
+  --pum-color-text-muted: #434750;
+  --pum-color-text-disabled: #737781;
+  --pum-color-text-inverse: #ffffff;
+
+  /* ── Marca — azul marino institucional ─────────────────────────────────── */
+  --pum-color-primary: #002753;
+  --pum-color-primary-hover: #001a3d;
+  --pum-color-primary-container: #003d7a;
+  --pum-color-primary-light: #dce8ff;
+  --pum-color-primary-on-container: #81aaed;
+  --pum-color-accent: #a8c8ff;
+  --pum-color-surface-tint: #335f9d;
+
+  /* ── Secundario — dorado/ámbar institucional ────────────────────────────── */
+  --pum-color-secondary: #fccc38;
+  --pum-color-secondary-on: #6f5600;
+  --pum-color-secondary-dark: #755b00;
+
+  /* ── Estados ───────────────────────────────────────────────────────────── */
+  --pum-color-success: #0d8a5e;
+  --pum-color-success-light: #e0f5ee;
+  --pum-color-warning: #755b00;
+  --pum-color-warning-light: #fff8e1;
+  --pum-color-error: #ba1a1a;
+  --pum-color-error-light: #ffdad6;
+  --pum-color-error-on: #93000a;
+  --pum-color-info: #0277bd;
+  --pum-color-info-light: #e1f3fb;
+
+  /* ── Bordes ────────────────────────────────────────────────────────────── */
+  --pum-color-border: #c3c6d2;
+  --pum-color-border-strong: #737781;
+  --pum-color-border-focus: #002753;
+
+  /* ── Tipografía ─────────────────────────────────────────────────────────── */
+  --pum-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+  --pum-topbar-height: 64px;
+  --pum-sidebar-width: 240px;
+
+  /* ── Sombras suaves (sin dureza) ───────────────────────────────────────── */
+  --pum-shadow-sm: 0 1px 4px 0 rgb(0 39 83 / 0.06), 0 1px 2px -1px rgb(0 39 83 / 0.04);
+  --pum-shadow-md: 0 4px 24px -4px rgb(0 39 83 / 0.10), 0 2px 8px -2px rgb(0 39 83 / 0.06);
+  --pum-shadow-glass: 0 8px 40px -8px rgb(0 39 83 / 0.14), inset 0 1px 0 rgba(255 255 255 / 0.80);
 }
+
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── PUM Design Tokens ── */
+  /* Fondos */
+  --color-pum-bg: var(--pum-color-bg);
+  --color-pum-surface: var(--pum-color-surface);
+  --color-pum-surface-alt: var(--pum-color-surface-alt);
+  --color-pum-surface-low: var(--pum-color-surface-low);
+  --color-pum-surface-container: var(--pum-color-surface-container);
+  --color-pum-surface-high: var(--pum-color-surface-high);
+  --color-pum-surface-dim: var(--pum-color-surface-dim);
+  /* Texto */
+  --color-pum-text: var(--pum-color-text);
+  --color-pum-text-muted: var(--pum-color-text-muted);
+  --color-pum-text-disabled: var(--pum-color-text-disabled);
+  --color-pum-text-inverse: var(--pum-color-text-inverse);
+  /* Marca primaria */
+  --color-pum-primary: var(--pum-color-primary);
+  --color-pum-primary-hover: var(--pum-color-primary-hover);
+  --color-pum-primary-container: var(--pum-color-primary-container);
+  --color-pum-primary-light: var(--pum-color-primary-light);
+  --color-pum-accent: var(--pum-color-accent);
+  /* Marca secundaria (dorado) */
+  --color-pum-secondary: var(--pum-color-secondary);
+  --color-pum-secondary-on: var(--pum-color-secondary-on);
+  --color-pum-secondary-dark: var(--pum-color-secondary-dark);
+  /* Estados */
+  --color-pum-success: var(--pum-color-success);
+  --color-pum-success-light: var(--pum-color-success-light);
+  --color-pum-warning: var(--pum-color-warning);
+  --color-pum-warning-light: var(--pum-color-warning-light);
+  --color-pum-error: var(--pum-color-error);
+  --color-pum-error-light: var(--pum-color-error-light);
+  --color-pum-info: var(--pum-color-info);
+  --color-pum-info-light: var(--pum-color-info-light);
+  /* Bordes */
+  --color-pum-border: var(--pum-color-border);
+  --color-pum-border-strong: var(--pum-color-border-strong);
+  --color-pum-border-focus: var(--pum-color-border-focus);
+  /* Sombras */
+  --shadow-pum-sm: var(--pum-shadow-sm);
+  --shadow-pum-md: var(--pum-shadow-md);
+  --shadow-pum-glass: var(--pum-shadow-glass);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    background-color: #f8f9fa;
+    background-image: radial-gradient(circle at 2px 2px, rgba(0, 39, 83, 0.05) 1px, transparent 0);
+    background-size: 24px 24px;
+    color: #191c1d;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Topbar icon button — hover background via CSS ── */
+.pum-topbar-btn {
+  transition: background 150ms, color 150ms;
+}
+
+.pum-topbar-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Glass input — focus ring via CSS so Server Components can render it ── */
+.pum-glass-input {
+  background: rgba(243, 244, 245, 0.90);
+  border: 1px solid rgba(0, 39, 83, 0.14);
+  border-radius: 0.75rem;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+.pum-glass-input:focus {
+  outline: none;
+  border-color: rgba(0, 39, 83, 0.45);
+  box-shadow: 0 0 0 3px rgba(0, 39, 83, 0.09);
+}
+
+/* ── Navy gradient button — hover via CSS ── */
+.pum-navy-btn {
+  background: linear-gradient(135deg, #002753 0%, #003d7a 100%);
+  box-shadow: 0 2px 12px rgba(0, 39, 83, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition: background 150ms, box-shadow 150ms, transform 150ms;
+}
+
+.pum-navy-btn:hover {
+  background: linear-gradient(135deg, #001a3d 0%, #002753 100%);
+  box-shadow: 0 4px 18px rgba(0, 39, 83, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+/* ── Reusable glass card — hover handled in CSS so Server Components can use it ── */
+.pum-glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(195, 198, 210, 0.70);
+  border-radius: 1rem;
+  box-shadow: 0 2px 12px rgba(0, 39, 83, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  transition: border-color 200ms, box-shadow 200ms, transform 200ms;
+}
+
+.pum-glass-card:hover {
+  border-color: rgba(0, 39, 83, 0.22);
+  box-shadow: 0 4px 24px rgba(0, 39, 83, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  transform: translateY(-1px);
 }

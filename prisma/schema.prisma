@@ -1,0 +1,425 @@
+// =============================================================
+// Schema Prisma — PUM Web
+// Motor: PostgreSQL 15+
+// ORM: Prisma 7.x
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================================
+// AUTH — Modelos requeridos por @auth/prisma-adapter
+// =============================================================
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  role                String  @default("TEACHER")
+  cedula              String? @unique
+  passwordHash        String?
+  forcePasswordChange Boolean @default(false)
+  coordinatorArea     String?
+  isActive            Boolean  @default(true)
+  lastLoginAt         DateTime?
+
+  accounts            Account[]
+  sessions            Session[]
+  assignments         TeacherAssignment[]
+  planificationLinks  PlanificationTeacher[]
+
+  coordinatorAssignmentsAsCoordinator CoordinatorAssignment[]         @relation("CoordinatorTeachers")
+  coordinatorAssignmentsAsTeacher     CoordinatorAssignment[]         @relation("TeacherCoordinators")
+  coordinatedAssignments              TeacherAssignment[]             @relation("AssignmentCoordinator")
+  coordinatorSubjectLinks             CoordinatorSubjectAssignment[]  @relation("CoordinatorSubjects")
+  planReviews                         PlanReview[]            @relation("CoordinatorReviews")
+  auditEvents                         PlanAuditEvent[]        @relation("AuditActor")
+  userAuditLogsAsActor                UserAuditLog[]          @relation("UserAuditActor")
+  userAuditLogsAsTarget               UserAuditLog[]          @relation("UserAuditTarget")
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// =============================================================
+// DOMINIO — Estructura académica
+// =============================================================
+
+model AcademicYear {
+  id        String    @id @default(uuid())
+  label     String    @unique  // "2026-2027"
+  yearStart Int                // 2026
+  active    Boolean   @default(true)
+  startDate DateTime?          // Fecha de inicio del año lectivo
+  endDate   DateTime?          // Fecha de fin del año lectivo
+  createdAt DateTime  @default(now())
+
+  periods        Period[]
+  assignments    TeacherAssignment[]
+  planifications Planification[]
+
+  @@map("academic_years")
+}
+
+model Period {
+  id             String    @id @default(uuid())
+  name           String    // "Quimestre 1"
+  number         Int       // 1, 2, 3...
+  academicYearId String
+  startDate      DateTime? // Fecha de inicio del periodo
+  endDate        DateTime? // Fecha de fin del periodo
+  createdAt      DateTime  @default(now())
+
+  academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  planifications Planification[]
+  assignments    TeacherAssignment[]
+
+  @@unique([academicYearId, number])
+  @@map("periods")
+}
+
+model Subject {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique  // "MAT", "LEN", "CCNN"
+  areaEstudio String?
+  createdAt   DateTime @default(now())
+
+  assignments              TeacherAssignment[]
+  planifications           Planification[]
+  subjectLevels            SubjectLevel[]
+  coordinatorSubjectLinks  CoordinatorSubjectAssignment[]
+
+  @@map("subjects")
+}
+
+model Level {
+  id         String   @id @default(uuid())
+  name       String                    // "3ro de Bachillerato"
+  code       String   @unique         // "3BGU"
+  orderIndex Int
+  track      String                    // "BASICA" | "BACHILLERATO"
+  createdAt  DateTime @default(now())
+
+  assignments    TeacherAssignment[]
+  planifications Planification[]
+  subjectLevels  SubjectLevel[]
+
+  @@map("levels")
+}
+
+// Relación muchos-a-muchos entre Materia y Nivel
+// Permite definir qué materias se dictan en cada nivel educativo
+model SubjectLevel {
+  id        String   @id @default(uuid())
+  subjectId String
+  levelId   String
+  createdAt DateTime @default(now())
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  level   Level   @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, levelId])
+  @@map("subject_levels")
+}
+
+// =============================================================
+// DOMINIO — Asignaciones y planificaciones
+// =============================================================
+
+model TeacherAssignment {
+  id             String   @id @default(uuid())
+  teacherId      String
+  subjectId      String
+  levelId        String
+  academicYearId String
+  periodId       String?  // Periodo específico, null = todos los periodos
+  coordinatorId  String?  // Coordinador responsable de esta asignación
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  teacher      User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id])
+  level        Level        @relation(fields: [levelId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  period       Period?      @relation(fields: [periodId], references: [id])
+  coordinator  User?        @relation("AssignmentCoordinator", fields: [coordinatorId], references: [id])
+
+  @@unique([teacherId, subjectId, levelId, academicYearId])
+  @@index([teacherId, academicYearId, active])
+  @@index([coordinatorId])
+  @@map("teacher_assignments")
+}
+
+model Planification {
+  id             String    @id @default(uuid())
+  academicYearId String
+  periodId       String
+  subjectId      String
+  levelId        String
+
+  status         String    @default("DRAFT")
+  editDeadlineAt DateTime?
+  finalizedAt    DateTime?
+  clonedFromId   String?
+  metadata       Json?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  period       Period       @relation(fields: [periodId], references: [id])
+  subject      Subject      @relation(fields: [subjectId], references: [id])
+  level        Level        @relation(fields: [levelId], references: [id])
+  clonedFrom   Planification?  @relation("PlanClone", fields: [clonedFromId], references: [id])
+  clones       Planification[] @relation("PlanClone")
+
+  teachers     PlanificationTeacher[]
+  rows         PlanificationRow[]
+  review       PlanReview?
+  auditEvents  PlanAuditEvent[]
+
+  @@unique([academicYearId, periodId, subjectId, levelId])
+  @@index([academicYearId, periodId])
+  @@map("planifications")
+}
+
+// Relación M2M entre docentes y planificaciones.
+// isEditor = true para el docente que creó el PUM (único editor).
+// Los demás docentes vinculados tienen isEditor = false (solo lectura/consulta).
+model PlanificationTeacher {
+  id              String   @id @default(uuid())
+  planificationId String
+  teacherId       String
+  isEditor        Boolean  @default(false)
+  joinedAt        DateTime @default(now())
+
+  planification Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+  teacher       User          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([planificationId, teacherId])
+  @@index([teacherId])
+  @@map("planification_teachers")
+}
+
+model PlanificationRow {
+  id               String   @id @default(uuid())
+  planificationId  String
+  rowIndex         Int
+
+  data             Json
+  methodologyIcons Json     @default("[]")
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  planification Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+
+  @@unique([planificationId, rowIndex])
+  @@index([planificationId])
+  @@map("planification_rows")
+}
+
+// =============================================================
+// COORDINADOR DE ÁREA — Retroalimentación de PUMs
+// =============================================================
+
+// Materias que el admin habilitó para un coordinador.
+// El coordinador solo puede asignar estas materias a sus docentes.
+// Si no hay registros para un coordinador → puede usar todas (retrocompat).
+model CoordinatorSubjectAssignment {
+  id            String   @id @default(uuid())
+  coordinatorId String
+  subjectId     String
+  createdAt     DateTime @default(now())
+
+  coordinator User    @relation("CoordinatorSubjects", fields: [coordinatorId], references: [id], onDelete: Cascade)
+  subject     Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([coordinatorId, subjectId])
+  @@map("coordinator_subject_assignments")
+}
+
+// Vincula un coordinador con los docentes que supervisa
+model CoordinatorAssignment {
+  id            String   @id @default(uuid())
+  coordinatorId String
+  teacherId     String
+  createdAt     DateTime @default(now())
+
+  coordinator User @relation("CoordinatorTeachers", fields: [coordinatorId], references: [id], onDelete: Cascade)
+  teacher     User @relation("TeacherCoordinators", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([coordinatorId, teacherId])
+  @@map("coordinator_assignments")
+}
+
+// Registro de revisión de un PUM por parte de un coordinador
+model PlanReview {
+  id              String    @id @default(uuid())
+  planificationId String    @unique
+  coordinatorId   String
+  status          String    @default("IN_REVIEW") // "IN_REVIEW" | "APPROVED"
+  sectionStates   Json      @default("{}")        // Record<SectionKey, { approved: boolean; comment: string|null }>
+  approvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  planification Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+  coordinator   User          @relation("CoordinatorReviews", fields: [coordinatorId], references: [id])
+
+  @@map("plan_reviews")
+}
+
+// Registro de auditoría: cada evento relevante del ciclo de vida de un PUM
+model PlanAuditEvent {
+  id              String   @id @default(uuid())
+  planificationId String
+  actorId         String?
+  actorName       String?
+  actorRole       String?  // "TEACHER" | "COORDINATOR" | "ADMIN" | "SYSTEM"
+  eventType       String   // Ver AuditEventType en audit.service.ts
+  sectionKey      String?
+  sectionLabel    String?
+  comment         String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  planification Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+  actor         User?         @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([planificationId, createdAt])
+  @@map("plan_audit_events")
+}
+
+// =============================================================
+// SUPERADMIN — Auditoría de usuarios, sesiones y acciones del sistema
+// =============================================================
+
+// Registro de eventos sobre usuarios, accesos y acciones administrativas.
+// Separado de PlanAuditEvent (que cubre solo el ciclo de vida de PUMs).
+model UserAuditLog {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  // Actor que ejecuta la acción
+  actorId    String?
+  actorEmail String?
+  actorRole  String?
+  actorIp    String?
+
+  // Tipo de evento y resultado
+  eventType String          // Ver USER_AUDIT_EVENT en user-audit.service.ts
+  result    String @default("SUCCESS") // "SUCCESS" | "FAILURE"
+
+  // Entidad afectada (puede ser distinta al actor)
+  targetId    String?
+  targetEmail String?
+  targetRole  String?
+
+  // Datos extra de contexto (endpoint, mensaje de error, etc.)
+  metadata Json?
+
+  actor  User? @relation("UserAuditActor",  fields: [actorId],  references: [id], onDelete: SetNull)
+  target User? @relation("UserAuditTarget", fields: [targetId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([targetId])
+  @@index([eventType])
+  @@map("user_audit_logs")
+}
+
+// =============================================================
+// SUPERADMIN — Monitoreo de errores del sistema
+// =============================================================
+
+// Errores capturados en producción: excepciones no controladas,
+// fallos de integraciones externas (FTP, exportación), etc.
+model SystemErrorLog {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  level   String  // "ERROR" | "WARN" | "INFO"
+  source  String  // módulo o ruta que originó el error
+  message String  @db.Text
+  stack   String? @db.Text
+
+  // Contexto adicional: userId, planId, endpoint, input, etc.
+  metadata Json?
+
+  // Resolución
+  resolved   Boolean   @default(false)
+  resolvedAt DateTime?
+  resolvedBy String?   // userId del SuperAdmin que lo resolvió
+  resolveNote String?  @db.Text
+
+  @@index([createdAt])
+  @@index([level, resolved])
+  @@index([source])
+  @@map("system_error_logs")
+}
+
+// =============================================================
+// SEGURIDAD — Rate limiting via Postgres (sin dependencias externas)
+// =============================================================
+
+// Ventana fija por clave. Cada clave tiene un contador y la marca
+// del inicio de la ventana actual. Si now - windowStart > window,
+// se reinicia. Se usa para login y acciones administrativas sensibles.
+model RateLimit {
+  key         String   @id           // ej. "login:user@email.com"
+  windowStart DateTime
+  count       Int      @default(1)
+
+  @@index([windowStart])
+  @@map("rate_limits")
+}

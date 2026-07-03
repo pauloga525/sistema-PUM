@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>PUM Web — Prototipo HTML</title>
+  <link rel="stylesheet" href="../packages/design-tokens/tokens.css" />
+  <style>
+    body { font-family: var(--pum-font-sans); background: var(--pum-color-bg); color: var(--pum-color-text); padding: 2rem; }
+    h1   { font-size: var(--pum-font-size-xl); font-weight: 700; margin-bottom: 0.5rem; }
+    p    { color: var(--pum-color-text-muted); margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .card { background: var(--pum-color-surface); border: 1px solid var(--pum-color-border); border-radius: var(--pum-radius-md); padding: 1.25rem; }
+    .card h2 { font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--pum-color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .card a  { display: block; color: var(--pum-color-primary); text-decoration: none; font-size: 0.875rem; padding: 0.25rem 0; }
+    .card a:hover { text-decoration: underline; }
+    .badge { display: inline-block; font-size: 0.7rem; padding: 1px 6px; border-radius: 99px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+    .badge-done { background: var(--pum-color-success-light); color: var(--pum-color-success); }
+    .badge-wip  { background: var(--pum-color-warning-light); color: var(--pum-color-warning); }
+    .badge-todo { background: var(--pum-color-surface-alt); color: var(--pum-color-text-muted); }
+  </style>
+</head>
+<body>
+  <h1>PUM Web — Prototipo HTML</h1>
+  <p>Navegación por pantallas del prototipo. Cada pantalla tiene variantes accesibles por <code>?state=</code>.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>A — Autenticación</h2>
+      <a href="pages/auth/login.html">Login <span class="badge badge-done">✓</span></a>
+      <a href="pages/auth/login.html?state=error">Login — Error OAuth <span class="badge badge-done">✓</span></a>
+      <a href="pages/auth/login.html?state=domain">Login — Dominio inválido <span class="badge badge-done">✓</span></a>
+    </div>
+
+    <div class="card">
+      <h2>B — Flujo Docente</h2>
+      <a href="pages/teacher/year-select.html">Selección de Año <span class="badge badge-todo">Fase 3</span></a>
+      <a href="pages/teacher/period-select.html">Selección de Período <span class="badge badge-todo">Fase 3</span></a>
+      <a href="pages/teacher/subjects-list.html">Materias + Nivel <span class="badge badge-todo">Fase 3</span></a>
+    </div>
+
+    <div class="card">
+      <h2>C — Editor PUM</h2>
+      <a href="pages/teacher/editor.html">Editor PUM <span class="badge badge-todo">Fase 3</span></a>
+      <a href="pages/teacher/editor.html?state=readonly">Editor (Solo lectura) <span class="badge badge-todo">Fase 3</span></a>
+      <a href="pages/teacher/preview.html">Previsualización <span class="badge badge-todo">Fase 3</span></a>
+    </div>
+
+    <div class="card">
+      <h2>E — Administración</h2>
+      <a href="pages/admin/dashboard.html">Dashboard Admin <span class="badge badge-todo">Fase 4</span></a>
+      <a href="pages/admin/assignments.html">Asignaciones <span class="badge badge-todo">Fase 4</span></a>
+      <a href="pages/admin/ftp-nas.html">FTP NAS <span class="badge badge-todo">Fase 4</span></a>
+    </div>
+  </div>
+</body>
+</html>

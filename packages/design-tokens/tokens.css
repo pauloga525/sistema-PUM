@@ -1,0 +1,100 @@
+/**
+ * Design Tokens — PUM Web
+ *
+ * Fuente única de verdad visual compartida entre:
+ *   - El prototipo HTML (design-prototype/)
+ *   - La aplicación Next.js (importado en globals.css)
+ *
+ * Por qué variables CSS en lugar de solo clases Tailwind:
+ *   - El prototipo HTML no usa Tailwind; necesita CSS puro
+ *   - Cambiar un color aquí lo actualiza en AMBOS tracks simultáneamente
+ *   - Las variables pueden consumirse en cualquier contexto CSS (keyframes, calc, etc.)
+ *
+ * Convención de nombres: --pum-{categoría}-{variante}
+ * Categorías: color, font, space, radius, layout
+ */
+
+:root {
+  /* ===== PALETA DE COLORES ===== */
+
+  /* Fondos */
+  --pum-color-bg: #F8FAFC;            /* Fondo general de la aplicación */
+  --pum-color-surface: #FFFFFF;       /* Tarjetas, paneles, tablas */
+  --pum-color-surface-alt: #F1F5F9;   /* Fondo alternativo (filas pares, hover) */
+
+  /* Texto */
+  --pum-color-text: #0F172A;          /* Texto principal (slate-900) */
+  --pum-color-text-muted: #64748B;    /* Texto secundario (slate-500) */
+  --pum-color-text-disabled: #CBD5E1; /* Texto deshabilitado (slate-300) */
+  --pum-color-text-inverse: #FFFFFF;  /* Texto sobre fondos oscuros */
+
+  /* Marca */
+  --pum-color-primary: #1E40AF;        /* Azul institucional (blue-800) */
+  --pum-color-primary-hover: #1E3A8A; /* Hover del primario (blue-900) */
+  --pum-color-primary-light: #DBEAFE; /* Fondo tenue primario (blue-100) */
+
+  /* Estados semánticos */
+  --pum-color-success: #059669;       /* Verde — estado Finalizado (emerald-600) */
+  --pum-color-success-light: #D1FAE5; /* Fondo verde tenue (emerald-100) */
+
+  --pum-color-warning: #D97706;       /* Naranja — plazo próximo (amber-600) */
+  --pum-color-warning-light: #FEF3C7; /* Fondo naranja tenue (amber-100) */
+
+  --pum-color-error: #DC2626;         /* Rojo — errores, plazo vencido (red-600) */
+  --pum-color-error-light: #FEE2E2;   /* Fondo rojo tenue (red-100) */
+
+  --pum-color-info: #0284C7;          /* Azul — vista previa (sky-600) */
+  --pum-color-info-light: #E0F2FE;    /* Fondo azul tenue (sky-100) */
+
+  /* Bordes */
+  --pum-color-border: #E2E8F0;        /* Borde estándar (slate-200) */
+  --pum-color-border-strong: #CBD5E1; /* Borde reforzado (slate-300) */
+  --pum-color-border-focus: #1E40AF;  /* Borde de foco (= primary) */
+
+  /* ===== TIPOGRAFÍA ===== */
+  --pum-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --pum-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --pum-font-size-xs: 0.75rem;    /* 12px — labels pequeños */
+  --pum-font-size-sm: 0.8125rem;  /* 13px — texto de tabla */
+  --pum-font-size-base: 0.875rem; /* 14px — texto general */
+  --pum-font-size-md: 1rem;       /* 16px — body estándar */
+  --pum-font-size-lg: 1.125rem;   /* 18px — títulos de sección */
+  --pum-font-size-xl: 1.25rem;    /* 20px — títulos de página */
+
+  --pum-font-weight-normal: 400;
+  --pum-font-weight-medium: 500;
+  --pum-font-weight-semibold: 600;
+  --pum-font-weight-bold: 700;
+
+  --pum-line-height-tight: 1.25;
+  --pum-line-height-normal: 1.5;
+  --pum-line-height-relaxed: 1.75;
+
+  /* ===== ESPACIADO ===== */
+  --pum-space-1: 0.25rem;  /* 4px */
+  --pum-space-2: 0.5rem;   /* 8px */
+  --pum-space-3: 0.75rem;  /* 12px */
+  --pum-space-4: 1rem;     /* 16px */
+  --pum-space-6: 1.5rem;   /* 24px */
+  --pum-space-8: 2rem;     /* 32px */
+
+  /* ===== BORDES ===== */
+  --pum-radius-sm: 4px;
+  --pum-radius-md: 6px;    /* Radio estándar del sistema (rounded-md) */
+  --pum-radius-lg: 8px;
+  --pum-radius-full: 9999px; /* Badges y pills */
+
+  /* ===== LAYOUT ===== */
+  --pum-sidebar-width: 240px;    /* Sidebar del administrador */
+  --pum-topbar-height: 56px;     /* Barra superior (docente y admin) */
+  --pum-content-max-width: 1280px; /* Ancho máximo del contenido */
+
+  /* ===== SOMBRAS ===== */
+  --pum-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --pum-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+
+  /* ===== TRANSICIONES ===== */
+  --pum-transition-fast: 150ms ease;
+  --pum-transition-normal: 200ms ease;
+}
