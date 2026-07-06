@@ -48,6 +48,9 @@ export default function RootLayout({
       className={`${inter.variable} h-full`}
     >
       <body className="min-h-full flex flex-col antialiased bg-pum-bg text-pum-text font-sans">
+        {/* Oculta el indicador de desarrollo de Next.js para todos los roles.
+            El layout de superadmin lo reactiva con display:block !important */}
+        <style>{`nextjs-portal { display: none !important; }`}</style>
         {children}
       </body>
     </html>

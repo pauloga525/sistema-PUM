@@ -101,7 +101,7 @@ function Navbar({ onCta }: { onCta: () => void }) {
   return (
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 md:px-8 py-3 flex items-center justify-between shadow-sm">
       <div className="flex items-center gap-3">
-        <img src="/img/logo-uets.png" alt="UETS" className="w-10 h-10 object-contain" />
+        <img src="/img/logo-uets.png" alt="UETS" className="w-14 h-14 object-contain" />
         <span className="font-semibold text-slate-900 text-lg tracking-tight">PUM Web</span>
       </div>
       <button

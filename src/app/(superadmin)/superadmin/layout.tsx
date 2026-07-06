@@ -29,6 +29,8 @@ export default async function SuperAdminLayout({
 
   return (
     <div className="min-h-screen bg-pum-bg flex flex-col">
+      {/* Reactiva el indicador de Next.js solo para superadmin */}
+      <style>{`nextjs-portal { display: block !important; }`}</style>
 
       {/* ── TopBar ─────────────────────────────────────────────────────── */}
       <header
