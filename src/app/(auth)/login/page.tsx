@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
 import { appConfig } from "@/config/app.config";
@@ -120,8 +121,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             "use server";
             const email = formData.get("email") as string;
             const password = formData.get("password") as string;
+
+            // Construir URL absoluta usando el host real del request (Cloudflare o IP local).
+            // Cloudflare Tunnel pone el dominio público en x-forwarded-host o en host.
+            const reqHeaders = await headers();
+            const fwdHost  = reqHeaders.get("x-forwarded-host");
+            const fwdProto = reqHeaders.get("x-forwarded-proto");
+            const rawHost  = reqHeaders.get("host") ?? "localhost:3000";
+            const host     = fwdHost ?? rawHost;
+            const proto    = fwdProto ?? (host.includes("localhost") ? "http" : "https");
+            const absoluteRedirect = `${proto}://${host}${callbackUrl}`;
+
             try {
-              await signIn("credentials", { email, password, redirectTo: callbackUrl });
+              await signIn("credentials", { email, password, redirectTo: absoluteRedirect });
             } catch (error) {
               if ((error as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw error;
               redirect(`/login?error=CredentialsSignin`);

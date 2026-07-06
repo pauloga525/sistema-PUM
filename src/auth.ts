@@ -58,6 +58,10 @@ const DEV_USERS = [
 ];
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Permite que Auth.js use X-Forwarded-Host / Host para construir URLs de redirect.
+  // Necesario para que Cloudflare Tunnel redirija al dominio correcto (no a la IP interna).
+  trustHost: true,
+
   providers: [
     Credentials({
       credentials: {
