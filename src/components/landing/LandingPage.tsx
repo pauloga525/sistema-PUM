@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { ROUTES } from "@/constants/routes";
 
 const SLIDES = [
   { src: "/img/slide1.png", label: "Planificación de módulos centralizada" },
@@ -97,26 +95,26 @@ const MAPS = [
 
 // ── Navbar ──────────────────────────────────────────────────────────────────
 
-function Navbar({ onCta }: { onCta: () => void }) {
+function Navbar() {
   return (
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 md:px-8 py-3 flex items-center justify-between shadow-sm">
       <div className="flex items-center gap-3">
         <img src="/img/logo-uets.png" alt="UETS" className="w-14 h-14 object-contain" />
         <span className="font-semibold text-slate-900 text-lg tracking-tight">PUM Web</span>
       </div>
-      <button
-        onClick={onCta}
+      <a
+        href="/login"
         className="bg-slate-900 text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-slate-700 active:scale-95 transition-all"
       >
         Ingresar al sistema
-      </button>
+      </a>
     </nav>
   );
 }
 
 // ── Hero ─────────────────────────────────────────────────────────────────────
 
-function Hero({ onCta }: { onCta: () => void }) {
+function Hero() {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
   const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});
@@ -162,12 +160,12 @@ function Hero({ onCta }: { onCta: () => void }) {
             Gestiona, revisa y aprueba planificaciones académicas desde un único lugar, pensado para docentes y coordinadores.
           </p>
 
-          <button
-            onClick={onCta}
+          <a
+            href="/login"
             className="inline-flex items-center gap-2 bg-amber-400 text-slate-900 px-7 py-3 rounded-full font-semibold hover:bg-amber-300 active:scale-95 transition-all text-base shadow-lg"
           >
             Comenzar →
-          </button>
+          </a>
         </div>
 
         {/* Carrusel derecho */}
@@ -481,13 +479,10 @@ function Footer() {
 // ── Página completa ──────────────────────────────────────────────────────────
 
 export function LandingPage() {
-  const router = useRouter();
-  const gotoLogin = () => router.push(ROUTES.LOGIN);
-
   return (
     <div className="min-h-screen font-sans">
-      <Navbar onCta={gotoLogin} />
-      <Hero onCta={gotoLogin} />
+      <Navbar />
+      <Hero />
       <ComoFunciona />
       <Servicios />
       <Footer />
