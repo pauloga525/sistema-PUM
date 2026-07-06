@@ -36,6 +36,7 @@ export const ROUTES = {
     ROOT: "/coordinator",
     RETROALIMENTACION: "/coordinator/retroalimentacion",
     DOCENTES: "/coordinator/docentes",
+    CHANGE_PASSWORD: "/coordinator/change-password",
     review: (planId: string) => `/coordinator/${planId}/review`,
   },
 

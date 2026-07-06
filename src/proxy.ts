@@ -24,13 +24,15 @@ export default auth((req: NextRequest & { auth: { user: { id: string; role: stri
   const session = req.auth;
   const isLoggedIn = !!session?.user;
 
-  const isLoginPage          = nextUrl.pathname === "/login";
-  const isTeacherPath        = nextUrl.pathname.startsWith("/teacher");
-  const isAdminPath          = nextUrl.pathname.startsWith("/admin");
-  const isSuperAdminPath     = nextUrl.pathname.startsWith("/superadmin");
-  const isChangePasswordPath = nextUrl.pathname === "/teacher/change-password";
-  const isAuthApi            = nextUrl.pathname.startsWith("/api/auth");
-  const role                 = session?.user?.role;
+  const isLoginPage                 = nextUrl.pathname === "/login";
+  const isTeacherPath               = nextUrl.pathname.startsWith("/teacher");
+  const isCoordinatorPath           = nextUrl.pathname.startsWith("/coordinator");
+  const isAdminPath                 = nextUrl.pathname.startsWith("/admin");
+  const isSuperAdminPath            = nextUrl.pathname.startsWith("/superadmin");
+  const isTeacherChangePassword     = nextUrl.pathname === "/teacher/change-password";
+  const isCoordinatorChangePassword = nextUrl.pathname === "/coordinator/change-password";
+  const isAuthApi                   = nextUrl.pathname.startsWith("/api/auth");
+  const role                        = session?.user?.role;
 
   if (isAuthApi) return NextResponse.next();
 
@@ -59,8 +61,13 @@ export default auth((req: NextRequest & { auth: { user: { id: string; role: stri
   }
 
   // Docentes con primer login deben cambiar su contraseña antes de continuar
-  if (isLoggedIn && isTeacherPath && !isChangePasswordPath && session?.user?.forcePasswordChange) {
+  if (isLoggedIn && isTeacherPath && !isTeacherChangePassword && session?.user?.forcePasswordChange) {
     return NextResponse.redirect(new URL("/teacher/change-password", req.url));
+  }
+
+  // Coordinadores con primer login deben cambiar su contraseña antes de continuar
+  if (isLoggedIn && isCoordinatorPath && !isCoordinatorChangePassword && session?.user?.forcePasswordChange) {
+    return NextResponse.redirect(new URL("/coordinator/change-password", req.url));
   }
 
   return NextResponse.next();
