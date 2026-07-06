@@ -94,7 +94,11 @@ export default async function CoordinatorLayout({
             {initial}
           </div>
 
-          <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>
+          <form action={async () => {
+            "use server";
+            try { await signOut({ redirectTo: "/login" }); }
+            catch (e) { if ((e as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) redirect("/login"); }
+          }}>
             <button
               type="submit"
               title="Cerrar sesión"

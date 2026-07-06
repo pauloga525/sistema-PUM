@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { auth, signOut } from "@/auth";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma/client";
 
 export type ChangePasswordState = { error?: string } | null;
@@ -47,7 +48,7 @@ export async function changePasswordAction(
   try {
     await signOut({ redirectTo: "/login" });
   } catch (e) {
-    if ((e as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw e;
+    if ((e as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) redirect("/login");
     return { error: "Contraseña actualizada. Por favor inicia sesión con tu nueva contraseña." };
   }
 

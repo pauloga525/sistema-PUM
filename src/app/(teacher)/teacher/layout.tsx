@@ -136,7 +136,8 @@ export default async function TeacherLayout({
           <form
             action={async () => {
               "use server";
-              await signOut({ redirectTo: "/login" });
+              try { await signOut({ redirectTo: "/login" }); }
+              catch (e) { if ((e as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) redirect("/login"); }
             }}
           >
             <button
