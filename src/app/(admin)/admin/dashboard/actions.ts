@@ -3,19 +3,20 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { ROUTES } from "@/constants/routes";
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") redirect(ROUTES.LOGIN);
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
   return session;
 }
 
 export async function signPlanAction(planId: string): Promise<{ success: boolean }> {
-  await requireAdmin();
+  const session = await requireAdmin();
   try {
-    await adminService.signPlan(planId);
+    await adminService.signPlan(planId, session.user.id, session.user.name ?? undefined);
     revalidatePath(ROUTES.ADMIN.DASHBOARD);
     return { success: true };
   } catch {
@@ -24,10 +25,10 @@ export async function signPlanAction(planId: string): Promise<{ success: boolean
 }
 
 export async function rejectPlanAction(planId: string, comment: string): Promise<{ success: boolean }> {
-  await requireAdmin();
+  const session = await requireAdmin();
   if (!comment.trim()) return { success: false };
   try {
-    await adminService.rejectPlan(planId, comment.trim());
+    await adminService.rejectPlan(planId, comment.trim(), session.user.id, session.user.name ?? undefined);
     revalidatePath(ROUTES.ADMIN.DASHBOARD);
     return { success: true };
   } catch {

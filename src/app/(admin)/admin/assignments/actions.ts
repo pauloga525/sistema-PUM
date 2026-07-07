@@ -1,9 +1,18 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
+import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { AppError } from "@/lib/errors/app-error";
 import { ROUTES } from "@/constants/routes";
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
+  return session;
+}
 
 export type AssignmentActionState = { ok?: boolean; error?: string } | null;
 
@@ -11,6 +20,7 @@ export async function createAssignmentAction(
   _prev: AssignmentActionState,
   formData: FormData
 ): Promise<AssignmentActionState> {
+  await requireAdmin();
   const teacherId      = (formData.get("teacherId")      ?? "").toString().trim();
   const subjectId      = (formData.get("subjectId")      ?? "").toString().trim();
   const levelId        = (formData.get("levelId")        ?? "").toString().trim();
@@ -34,6 +44,7 @@ export async function updateAssignmentAction(
   _prev: AssignmentActionState,
   formData: FormData
 ): Promise<AssignmentActionState> {
+  await requireAdmin();
   const id        = (formData.get("id")        ?? "").toString().trim();
   const subjectId = (formData.get("subjectId") ?? "").toString().trim();
   const levelId   = (formData.get("levelId")   ?? "").toString().trim();
@@ -57,6 +68,7 @@ export async function removeAssignmentAction(
   _prev: AssignmentActionState,
   formData: FormData
 ): Promise<AssignmentActionState> {
+  await requireAdmin();
   const id = (formData.get("id") ?? "").toString().trim();
   if (!id) return { error: "ID de asignación requerido." };
   try {

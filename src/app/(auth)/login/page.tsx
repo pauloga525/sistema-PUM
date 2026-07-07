@@ -182,10 +182,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           Tu contraseña inicial es tu número de cédula.
         </p>
 
-        {/* Nota de desarrollo */}
-        <p className="text-[11px] text-pum-text-disabled text-center leading-relaxed">
-          Modo desarrollo · Credenciales de prueba habilitadas
-        </p>
+        {/* Nota de desarrollo — solo visible fuera de producción */}
+        {process.env.NODE_ENV !== "production" && (
+          <p className="text-[11px] text-pum-text-disabled text-center leading-relaxed">
+            Modo desarrollo · Credenciales de prueba habilitadas
+          </p>
+        )}
       </div>
 
       {/* ── Footer externo ── */}

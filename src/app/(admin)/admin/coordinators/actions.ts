@@ -3,12 +3,9 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { ROUTES } from "@/constants/routes";
-
-function isAdmin(role?: string) {
-  return role === "ADMIN";
-}
 
 export type CoordinatorActionState = { ok: true } | { ok: false; error: string } | null;
 
@@ -17,7 +14,7 @@ export async function createCoordinatorAction(
   formData: FormData,
 ): Promise<CoordinatorActionState> {
   const session = await auth();
-  if (!session || !isAdmin(session.user.role)) redirect(ROUTES.LOGIN);
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
 
   const name            = formData.get("name") as string;
   const email           = formData.get("email") as string;
@@ -46,7 +43,7 @@ export async function setCoordinatorSubjectsAction(
   subjectIds: string[],
 ): Promise<CoordinatorActionState> {
   const session = await auth();
-  if (!session || !isAdmin(session.user.role)) return { ok: false, error: "No autorizado" };
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false, error: "No autorizado" };
 
   try {
     await adminService.setCoordinatorSubjects(coordinatorId, subjectIds);
@@ -63,7 +60,7 @@ export async function promoteTeacherToCoordinatorAction(
   formData: FormData,
 ): Promise<CoordinatorActionState> {
   const session = await auth();
-  if (!session || !isAdmin(session.user.role)) redirect(ROUTES.LOGIN);
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
 
   const teacherId       = formData.get("teacherId") as string;
   const coordinatorArea = formData.get("coordinatorArea") as string;
@@ -90,7 +87,7 @@ export async function addCoordinatorTeacherAction(
   teacherId: string,
 ): Promise<CoordinatorActionState> {
   const session = await auth();
-  if (!session || !isAdmin(session.user.role)) return { ok: false, error: "No autorizado" };
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false, error: "No autorizado" };
 
   try {
     await adminService.addCoordinatorTeacher(coordinatorId, teacherId);
@@ -106,7 +103,7 @@ export async function removeCoordinatorAssignmentAction(
   assignmentId: string,
 ): Promise<{ ok: boolean }> {
   const session = await auth();
-  if (!session || !isAdmin(session.user.role)) return { ok: false };
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false };
 
   try {
     await adminService.removeCoordinatorAssignment(assignmentId);
@@ -121,7 +118,7 @@ export async function deleteCoordinatorAction(
   coordinatorId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await auth();
-  if (!session || !isAdmin(session.user.role)) return { ok: false };
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false };
 
   try {
     await adminService.deleteCoordinator(coordinatorId);

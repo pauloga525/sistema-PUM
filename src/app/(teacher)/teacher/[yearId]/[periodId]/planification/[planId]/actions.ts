@@ -20,7 +20,7 @@ export async function saveRowsAction(
   data: SavePlanificationRowsInput
 ): Promise<ActionResult> {
   const session = await auth();
-  if (!session) return { success: false, error: "No autenticado" };
+  if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
 
   const result = SavePlanificationRowsSchema.safeParse(data);
   if (!result.success) {
@@ -43,7 +43,7 @@ export async function saveMetadataAction(
   data: SaveMetadataInput
 ): Promise<ActionResult> {
   const session = await auth();
-  if (!session) return { success: false, error: "No autenticado" };
+  if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
 
   const result = SaveMetadataSchema.safeParse(data);
   if (!result.success) {
@@ -67,7 +67,7 @@ export async function clearCoordinatorFeedbackAction(
   keys: string[]
 ): Promise<void> {
   const session = await auth();
-  if (!session) return;
+  if (!session || session.user.role !== "TEACHER") return;
   const link = await prisma.planificationTeacher.findUnique({
     where: { planificationId_teacherId: { planificationId: planId, teacherId: session.user.id } },
     select: { isEditor: true },
@@ -78,7 +78,7 @@ export async function clearCoordinatorFeedbackAction(
 
 export async function finalizeAction(planificationId: string): Promise<ActionResult> {
   const session = await auth();
-  if (!session) return { success: false, error: "No autenticado" };
+  if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
 
   const result = FinalizePlanificationSchema.safeParse({
     planificationId,

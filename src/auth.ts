@@ -22,7 +22,9 @@ import { rateLimitService, RATE_LIMITS } from "@/modules/security/rate-limit.ser
 
 const log = logger.child("Auth");
 
-const DEV_USERS = [
+// Cuentas de prueba — solo disponibles fuera de producción.
+// En producción este array está vacío y el bloque de búsqueda nunca coincide.
+const DEV_USERS = process.env.NODE_ENV !== "production" ? [
   {
     id: "teacher-dev-1",
     email: "docente@test.com",
@@ -55,7 +57,7 @@ const DEV_USERS = [
     role: "SUPERADMIN" as const,
     forcePasswordChange: false,
   },
-];
+] : [];
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   // Permite que Auth.js use X-Forwarded-Host / Host para construir URLs de redirect.

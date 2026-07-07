@@ -20,7 +20,7 @@ export default async function TeacherLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session || session.user.role !== "TEACHER") redirect("/login");
 
   const publicDir = path.join(process.cwd(), "public");
   const hasLogo      = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));

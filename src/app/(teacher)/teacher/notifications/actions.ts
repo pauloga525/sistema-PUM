@@ -5,6 +5,6 @@ import { notificationsService, type PumNotification } from "@/modules/notificati
 
 export async function getTeacherNotificationsAction(): Promise<PumNotification[]> {
   const session = await auth();
-  if (!session) return [];
+  if (!session || session.user.role !== "TEACHER") return [];
   return notificationsService.getTeacherNotifications(session.user.id);
 }

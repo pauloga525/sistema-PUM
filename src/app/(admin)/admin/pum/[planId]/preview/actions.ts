@@ -3,12 +3,13 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { ROUTES } from "@/constants/routes";
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") redirect(ROUTES.LOGIN);
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
   return session;
 }
 

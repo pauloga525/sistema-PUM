@@ -10,7 +10,7 @@ export async function sendForSignatureAction(
   planId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const session = await auth();
-  if (!session) redirect(ROUTES.LOGIN);
+  if (!session || session.user.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
   try {
     await coordinatorService.sendForSignature(planId, session.user.id);
     revalidatePath("/coordinator/retroalimentacion");

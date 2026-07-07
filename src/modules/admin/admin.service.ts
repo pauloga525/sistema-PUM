@@ -85,8 +85,10 @@ export class AdminService {
   }
 
   async setActiveYear(id: string) {
-    await prisma.academicYear.updateMany({ data: { active: false } });
-    return prisma.academicYear.update({ where: { id }, data: { active: true } });
+    return prisma.$transaction([
+      prisma.academicYear.updateMany({ data: { active: false } }),
+      prisma.academicYear.update({ where: { id }, data: { active: true } }),
+    ]);
   }
 
   // ── Periodos ─────────────────────────────────────────────────────────────────
@@ -500,52 +502,69 @@ export class AdminService {
       orderBy: { name: "asc" },
     });
 
-    return Promise.all(
-      coordinators.map(async (c) => {
-        const teacherIds = c.coordinatorAssignmentsAsCoordinator.map((ca) => ca.teacherId);
-        let totalPlans    = 0;
-        let approvedPlans = 0;
+    const allTeacherIds = coordinators.flatMap((c) =>
+      c.coordinatorAssignmentsAsCoordinator.map((ca) => ca.teacherId)
+    );
 
-        if (teacherIds.length > 0) {
-          const planLinks = await prisma.planificationTeacher.findMany({
+    const [planLinks, allPlansWithReview] = allTeacherIds.length > 0
+      ? await Promise.all([
+          prisma.planificationTeacher.findMany({
             where: {
-              teacherId: { in: teacherIds },
+              teacherId: { in: allTeacherIds },
               planification: { status: "FINALIZED" },
             },
-            select: { planificationId: true },
-          });
-          const planIds = [...new Set(planLinks.map((l) => l.planificationId))];
-          if (planIds.length > 0) {
-            const plans = await prisma.planification.findMany({
-              where: { id: { in: planIds } },
-              include: { review: { select: { status: true } } },
-            });
-            totalPlans    = plans.length;
-            approvedPlans = plans.filter((p) => p.review?.status === "APPROVED").length;
-          }
-        }
+            select: { planificationId: true, teacherId: true },
+          }),
+          prisma.planification.findMany({
+            where: {
+              status: "FINALIZED",
+              teachers: { some: { teacherId: { in: allTeacherIds } } },
+            },
+            include: { review: { select: { status: true } }, teachers: { select: { teacherId: true } } },
+          }),
+        ])
+      : [[], []];
 
-        const teachers = c.coordinatorAssignmentsAsCoordinator.map((ca) => ({
-          assignmentId:  ca.id,
-          teacherId:     ca.teacher.id,
-          teacherName:   ca.teacher.name,
-          teacherEmail:  ca.teacher.email,
-          subjectCount:  new Set(ca.teacher.assignments.map((a) => `${a.subjectId}-${a.levelId}`)).size,
-        }));
-
-        return {
-          id:              c.id,
-          name:            c.name,
-          email:           c.email,
-          cedula:          c.cedula,
-          coordinatorArea: c.coordinatorArea,
-          createdAt:       c.createdAt,
-          teachers,
-          progress:        { total: totalPlans, approved: approvedPlans },
-          assignedSubjectIds: c.coordinatorSubjectLinks.map((s) => s.subjectId),
-        };
-      })
+    const planIdToReviewStatus = new Map(
+      allPlansWithReview.map((p) => [p.id, p.review?.status ?? null])
     );
+    const planTeacherIndex = new Map<string, Set<string>>();
+    for (const link of planLinks) {
+      if (!planTeacherIndex.has(link.teacherId)) planTeacherIndex.set(link.teacherId, new Set());
+      planTeacherIndex.get(link.teacherId)!.add(link.planificationId);
+    }
+
+    return coordinators.map((c) => {
+      const teacherIds = c.coordinatorAssignmentsAsCoordinator.map((ca) => ca.teacherId);
+      const planIds = new Set<string>();
+      for (const tid of teacherIds) {
+        planTeacherIndex.get(tid)?.forEach((pid) => planIds.add(pid));
+      }
+      const totalPlans    = planIds.size;
+      const approvedPlans = [...planIds].filter(
+        (pid) => planIdToReviewStatus.get(pid) === "APPROVED"
+      ).length;
+
+      const teachers = c.coordinatorAssignmentsAsCoordinator.map((ca) => ({
+        assignmentId:  ca.id,
+        teacherId:     ca.teacher.id,
+        teacherName:   ca.teacher.name,
+        teacherEmail:  ca.teacher.email,
+        subjectCount:  new Set(ca.teacher.assignments.map((a) => `${a.subjectId}-${a.levelId}`)).size,
+      }));
+
+      return {
+        id:              c.id,
+        name:            c.name,
+        email:           c.email,
+        cedula:          c.cedula,
+        coordinatorArea: c.coordinatorArea,
+        createdAt:       c.createdAt,
+        teachers,
+        progress:        { total: totalPlans, approved: approvedPlans },
+        assignedSubjectIds: c.coordinatorSubjectLinks.map((s) => s.subjectId),
+      };
+    });
   }
 
   async getTeachersForCoordinatorPanel() {
@@ -681,36 +700,50 @@ export class AdminService {
       orderBy: { name: "asc" },
     });
 
-    return Promise.all(coordinators.map(async (c) => {
+    const allTeacherIds = coordinators.flatMap((c) =>
+      c.coordinatorAssignmentsAsCoordinator.map((a) => a.teacherId)
+    );
+
+    const [overviewLinks, overviewPlans] = allTeacherIds.length > 0
+      ? await Promise.all([
+          prisma.planificationTeacher.findMany({
+            where: { teacherId: { in: allTeacherIds } },
+            select: { planificationId: true, teacherId: true },
+          }),
+          prisma.planification.findMany({
+            where: { teachers: { some: { teacherId: { in: allTeacherIds } } } },
+            select: { id: true, status: true, teachers: { select: { teacherId: true } } },
+          }),
+        ])
+      : [[], []];
+
+    const overviewLinkByTeacher = new Map<string, Set<string>>();
+    for (const link of overviewLinks) {
+      if (!overviewLinkByTeacher.has(link.teacherId))
+        overviewLinkByTeacher.set(link.teacherId, new Set());
+      overviewLinkByTeacher.get(link.teacherId)!.add(link.planificationId);
+    }
+    const overviewPlanMap = new Map(overviewPlans.map((p) => [p.id, p.status]));
+
+    return coordinators.map((c) => {
       const teacherIds = c.coordinatorAssignmentsAsCoordinator.map((a) => a.teacherId);
-      const teacherCount = teacherIds.length;
-
-      const planLinks = teacherIds.length > 0
-        ? await prisma.planificationTeacher.findMany({
-            where: { teacherId: { in: teacherIds } },
-            select: { planificationId: true },
-          })
-        : [];
-
-      const planIds = [...new Set(planLinks.map((l) => l.planificationId))];
-      const allPlans = planIds.length > 0
-        ? await prisma.planification.findMany({
-            where: { id: { in: planIds } },
-            select: { status: true },
-          })
-        : [];
+      const planIds = new Set<string>();
+      for (const tid of teacherIds) {
+        overviewLinkByTeacher.get(tid)?.forEach((pid) => planIds.add(pid));
+      }
+      const statuses = [...planIds].map((pid) => overviewPlanMap.get(pid) ?? "");
 
       return {
         coordinatorId:    c.id,
         coordinatorName:  c.name,
         coordinatorEmail: c.email,
-        teacherCount,
-        pendingReview:    allPlans.filter((p) => ["FINALIZED", "FEEDBACK_RECEIVED"].includes(p.status)).length,
-        pendingSignature: allPlans.filter((p) => p.status === "PENDING_SIGNATURE").length,
-        adminRejected:    allPlans.filter((p) => p.status === "ADMIN_REJECTED").length,
-        signed:           allPlans.filter((p) => p.status === "SIGNED").length,
+        teacherCount:     teacherIds.length,
+        pendingReview:    statuses.filter((s) => ["FINALIZED", "FEEDBACK_RECEIVED"].includes(s)).length,
+        pendingSignature: statuses.filter((s) => s === "PENDING_SIGNATURE").length,
+        adminRejected:    statuses.filter((s) => s === "ADMIN_REJECTED").length,
+        signed:           statuses.filter((s) => s === "SIGNED").length,
       };
-    }));
+    });
   }
 
   // ── Firma de PUMs ────────────────────────────────────────────────────────────

@@ -1,9 +1,18 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
+import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { ROUTES } from "@/constants/routes";
 import { AppError } from "@/lib/errors/app-error";
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
+  return session;
+}
 
 export type CatalogActionState = { ok?: boolean; error?: string } | null;
 
@@ -13,6 +22,7 @@ export async function createAcademicYearAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const label     = (formData.get("label") as string)?.trim();
     const yearStart = parseInt(formData.get("yearStart") as string, 10);
@@ -42,6 +52,7 @@ export async function setActiveYearAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const id = formData.get("id") as string;
     if (!id) return { error: "ID de año lectivo requerido." };
@@ -60,6 +71,7 @@ export async function createPeriodAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const academicYearId = formData.get("academicYearId") as string;
     const name           = (formData.get("name") as string)?.trim();
@@ -92,6 +104,7 @@ export async function deletePeriodAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const id = formData.get("id") as string;
     if (!id) return { error: "ID de periodo requerido." };
@@ -110,6 +123,7 @@ export async function createSubjectAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const name        = (formData.get("name") as string)?.trim();
     const code        = (formData.get("code") as string)?.trim().toUpperCase();
@@ -132,6 +146,7 @@ export async function deleteSubjectAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const id = formData.get("id") as string;
     if (!id) return { error: "ID de materia requerido." };
@@ -148,6 +163,7 @@ export async function addSubjectToLevelAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const subjectId = formData.get("subjectId") as string;
     const levelId   = formData.get("levelId") as string;
@@ -165,6 +181,7 @@ export async function removeSubjectFromLevelAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
+  await requireAdmin();
   try {
     const id = formData.get("id") as string;
     if (!id) return { error: "ID de vínculo requerido." };

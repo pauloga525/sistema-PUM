@@ -59,9 +59,9 @@ export const superAdminPlanService = {
     if (filters.search) {
       const s = filters.search.trim();
       where.OR = [
-        { teacher: { name:  { contains: s, mode: "insensitive" } } },
-        { teacher: { email: { contains: s, mode: "insensitive" } } },
-        { subject: { name:  { contains: s, mode: "insensitive" } } },
+        { teachers: { some: { teacher: { name:  { contains: s, mode: "insensitive" } } } } },
+        { teachers: { some: { teacher: { email: { contains: s, mode: "insensitive" } } } } },
+        { subject:  { name: { contains: s, mode: "insensitive" } } },
       ];
     }
 
