@@ -70,6 +70,8 @@ export const EJES_TRANSVERSALES = [
   { id: 8  as const, label: "Competencias Socioemocionales",   file: "competencias-socioemocionales.png",   abbr: "CS" },
   { id: 9  as const, label: "Competencias Digitales",          file: "competencias-digitales.png",          abbr: "CD" },
   { id: 10 as const, label: "Seguridad Integral",              file: "seguridad-integral.png",              abbr: "SI" },
+  { id: 11 as const, label: "Poner a la persona en el centro", file: "Poner a la persona en el centro.png",  abbr: "PP" },
+  { id: 12 as const, label: "Reducción de las desigualdades",  file: "Reducción de las desigualdades.png",   abbr: "RD" },
 ] as const;
 
 export const EJES_TRANSVERSALES_PATH = "/icons/ejes-transversales/";
