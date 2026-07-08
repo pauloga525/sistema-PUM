@@ -29,11 +29,11 @@ export function assertCanFinalize(plan: Planification): void {
   assertCanEdit(plan);
 
   const hasCompleteRows = plan.rows.some((row) => {
-    const { dcd, ejeTransversales, indicators, resources, evaluations } = row.data;
+    const { dcdItems, indicators, resources, evaluations } = row.data;
     return (
-      dcd &&
+      dcdItems.some((d) => d.text) &&
       indicators.some(Boolean) &&
-      resources.some(Boolean) &&
+      resources.some((r) => r.text) &&
       evaluations.some(Boolean)
     );
   });

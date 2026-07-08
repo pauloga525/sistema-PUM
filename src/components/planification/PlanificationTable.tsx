@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition, useCallback, useRef, useEffect, Fragment } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import type { PlanificationRow, EjeTransversalId, PrincipioIcon } from "@/modules/planification/planification.types";
+import type { PlanificationRow, EjeTransversalId, PrincipioIcon, DcdItem } from "@/modules/planification/planification.types";
+import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 import type { ActionResult } from "@/types";
 import type { SavePlanificationRowsInput } from "@/modules/planification/planification.schema";
-import { EJES_TRANSVERSALES, PRINCIPIO_COLORS } from "@/constants/planification";
+import { EJES_TRANSVERSALES, ERE_SOCIAL, ERE_ODS, ALL_EJES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
 import type { SectionState } from "@/constants/review";
 
 // ── Tipos locales (solo UI) ───────────────────────────────────────────────────
@@ -13,6 +15,12 @@ import type { SectionState } from "@/constants/review";
 interface SubItem {
   localId: string;
   text: string;
+}
+
+interface LocalDcdItem {
+  localId: string;
+  text: string;
+  ejes: EjeTransversalId[];
 }
 
 interface LocalMethodologyItem {
@@ -24,11 +32,10 @@ interface LocalMethodologyItem {
 interface LocalPumRow {
   localId: string;
   id?: string;
-  dcd: string;
-  ejeTransversales: EjeTransversalId[];
+  dcdItems: LocalDcdItem[];
   indicators: SubItem[];
   methodologyItems: LocalMethodologyItem[];
-  resources: SubItem[];
+  resources: LocalMethodologyItem[];
   evaluations: SubItem[];
 }
 
@@ -42,30 +49,34 @@ const newId = () => `lid-${++seq}`;
 
 // ── Conversión servidor → local ───────────────────────────────────────────────
 
-// Backward compat: old DB records stored { principio, numero } (single); new format is { principio, numeros[] }
-function normalizePrinciple(raw: unknown): import("@/modules/planification/planification.types").PrincipioIcon | null {
+// Backward compat: handles old { principio, numeros[] } and { principio, numero } formats
+function normalizePrinciple(raw: unknown): PrincipioIcon | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const principio = r.principio as 1 | 2 | 3;
   if (![1, 2, 3].includes(principio)) return null;
-  if (Array.isArray(r.numeros) && r.numeros.length > 0) return { principio, numeros: r.numeros as number[] };
-  if (typeof r.numero === "number") return { principio, numeros: [r.numero] };
-  return { principio, numeros: [1] };
+  // New format
+  if (typeof r.pauta === "number" && Array.isArray(r.subPautas)) {
+    return { principio, pauta: r.pauta as number, subPautas: r.subPautas as number[] };
+  }
+  // Old format: { principio, numeros[] }
+  if (Array.isArray(r.numeros) && r.numeros.length > 0) {
+    return { principio, pauta: (r.numeros as number[])[0], subPautas: [] };
+  }
+  // Very old: { principio, numero }
+  if (typeof r.numero === "number") return { principio, pauta: r.numero, subPautas: [] };
+  return { principio, pauta: 1, subPautas: [] };
 }
 
 function toLocalRow(r: PlanificationRow): LocalPumRow {
-  // Backward compat: old rows stored ejeTransversal (singular, nullable)
-  const raw = r.data as unknown as Record<string, unknown>;
-  const ejeTransversales: EjeTransversalId[] = Array.isArray(raw.ejeTransversales)
-    ? (raw.ejeTransversales as EjeTransversalId[])
-    : raw.ejeTransversal != null
-    ? [raw.ejeTransversal as EjeTransversalId]
-    : [];
+  const dcdItems: LocalDcdItem[] = r.data.dcdItems.length > 0
+    ? r.data.dcdItems.map(d => ({ localId: newId(), text: d.text, ejes: d.ejes }))
+    : [{ localId: newId(), text: "", ejes: [] }];
+
   return {
     localId: newId(),
     id: r.id,
-    dcd: r.data.dcd,
-    ejeTransversales,
+    dcdItems,
     indicators: r.data.indicators.length > 0
       ? r.data.indicators.map(t => ({ localId: newId(), text: t }))
       : [{ localId: newId(), text: "" }],
@@ -76,8 +87,11 @@ function toLocalRow(r: PlanificationRow): LocalPumRow {
         }))
       : [{ localId: newId(), text: "", principle: null }],
     resources: r.data.resources.length > 0
-      ? r.data.resources.map(t => ({ localId: newId(), text: t }))
-      : [{ localId: newId(), text: "" }],
+      ? r.data.resources.map(m => ({
+          localId: newId(), text: m.text,
+          principle: normalizePrinciple(m.principle as unknown),
+        }))
+      : [{ localId: newId(), text: "", principle: null }],
     evaluations: r.data.evaluations.length > 0
       ? r.data.evaluations.map(t => ({ localId: newId(), text: t }))
       : [{ localId: newId(), text: "" }],
@@ -87,11 +101,10 @@ function toLocalRow(r: PlanificationRow): LocalPumRow {
 function emptyRow(): LocalPumRow {
   return {
     localId: newId(),
-    dcd: "",
-    ejeTransversales: [],
+    dcdItems:        [{ localId: newId(), text: "", ejes: [] }],
     indicators:      [{ localId: newId(), text: "" }],
     methodologyItems:[{ localId: newId(), text: "", principle: null }],
-    resources:       [{ localId: newId(), text: "" }],
+    resources:       [{ localId: newId(), text: "", principle: null }],
     evaluations:     [{ localId: newId(), text: "" }],
   };
 }
@@ -127,6 +140,26 @@ function AutoTextarea({
 
 // ── EjeTransversalSelector ────────────────────────────────────────────────────
 
+function EjeIcon({ file, abbr, size = 40 }: { file: string; abbr: string; size?: number }) {
+  return (
+    <img
+      src={`/icons/ejes-transversales/${file}`}
+      alt={abbr}
+      width={size}
+      height={size}
+      className="w-full h-full object-contain"
+      onError={(e) => {
+        const img = e.target as HTMLImageElement;
+        img.style.display = "none";
+        const span = document.createElement("span");
+        span.className = "text-[0.6rem] font-bold text-pum-text-muted";
+        span.textContent = abbr;
+        img.parentElement?.appendChild(span);
+      }}
+    />
+  );
+}
+
 function EjeTransversalSelector({
   value, onChange, disabled, hasError,
 }: {
@@ -135,15 +168,21 @@ function EjeTransversalSelector({
   disabled?: boolean;
   hasError?: boolean;
 }) {
+  const [ereOpen, setEreOpen] = useState(false);
+
   const toggle = (id: EjeTransversalId) => {
     if (disabled) return;
-    onChange(
-      value.includes(id) ? value.filter((v) => v !== id) : [...value, id]
-    );
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
   };
+
+  const selectedEre = [...ERE_SOCIAL, ...ERE_ODS].filter((e) =>
+    value.includes(e.id as EjeTransversalId)
+  );
+  const ereCount = selectedEre.length;
 
   return (
     <div className={`mt-2 ${hasError ? "p-1.5 rounded-md border border-red-300 bg-red-50" : ""}`}>
+      {/* Iconos principales (1-10) */}
       <div className="flex gap-1.5 flex-wrap">
         {EJES_TRANSVERSALES.map((eje) => {
           const selected = value.includes(eje.id as EjeTransversalId);
@@ -155,30 +194,156 @@ function EjeTransversalSelector({
               disabled={disabled}
               onClick={() => toggle(eje.id as EjeTransversalId)}
               className={`w-10 h-10 rounded-lg overflow-hidden transition-all border-2 flex items-center justify-center ${
-                selected
-                  ? "border-pum-primary ring-2 ring-pum-primary/30"
-                  : "border-transparent hover:border-pum-border bg-pum-bg"
+                selected ? "border-pum-primary ring-2 ring-pum-primary/30" : "border-transparent hover:border-pum-border bg-pum-bg"
               } ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}
             >
-              <img
-                src={`/icons/ejes-transversales/${eje.file}`}
-                alt={eje.abbr}
-                width={40}
-                height={40}
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  img.style.display = "none";
-                  const span = document.createElement("span");
-                  span.className = "text-[0.6rem] font-bold text-pum-text-muted";
-                  span.textContent = eje.abbr;
-                  img.parentElement?.appendChild(span);
-                }}
-              />
+              <EjeIcon file={eje.file} abbr={eje.abbr} />
             </button>
           );
         })}
       </div>
+
+      {/* Iconos ERE seleccionados — mostrar debajo */}
+      {selectedEre.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap mt-1.5">
+          {selectedEre.map((eje) => (
+            <button
+              key={eje.id}
+              type="button"
+              title={`${eje.label} — click para quitar`}
+              disabled={disabled}
+              onClick={() => toggle(eje.id as EjeTransversalId)}
+              className={`w-10 h-10 rounded-lg overflow-hidden transition-all border-2 border-pum-primary ring-2 ring-pum-primary/30 flex items-center justify-center ${
+                disabled ? "opacity-60 cursor-default" : "cursor-pointer"
+              }`}
+            >
+              <EjeIcon file={eje.file} abbr={eje.abbr} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Botón +ERE */}
+      {!disabled && (
+        <button
+          type="button"
+          onClick={() => setEreOpen(true)}
+          className="text-[0.7rem] text-pum-primary hover:underline underline-offset-2 text-left cursor-pointer self-start mt-1.5 transition-colors"
+        >
+          + ERE{ereCount > 0 ? ` (${ereCount})` : ""}
+        </button>
+      )}
+
+      {/* Modal ERE */}
+      {ereOpen && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
+            onClick={() => setEreOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEreOpen(false)}>
+            <div
+              className="bg-white rounded-2xl w-[480px] max-h-[85vh] overflow-y-auto flex flex-col"
+              style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.25)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 bg-white z-10" style={{ borderBottom: "1px solid #f1f5f9" }}>
+                <div>
+                  <span className="text-sm font-bold text-pum-text">Educación Religiosa Escolar</span>
+                  {ereCount > 0 && (
+                    <span className="ml-2 text-xs font-semibold text-pum-primary">{ereCount} seleccionado{ereCount !== 1 ? "s" : ""}</span>
+                  )}
+                </div>
+                <button type="button" onClick={() => setEreOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer text-xl leading-none">×</button>
+              </div>
+
+              <div className="px-5 py-4 flex flex-col gap-5">
+                {/* Grupo: Valores Sociales */}
+                <div>
+                  <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Valores Sociales</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {ERE_SOCIAL.map((eje) => {
+                      const sel = value.includes(eje.id as EjeTransversalId);
+                      return (
+                        <button
+                          key={eje.id}
+                          type="button"
+                          title={eje.label}
+                          onClick={() => toggle(eje.id as EjeTransversalId)}
+                          className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all cursor-pointer ${
+                            sel ? "border-pum-primary ring-2 ring-pum-primary/20 bg-pum-bg" : "border-transparent hover:border-pum-border bg-slate-50"
+                          }`}
+                        >
+                          <div className="w-12 h-12 flex items-center justify-center">
+                            <EjeIcon file={eje.file} abbr={eje.abbr} size={48} />
+                          </div>
+                          <span className="text-[0.6rem] text-center leading-tight text-pum-text line-clamp-2" style={{ maxWidth: "72px" }}>{eje.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Grupo: ODS */}
+                <div>
+                  <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Objetivos de Desarrollo Sostenible</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {ERE_ODS.map((eje) => {
+                      const sel = value.includes(eje.id as EjeTransversalId);
+                      return (
+                        <button
+                          key={eje.id}
+                          type="button"
+                          title={eje.label}
+                          onClick={() => toggle(eje.id as EjeTransversalId)}
+                          className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all cursor-pointer ${
+                            sel ? "border-pum-primary ring-2 ring-pum-primary/20 bg-pum-bg" : "border-transparent hover:border-pum-border bg-slate-50"
+                          }`}
+                        >
+                          <div className="w-12 h-12 flex items-center justify-center">
+                            <EjeIcon file={eje.file} abbr={eje.abbr} size={48} />
+                          </div>
+                          <span className="text-[0.6rem] text-center leading-tight text-pum-text line-clamp-2" style={{ maxWidth: "72px" }}>{eje.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="sticky bottom-0 bg-white px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid #f1f5f9" }}>
+                {ereCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ereIds = new Set<EjeTransversalId>([...ERE_SOCIAL, ...ERE_ODS].map((e) => e.id as EjeTransversalId));
+                      onChange(value.filter((id) => !ereIds.has(id)));
+                    }}
+                    className="text-xs text-red-400 hover:text-red-600 cursor-pointer"
+                  >
+                    Quitar todos
+                  </button>
+                )}
+                <div className="ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setEreOpen(false)}
+                    className="text-xs font-bold px-4 py-1.5 rounded-xl text-white cursor-pointer"
+                    style={{ backgroundColor: "#002753" }}
+                  >
+                    ✓ Listo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
@@ -186,27 +351,28 @@ function EjeTransversalSelector({
 // ── PrincipleBadge ────────────────────────────────────────────────────────────
 
 function PrincipleBadge({
-  principle, isOpen, disabled, pautaCounts,
-  onToggle, onPickPrincipio, onToggleNumero, onClear,
+  principle, isOpen, disabled,
+  onToggle, onPickPrincipio, onPickPauta, onToggleSubPauta, onClear,
 }: {
   principle: PrincipioIcon | null;
   isOpen: boolean;
   disabled?: boolean;
-  pautaCounts: { 1: number; 2: number; 3: number };
   onToggle: () => void;
   onPickPrincipio: (p: 1 | 2 | 3) => void;
-  onToggleNumero: (n: number) => void;
+  onPickPauta: (pauta: number) => void;
+  onToggleSubPauta: (n: number) => void;
   onClear: () => void;
 }) {
   const color = principle ? PRINCIPIO_COLORS[principle.principio] : "#94A3B8";
-  const nums  = principle?.numeros ?? [];
-  const label = principle
-    ? `P${principle.principio}${nums.length > 0 ? `.${nums.join(",")}` : ""}`
-    : "P?";
+  const label = principle ? formatPrincipioLabel(principle) : "P?";
 
-  // Numbers available for the selected principle (from pautas filled in step 1)
-  const maxNum = principle ? (pautaCounts[principle.principio] ?? 0) : 0;
-  const availableNums = maxNum > 0 ? Array.from({ length: maxNum }, (_, i) => i + 1) : [];
+  // Sub-pautas disponibles para la pauta actualmente seleccionada
+  const currentPrincipioDef = principle
+    ? DUA_PRINCIPIOS.find((p) => p.num === principle.principio)
+    : undefined;
+  const currentPautaDef = principle && currentPrincipioDef
+    ? currentPrincipioDef.pautas.find((p) => p.num === principle.pauta)
+    : undefined;
 
   return (
     <div className="relative shrink-0">
@@ -214,7 +380,7 @@ function PrincipleBadge({
         type="button"
         title={principle ? `${label} — click para editar` : "Seleccionar principio DUA"}
         onClick={disabled ? undefined : onToggle}
-        className={`min-w-[2.25rem] h-9 px-1.5 rounded-full flex items-center justify-center text-[0.58rem] font-bold text-white transition-all ${
+        className={`min-w-[2.75rem] h-9 px-1.5 rounded-full flex items-center justify-center text-[0.58rem] font-bold text-white transition-all ${
           disabled ? "opacity-60 cursor-default" : "cursor-pointer hover:opacity-90"
         } ${isOpen ? "ring-2 ring-offset-1" : ""}`}
         style={{ backgroundColor: color, ...(isOpen ? { outlineColor: color } : {}) }}
@@ -222,87 +388,133 @@ function PrincipleBadge({
         {label}
       </button>
 
-      {isOpen && !disabled && (
+      {isOpen && !disabled && createPortal(
         <>
-          {/* Backdrop — closes modal when clicking outside */}
+          {/* Backdrop */}
           <div
-            className="fixed inset-0 z-20"
+            className="fixed inset-0 z-40"
+            style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
             onClick={onToggle}
             aria-hidden="true"
           />
-          <div className="absolute z-30 top-10 left-0 bg-white border border-pum-border shadow-pum-md rounded-xl p-3 w-52">
-            {/* Principio selector */}
-            <p className="text-[0.65rem] font-semibold text-pum-text-muted mb-1.5">Principio DUA</p>
-            <div className="flex gap-1 mb-3">
-              {([1, 2, 3] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => onPickPrincipio(p)}
-                  className={`flex-1 py-1.5 text-xs font-bold text-white rounded-md cursor-pointer transition-opacity ${
-                    principle?.principio === p ? "opacity-100 ring-2 ring-offset-1 ring-slate-300" : "opacity-70 hover:opacity-100"
-                  }`}
-                  style={{ backgroundColor: PRINCIPIO_COLORS[p] }}
-                >
-                  P{p}
-                </button>
-              ))}
-            </div>
 
-            {/* Pauta numbers — only shown when a principle is selected */}
-            {principle && (
-              <>
-                <p className="text-[0.65rem] font-semibold text-pum-text-muted mb-1.5">
-                  Pautas (selecciona una o varias)
-                </p>
-                {availableNums.length === 0 ? (
-                  <p className="text-[0.65rem] text-pum-text-disabled italic mb-2">
-                    Sin pautas — completa el Paso 1 primero
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {availableNums.map((n) => {
-                      const selected = nums.includes(n);
-                      return (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => onToggleNumero(n)}
-                          className="w-7 h-7 text-xs font-semibold rounded-md cursor-pointer transition-all border"
-                          style={
-                            selected
-                              ? { backgroundColor: color, color: "#fff", borderColor: color }
-                              : { backgroundColor: "transparent", color: "#374151", borderColor: "#d1d5db" }
-                          }
-                        >
-                          {n}
-                        </button>
-                      );
-                    })}
+          {/* Modal centrado */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onToggle}>
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-80 max-h-[90vh] overflow-y-auto"
+              style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.25)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid #f1f5f9" }}>
+                <span className="text-sm font-bold text-pum-text">Principio DUA</span>
+                <button type="button" onClick={onToggle} className="text-slate-400 hover:text-slate-600 cursor-pointer text-lg leading-none">×</button>
+              </div>
+
+              <div className="px-5 py-4 flex flex-col gap-4">
+                {/* Selector de principio */}
+                <div>
+                  <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Principio</p>
+                  <div className="flex gap-2">
+                    {([1, 2, 3] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => onPickPrincipio(p)}
+                        className={`flex-1 py-2 text-sm font-bold text-white rounded-xl cursor-pointer transition-all ${
+                          principle?.principio === p ? "ring-2 ring-offset-2" : "opacity-60 hover:opacity-85"
+                        }`}
+                        style={{
+                          backgroundColor: PRINCIPIO_COLORS[p],
+                          ...(principle?.principio === p ? { ringColor: PRINCIPIO_COLORS[p] } : {}),
+                        }}
+                      >
+                        P{p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selector de pauta */}
+                {principle && currentPrincipioDef && (
+                  <div>
+                    <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Pauta</p>
+                    <div className="flex flex-col gap-1.5">
+                      {currentPrincipioDef.pautas.map((pd) => {
+                        const selected = principle.pauta === pd.num;
+                        return (
+                          <button
+                            key={pd.num}
+                            type="button"
+                            onClick={() => onPickPauta(pd.num)}
+                            className="text-left text-xs px-3 py-2 rounded-xl cursor-pointer transition-all border"
+                            style={
+                              selected
+                                ? { backgroundColor: color, color: "#fff", borderColor: color, fontWeight: 600 }
+                                : { backgroundColor: "#f8fafc", color: "#374151", borderColor: "#e2e8f0" }
+                            }
+                          >
+                            {pd.num}. {pd.label.replace(/^Pauta \d+:\s*/, "")}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
-              </>
-            )}
 
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={onClear}
-                className="text-[0.65rem] text-red-400 hover:text-red-600 cursor-pointer"
-              >
-                Quitar principio
-              </button>
-              <button
-                type="button"
-                onClick={onToggle}
-                className="text-[0.65rem] font-bold px-2.5 py-1 rounded-lg text-white cursor-pointer"
-                style={{ backgroundColor: color !== "#94A3B8" ? color : "#64748b" }}
-              >
-                ✓ Guardar
-              </button>
+                {/* Sub-pautas */}
+                {principle && currentPautaDef && (
+                  <div>
+                    <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Sub-pautas</p>
+                    <div className="flex flex-col gap-1.5">
+                      {currentPautaDef.subPautas.map((sp) => {
+                        const checked = principle.subPautas.includes(sp.num);
+                        return (
+                          <button
+                            key={sp.num}
+                            type="button"
+                            onClick={() => onToggleSubPauta(sp.num)}
+                            className="text-left text-xs px-3 py-2 rounded-xl cursor-pointer transition-all border"
+                            style={
+                              checked
+                                ? { backgroundColor: color, color: "#fff", borderColor: color, fontWeight: 600 }
+                                : { backgroundColor: "#f8fafc", color: "#374151", borderColor: "#e2e8f0" }
+                            }
+                          >
+                            <span style={{ fontWeight: checked ? 700 : 500 }}>
+                              {principle.principio}:{principle.pauta}.{sp.num}
+                            </span>{" "}
+                            — {sp.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: "1px solid #f1f5f9" }}>
+                <button
+                  type="button"
+                  onClick={onClear}
+                  className="text-xs text-red-400 hover:text-red-600 cursor-pointer"
+                >
+                  Quitar principio
+                </button>
+                <button
+                  type="button"
+                  onClick={onToggle}
+                  className="text-xs font-bold px-4 py-1.5 rounded-xl text-white cursor-pointer"
+                  style={{ backgroundColor: color !== "#94A3B8" ? color : "#64748b" }}
+                >
+                  ✓ Listo
+                </button>
+              </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
@@ -359,20 +571,21 @@ function SubItemList({
 // ── MethodologyItemsList ──────────────────────────────────────────────────────
 
 function MethodologyItemsList({
-  items, disabled, openPickerId, pautaCounts,
+  items, disabled, openPickerId, placeholder,
   onAdd, onRemove, onUpdateText,
-  onTogglePicker, onPickPrincipio, onToggleNumero, onClearPrinciple,
+  onTogglePicker, onPickPrincipio, onPickPauta, onToggleSubPauta, onClearPrinciple,
 }: {
   items: LocalMethodologyItem[];
   disabled?: boolean;
   openPickerId: string | null;
-  pautaCounts: { 1: number; 2: number; 3: number };
+  placeholder?: string;
   onAdd: () => void;
   onRemove: (localId: string) => void;
   onUpdateText: (localId: string, value: string) => void;
   onTogglePicker: (localId: string) => void;
   onPickPrincipio: (itemLocalId: string, p: 1 | 2 | 3) => void;
-  onToggleNumero: (itemLocalId: string, n: number) => void;
+  onPickPauta: (itemLocalId: string, pauta: number) => void;
+  onToggleSubPauta: (itemLocalId: string, n: number) => void;
   onClearPrinciple: (localId: string) => void;
 }) {
   return (
@@ -383,17 +596,17 @@ function MethodologyItemsList({
             principle={item.principle}
             isOpen={openPickerId === item.localId}
             disabled={disabled}
-            pautaCounts={pautaCounts}
             onToggle={() => onTogglePicker(item.localId)}
             onPickPrincipio={(p) => onPickPrincipio(item.localId, p)}
-            onToggleNumero={(n) => onToggleNumero(item.localId, n)}
+            onPickPauta={(pauta) => onPickPauta(item.localId, pauta)}
+            onToggleSubPauta={(n) => onToggleSubPauta(item.localId, n)}
             onClear={() => onClearPrinciple(item.localId)}
           />
           <AutoTextarea
             value={item.text}
             onChange={(v) => onUpdateText(item.localId, v)}
             disabled={disabled}
-            placeholder="Estrategia o actividad..."
+            placeholder={placeholder ?? "Estrategia o actividad..."}
             className="flex-1"
           />
           {!disabled && (
@@ -472,7 +685,7 @@ function FinalizeDialog({
 // ── PlanificationTable ────────────────────────────────────────────────────────
 
 export function PlanificationTable({
-  planId, initialRows, isFinalized, onSave, onFinalize, onClearFeedback, rowFeedback, pautaCounts,
+  planId, initialRows, isFinalized, onSave, onFinalize, onClearFeedback, rowFeedback,
 }: {
   planId: string;
   initialRows: PlanificationRow[];
@@ -481,7 +694,6 @@ export function PlanificationTable({
   onFinalize: PlanFinalizeAction;
   onClearFeedback?: (planId: string, keys: string[]) => Promise<void>;
   rowFeedback?: Record<number, SectionState>;
-  pautaCounts?: { 1: number; 2: number; 3: number };
 }) {
   const router = useRouter();
 
@@ -526,11 +738,10 @@ export function PlanificationTable({
       ...(r.id ? { id: r.id } : {}),
       rowIndex: i,
       data: {
-        dcd: r.dcd,
-        ejeTransversales: r.ejeTransversales,
+        dcdItems:         r.dcdItems.map((d) => ({ text: d.text, ejes: d.ejes })),
         indicators:       r.indicators.map((s) => s.text),
         methodologyItems: r.methodologyItems.map((m) => ({ text: m.text, principle: m.principle })),
-        resources:        r.resources.map((s) => s.text),
+        resources:        r.resources.map((m) => ({ text: m.text, principle: m.principle })),
         evaluations:      r.evaluations.map((s) => s.text),
       },
     })),
@@ -584,19 +795,43 @@ export function PlanificationTable({
 
   // ── Mutaciones de filas ───────────────────────────────────────────────────
 
-  const updateDcd = (localId: string, v: string) => {
-    setRows((p) => p.map((r) => r.localId === localId ? { ...r, dcd: v } : r));
-    markRowEdited(localId);
-    markDirty();
+  const addDcdItem = (rowId: string) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, dcdItems: [...r.dcdItems, { localId: newId(), text: "", ejes: [] }] }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
   };
 
-  const updateEjes = (localId: string, ejes: EjeTransversalId[]) => {
-    setRows((p) => p.map((r) => r.localId === localId ? { ...r, ejeTransversales: ejes } : r));
-    markRowEdited(localId);
-    markDirty();
+  const removeDcdItem = (rowId: string, itemId: string) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, dcdItems: r.dcdItems.filter((d) => d.localId !== itemId) }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
   };
 
-  type SimpleListKey = "indicators" | "resources" | "evaluations";
+  const updateDcdText = (rowId: string, itemId: string, v: string) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, dcdItems: r.dcdItems.map((d) => d.localId === itemId ? { ...d, text: v } : d) }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  const updateDcdEjes = (rowId: string, itemId: string, ejes: EjeTransversalId[]) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, dcdItems: r.dcdItems.map((d) => d.localId === itemId ? { ...d, ejes } : d) }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  type SimpleListKey = "indicators" | "evaluations";
 
   const addSubItem = (rowId: string, field: SimpleListKey) => {
     setRows((p) => p.map((r) =>
@@ -658,8 +893,6 @@ export function PlanificationTable({
     markDirty();
   };
 
-  const safePautaCounts = pautaCounts ?? { 1: 0, 2: 0, 3: 0 };
-
   const handlePickPrincipio = (rowId: string, itemId: string, principio: 1 | 2 | 3) => {
     setRows((p) => p.map((r) =>
       r.localId === rowId
@@ -667,11 +900,9 @@ export function PlanificationTable({
             ...r,
             methodologyItems: r.methodologyItems.map((i) => {
               if (i.localId !== itemId) return i;
-              // Keep existing numeros only if same principle, else reset to [1]
-              const numeros = i.principle?.principio === principio
-                ? i.principle.numeros
-                : [1];
-              return { ...i, principle: { principio, numeros } };
+              // Keep pauta only if same principle, else reset
+              const pauta = i.principle?.principio === principio ? i.principle.pauta : 1;
+              return { ...i, principle: { principio, pauta, subPautas: [] } };
             }),
           }
         : r
@@ -680,20 +911,34 @@ export function PlanificationTable({
     markDirty();
   };
 
-  const handleToggleNumero = (rowId: string, itemId: string, numero: number) => {
+  const handlePickPauta = (rowId: string, itemId: string, pauta: number) => {
     setRows((p) => p.map((r) =>
       r.localId === rowId
         ? {
             ...r,
             methodologyItems: r.methodologyItems.map((i) => {
               if (i.localId !== itemId || !i.principle) return i;
-              const current = i.principle.numeros;
-              const newNumeros = current.includes(numero)
-                ? current.filter((n) => n !== numero)
-                : [...current, numero].sort((a, b) => a - b);
-              // Must keep at least one selected
-              if (newNumeros.length === 0) return i;
-              return { ...i, principle: { ...i.principle, numeros: newNumeros } };
+              return { ...i, principle: { ...i.principle, pauta, subPautas: [] } };
+            }),
+          }
+        : r
+    ));
+    markRowEdited(rowId);
+    markDirty();
+  };
+
+  const handleToggleSubPauta = (rowId: string, itemId: string, n: number) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? {
+            ...r,
+            methodologyItems: r.methodologyItems.map((i) => {
+              if (i.localId !== itemId || !i.principle) return i;
+              const current = i.principle.subPautas;
+              const newSubs = current.includes(n)
+                ? current.filter((s) => s !== n)
+                : [...current, n].sort((a, b) => a - b);
+              return { ...i, principle: { ...i.principle, subPautas: newSubs } };
             }),
           }
         : r
@@ -711,6 +956,95 @@ export function PlanificationTable({
     setOpenPrinciplePicker(null);
     markRowEdited(rowId);
     markDirty();
+  };
+
+  // ── Handlers recursos (con badge DUA) ────────────────────────────────────
+
+  const addResourceItem = (rowId: string) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, resources: [...r.resources, { localId: newId(), text: "", principle: null }] }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  const removeResourceItem = (rowId: string, itemId: string) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, resources: r.resources.filter((i) => i.localId !== itemId) }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  const updateResourceText = (rowId: string, itemId: string, v: string) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, resources: r.resources.map((i) => i.localId === itemId ? { ...i, text: v } : i) }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  const handlePickPrincipioRes = (rowId: string, itemId: string, principio: 1 | 2 | 3) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? {
+            ...r,
+            resources: r.resources.map((i) => {
+              if (i.localId !== itemId) return i;
+              const pauta = i.principle?.principio === principio ? i.principle.pauta : 1;
+              return { ...i, principle: { principio, pauta, subPautas: [] } };
+            }),
+          }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  const handlePickPautaRes = (rowId: string, itemId: string, pauta: number) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? {
+            ...r,
+            resources: r.resources.map((i) => {
+              if (i.localId !== itemId || !i.principle) return i;
+              return { ...i, principle: { ...i.principle, pauta, subPautas: [] } };
+            }),
+          }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  const handleToggleSubPautaRes = (rowId: string, itemId: string, n: number) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? {
+            ...r,
+            resources: r.resources.map((i) => {
+              if (i.localId !== itemId || !i.principle) return i;
+              const current = i.principle.subPautas;
+              const newSubs = current.includes(n)
+                ? current.filter((s) => s !== n)
+                : [...current, n].sort((a, b) => a - b);
+              return { ...i, principle: { ...i.principle, subPautas: newSubs } };
+            }),
+          }
+        : r
+    ));
+    markRowEdited(rowId); markDirty();
+  };
+
+  const clearPrincipleRes = (rowId: string, itemId: string) => {
+    setRows((p) => p.map((r) =>
+      r.localId === rowId
+        ? { ...r, resources: r.resources.map((i) => i.localId === itemId ? { ...i, principle: null } : i) }
+        : r
+    ));
+    setOpenPrinciplePicker(null);
+    markRowEdited(rowId); markDirty();
   };
 
   const addRow = () => { setRows((p) => [...p, emptyRow()]); markDirty(); };
@@ -856,18 +1190,49 @@ export function PlanificationTable({
 
                 {/* ¿Qué van a aprender? */}
                 <td className="px-3 py-2 border-r border-pum-border" style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                  <AutoTextarea
-                    value={row.dcd}
-                    onChange={(v) => updateDcd(row.localId, v)}
-                    disabled={isFinalized}
-                    placeholder="Destreza con Criterio de Desempeño..."
-                  />
-                  <EjeTransversalSelector
-                    value={row.ejeTransversales}
-                    onChange={(ejes) => updateEjes(row.localId, ejes)}
-                    disabled={isFinalized}
-                    hasError={false}
-                  />
+                  <div className="flex flex-col gap-3">
+                    {row.dcdItems.map((dcdItem, dIdx) => (
+                      <div key={dcdItem.localId} className="flex flex-col gap-1">
+                        <div className="flex gap-1 items-start">
+                          <AutoTextarea
+                            value={dcdItem.text}
+                            onChange={(v) => updateDcdText(row.localId, dcdItem.localId, v)}
+                            disabled={isFinalized}
+                            placeholder="Destreza con Criterio de Desempeño..."
+                            className="flex-1"
+                          />
+                          {!isFinalized && row.dcdItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeDcdItem(row.localId, dcdItem.localId)}
+                              title="Eliminar destreza"
+                              className="text-pum-text-disabled hover:text-pum-error mt-1 leading-none text-base cursor-pointer shrink-0 transition-colors"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                        <EjeTransversalSelector
+                          value={dcdItem.ejes}
+                          onChange={(ejes) => updateDcdEjes(row.localId, dcdItem.localId, ejes)}
+                          disabled={isFinalized}
+                          hasError={false}
+                        />
+                        {dIdx < row.dcdItems.length - 1 && (
+                          <div className="border-t border-pum-border mt-1" />
+                        )}
+                      </div>
+                    ))}
+                    {!isFinalized && (
+                      <button
+                        type="button"
+                        onClick={() => addDcdItem(row.localId)}
+                        className="text-[0.7rem] text-pum-primary hover:underline underline-offset-2 text-left cursor-pointer self-start transition-colors"
+                      >
+                        + agregar destreza
+                      </button>
+                    )}
+                  </div>
                 </td>
 
                 {/* ¿Qué evaluar? */}
@@ -888,7 +1253,6 @@ export function PlanificationTable({
                     items={row.methodologyItems}
                     disabled={isFinalized}
                     openPickerId={openPrinciplePicker}
-                    pautaCounts={safePautaCounts}
                     onAdd={() => addMethodologyItem(row.localId)}
                     onRemove={(id) => removeMethodologyItem(row.localId, id)}
                     onUpdateText={(id, v) => updateMethodologyText(row.localId, id, v)}
@@ -896,20 +1260,29 @@ export function PlanificationTable({
                       setOpenPrinciplePicker(openPrinciplePicker === id ? null : id)
                     }
                     onPickPrincipio={(id, p) => handlePickPrincipio(row.localId, id, p)}
-                    onToggleNumero={(id, n) => handleToggleNumero(row.localId, id, n)}
+                    onPickPauta={(id, pauta) => handlePickPauta(row.localId, id, pauta)}
+                    onToggleSubPauta={(id, n) => handleToggleSubPauta(row.localId, id, n)}
                     onClearPrinciple={(id) => clearPrinciple(row.localId, id)}
                   />
                 </td>
 
                 {/* Recursos */}
                 <td className="px-3 py-2 border-r border-pum-border" style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                  <SubItemList
+                  <MethodologyItemsList
                     items={row.resources}
                     disabled={isFinalized}
                     placeholder="Material o recurso..."
-                    onAdd={() => addSubItem(row.localId, "resources")}
-                    onRemove={(id) => removeSubItem(row.localId, "resources", id)}
-                    onUpdate={(id, v) => updateSubItem(row.localId, "resources", id, v)}
+                    openPickerId={openPrinciplePicker}
+                    onAdd={() => addResourceItem(row.localId)}
+                    onRemove={(id) => removeResourceItem(row.localId, id)}
+                    onUpdateText={(id, v) => updateResourceText(row.localId, id, v)}
+                    onTogglePicker={(id) =>
+                      setOpenPrinciplePicker(openPrinciplePicker === id ? null : id)
+                    }
+                    onPickPrincipio={(id, p) => handlePickPrincipioRes(row.localId, id, p)}
+                    onPickPauta={(id, p) => handlePickPautaRes(row.localId, id, p)}
+                    onToggleSubPauta={(id, n) => handleToggleSubPautaRes(row.localId, id, n)}
+                    onClearPrinciple={(id) => clearPrincipleRes(row.localId, id)}
                   />
                 </td>
 

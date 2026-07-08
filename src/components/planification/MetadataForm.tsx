@@ -3,44 +3,13 @@
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import type { PlanMetadata, AporteMultimodal } from "@/modules/planification/planification.types";
+import type { PlanMetadata, AporteMultimodal, DuaSelection } from "@/modules/planification/planification.types";
+import { DUA_PRINCIPIOS } from "@/constants/planification";
 import type { SaveMetadataInput } from "@/modules/planification/planification.schema";
 import type { ActionResult } from "@/types";
 import type { SectionStates, SectionState } from "@/constants/review";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-// ── Pautas DUA predefinidas ───────────────────────────────────────────────────
-
-export const DUA_PRINCIPIOS = [
-  {
-    key:    "p1" as const,
-    label:  "P I: PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN",
-    pautas: [
-      "Pauta 1: Proporcionar opciones de percepción",
-      "Pauta 2: Proporcionar las opciones de lenguaje y los símbolos",
-      "Pauta 3: Proporcionar las opciones de la comprensión",
-    ],
-  },
-  {
-    key:    "p2" as const,
-    label:  "P II: OFRECER MÚLTIPLES MEDIOS PARA LA ACCIÓN Y EXPRESIÓN",
-    pautas: [
-      "Pauta 1: Proporcionar opciones para la acción física",
-      "Pauta 2: Proporcionar opciones de habilidades expresivas y la fluidez",
-      "Pauta 3: Proporcionar opciones para las funciones ejecutivas",
-    ],
-  },
-  {
-    key:    "p3" as const,
-    label:  "P III: PROPORCIONAR MÚLTIPLES MEDIOS PARA LA MOTIVACIÓN E IMPLICACIÓN EN EL APRENDIZAJE",
-    pautas: [
-      "Pauta 1: Ofrecer opciones para reclutar el interés",
-      "Pauta 2: Proporcionar opciones para mantener el esfuerzo y la persistencia",
-      "Pauta 3: Proporcionar opciones para la autorregulación",
-    ],
-  },
-] as const;
 
 function emptyMetadata(): PlanMetadata {
   return {
@@ -54,9 +23,9 @@ function emptyMetadata(): PlanMetadata {
     fechFin: "",
     ejesTransversales: "",
     aportes: Array.from({ length: 6 }, () => ({ dim: "", aporte: "", como: "" })),
-    p1Pautas: [],
-    p2Pautas: [],
-    p3Pautas: [],
+    p1: null,
+    p2: null,
+    p3: null,
   };
 }
 
@@ -67,9 +36,9 @@ function mergeWithEmpty(saved: PlanMetadata | null): PlanMetadata {
     ...saved,
     objetivos: saved.objetivos.length ? saved.objetivos : [""],
     criterios: saved.criterios.length ? saved.criterios : [""],
-    p1Pautas:  saved.p1Pautas ?? [],
-    p2Pautas:  saved.p2Pautas ?? [],
-    p3Pautas:  saved.p3Pautas ?? [],
+    p1: saved.p1 ?? null,
+    p2: saved.p2 ?? null,
+    p3: saved.p3 ?? null,
     aportes: [
       ...saved.aportes,
       ...Array.from(
@@ -411,6 +380,8 @@ export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onC
   const [errorMsg, setErrorMsg] = useState("");
   const [errors, setErrors]     = useState<ValidationErrors>({});
   const [isPending, startTransition] = useTransition();
+  // Qué pautas están expandidas por principio (solo UI, no afecta los datos)
+  const [expandedPautas, setExpandedPautas] = useState<Record<"p1" | "p2" | "p3", number[]>>({ p1: [], p2: [], p3: [] });
 
   // Local copy of coordinator feedback — cleared per-section when the teacher edits that field
   const [localFeedback, setLocalFeedback] = useState<SectionStates>(() => ({ ...(coordinatorFeedback ?? {}) }));
@@ -456,9 +427,6 @@ export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onC
         objetivos: form.objetivos.filter(Boolean),
         criterios: form.criterios.filter(Boolean),
         aportes:   form.aportes.filter((a) => a.dim || a.aporte || a.como),
-        p1Pautas:  form.p1Pautas.filter(Boolean),
-        p2Pautas:  form.p2Pautas.filter(Boolean),
-        p3Pautas:  form.p3Pautas.filter(Boolean),
       },
     };
   }
@@ -727,42 +695,41 @@ export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onC
         <section>
           <SectionTitle>Diseño Universal del Aprendizaje — Pautas</SectionTitle>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {DUA_PRINCIPIOS.map((p, pi) => {
-              const fieldKey  = `p${pi + 1}Pautas` as "p1Pautas" | "p2Pautas" | "p3Pautas";
-              const reviewKey = `dua_p${pi + 1}`   as "dua_p1"   | "dua_p2"   | "dua_p3";
-              const allSelected: string[] = (form[fieldKey] as string[]) ?? [];
+            {DUA_PRINCIPIOS.map((p) => {
+              const fieldKey  = p.key as "p1" | "p2" | "p3";
+              const reviewKey = `dua_${p.key}` as "dua_p1" | "dua_p2" | "dua_p3";
+              const selection: DuaSelection = (form[fieldKey] as DuaSelection | null) ?? [];
+              const opened = expandedPautas[fieldKey];
 
-              const predefinedSet      = new Set(p.pautas as readonly string[]);
-              const predefinedSelected = allSelected.filter((x) => predefinedSet.has(x));
-              const customPautas       = allSelected.filter((x) => !predefinedSet.has(x));
+              function toggleExpand(pautaNum: number) {
+                setExpandedPautas((prev) => {
+                  const cur = prev[fieldKey];
+                  const isOpen = cur.includes(pautaNum);
+                  return { ...prev, [fieldKey]: isOpen ? cur.filter((n) => n !== pautaNum) : [...cur, pautaNum] };
+                });
+              }
 
-              function toggle(pauta: string) {
-                const isChecked    = predefinedSelected.includes(pauta);
-                const newPredefined = isChecked
-                  ? predefinedSelected.filter((x) => x !== pauta)
-                  : [...predefinedSelected, pauta];
-                set(fieldKey, [...newPredefined, ...customPautas]);
+              function toggleSubPauta(pautaNum: number, subNum: number) {
+                if (disabled) return;
+                const current: DuaSelection = (form[fieldKey] as DuaSelection | null) ?? [];
+                const existing = current.find((e) => e.pauta === pautaNum);
+                let updated: DuaSelection;
+                if (!existing) {
+                  updated = [...current, { pauta: pautaNum, subPautas: [subNum] }];
+                } else {
+                  const newSubs = existing.subPautas.includes(subNum)
+                    ? existing.subPautas.filter((n) => n !== subNum)
+                    : [...existing.subPautas, subNum].sort((a, b) => a - b);
+                  updated = newSubs.length === 0
+                    ? current.filter((e) => e.pauta !== pautaNum)
+                    : current.map((e) => e.pauta === pautaNum ? { ...e, subPautas: newSubs } : e);
+                }
+                set(fieldKey, updated.length > 0 ? updated : null);
                 clearFeedback(reviewKey);
               }
 
-              function addCustom() {
-                set(fieldKey, [...predefinedSelected, ...customPautas, ""]);
-                clearFeedback(reviewKey);
-              }
-
-              function updateCustom(i: number, value: string) {
-                const newCustom = customPautas.map((x, j) => (j === i ? value : x));
-                set(fieldKey, [...predefinedSelected, ...newCustom]);
-                clearFeedback(reviewKey);
-              }
-
-              function removeCustom(i: number) {
-                const newCustom = customPautas.filter((_, j) => j !== i);
-                set(fieldKey, [...predefinedSelected, ...newCustom]);
-                clearFeedback(reviewKey);
-              }
-
-              const totalSelected = allSelected.filter(Boolean).length;
+              const totalSubs   = selection.reduce((acc, e) => acc + e.subPautas.length, 0);
+              const activePautas = selection.filter((e) => e.subPautas.length > 0).length;
 
               return (
                 <FeedbackHighlight key={p.key} state={localFeedback[reviewKey]}>
@@ -771,82 +738,83 @@ export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onC
                       {p.label}
                     </p>
 
-                    {/* Pautas predefinidas (checkboxes) */}
+                    {/* Pautas — cada una se expande/colapsa independientemente */}
                     <div className="flex flex-col gap-1.5">
                       {p.pautas.map((pauta) => {
-                        const checked = predefinedSelected.includes(pauta);
+                        const entry = selection.find((e) => e.pauta === pauta.num);
+                        const hasSelection = (entry?.subPautas.length ?? 0) > 0;
+                        const isExpanded   = opened.includes(pauta.num);
+
                         return (
-                          <label
-                            key={pauta}
-                            className={`flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all select-none text-xs${disabled ? " opacity-60 cursor-not-allowed" : ""}`}
-                            style={{
-                              background: checked ? "rgba(0,39,83,0.08)" : "rgba(0,39,83,0.03)",
-                              border:     `1.5px solid ${checked ? "rgba(0,39,83,0.30)" : "rgba(0,39,83,0.10)"}`,
-                              color:      checked ? "#002753" : "#5A6A82",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              className="mt-0.5 flex-shrink-0 accent-pum-primary"
-                              checked={checked}
+                          <div key={pauta.num}>
+                            <button
+                              type="button"
                               disabled={disabled}
-                              onChange={() => toggle(pauta)}
-                            />
-                            <span className={checked ? "font-semibold" : ""}>{pauta}</span>
-                          </label>
+                              onClick={() => toggleExpand(pauta.num)}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all select-none text-xs${disabled ? " opacity-60 cursor-not-allowed" : " cursor-pointer"}`}
+                              style={{
+                                background: hasSelection ? "rgba(0,39,83,0.10)" : isExpanded ? "rgba(0,39,83,0.05)" : "rgba(0,39,83,0.03)",
+                                border:     `1.5px solid ${hasSelection ? "rgba(0,39,83,0.35)" : isExpanded ? "rgba(0,39,83,0.20)" : "rgba(0,39,83,0.10)"}`,
+                                color:      hasSelection ? "#002753" : "#5A6A82",
+                              }}
+                            >
+                              <span className={`flex-1 text-left leading-tight${hasSelection ? " font-semibold" : ""}`}>{pauta.label}</span>
+                              {hasSelection && (
+                                <span style={{ fontSize: "10px", background: "rgba(0,39,83,0.18)", borderRadius: "9999px", padding: "1px 6px", flexShrink: 0, color: "#002753" }}>
+                                  {entry!.subPautas.length}
+                                </span>
+                              )}
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="12" height="12" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" strokeWidth="2"
+                                strokeLinecap="round" strokeLinejoin="round"
+                                style={{ flexShrink: 0, transition: "transform 0.15s", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
+                              >
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </button>
+
+                            {/* Sub-pautas expandibles */}
+                            {isExpanded && (
+                              <div
+                                className="flex flex-col gap-1 mt-1 ml-3 pl-3"
+                                style={{ borderLeft: "2px solid rgba(0,39,83,0.15)" }}
+                              >
+                                {pauta.subPautas.map((sp) => {
+                                  const isChecked = entry?.subPautas.includes(sp.num) ?? false;
+                                  return (
+                                    <label
+                                      key={sp.num}
+                                      className={`flex items-start gap-1.5 py-0.5 cursor-pointer select-none text-[11px]${disabled ? " cursor-not-allowed opacity-60" : ""}`}
+                                      style={{ color: isChecked ? "#002753" : "#5A6A82" }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="mt-0.5 flex-shrink-0 accent-pum-primary"
+                                        checked={isChecked}
+                                        disabled={disabled}
+                                        onChange={() => toggleSubPauta(pauta.num, sp.num)}
+                                      />
+                                      <span className={isChecked ? "font-medium" : ""}>
+                                        P{p.num}:{pauta.num}.{sp.num} {sp.label}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
 
-                    {/* Pautas personalizadas (texto libre) */}
-                    {customPautas.length > 0 && (
-                      <div className="flex flex-col gap-1.5 pt-1" style={{ borderTop: "1px dashed rgba(0,39,83,0.12)" }}>
-                        {customPautas.map((custom, i) => (
-                          <div key={i} className="flex items-center gap-1.5">
-                            <FocusableInput
-                              value={custom}
-                              onChange={(v) => updateCustom(i, v)}
-                              placeholder="Pauta personalizada..."
-                              disabled={disabled}
-                            />
-                            {!disabled && (
-                              <button
-                                type="button"
-                                onClick={() => removeCustom(i)}
-                                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold transition-colors"
-                                style={{ color: "#B8C4D6" }}
-                                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#c62828"; }}
-                                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#B8C4D6"; }}
-                                title="Eliminar"
-                                aria-label="Eliminar pauta"
-                              >
-                                ×
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                    {/* Contador */}
+                    {totalSubs > 0 && (
+                      <p className="text-[10px] mt-0.5" style={{ color: "#5A6A82" }}>
+                        {activePautas} pauta{activePautas !== 1 ? "s" : ""} — {totalSubs} sub-pauta{totalSubs !== 1 ? "s" : ""} seleccionada{totalSubs !== 1 ? "s" : ""}
+                      </p>
                     )}
-
-                    {/* Pie: contador + botón agregar */}
-                    <div className="flex items-center justify-between mt-0.5">
-                      {totalSelected > 0
-                        ? <p className="text-[10px] text-pum-text-muted">{totalSelected} seleccionada{totalSelected !== 1 ? "s" : ""}</p>
-                        : <span />
-                      }
-                      {!disabled && (
-                        <button
-                          type="button"
-                          onClick={addCustom}
-                          className="text-[11px] font-semibold transition-colors"
-                          style={{ color: "#002753" }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.textDecoration = "underline"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.textDecoration = "none"; }}
-                        >
-                          + Agregar otra
-                        </button>
-                      )}
-                    </div>
                   </div>
                 </FeedbackHighlight>
               );

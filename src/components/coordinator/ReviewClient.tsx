@@ -4,19 +4,19 @@ import { useState, useTransition, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { REVIEW_SECTION_KEYS, BLOCKING_REVIEW_KEYS, type ReviewSectionKey, type AnySectionKey, type SectionStates, type ReviewStatus } from "@/constants/review";
-import { EJES_TRANSVERSALES, PRINCIPIO_COLORS } from "@/constants/planification";
-import type { PlanMetadata, MethodologySubItem } from "@/modules/planification/planification.types";
+import { ALL_EJES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
+import type { PlanMetadata, MethodologySubItem, DcdItem } from "@/modules/planification/planification.types";
+import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 import type { AuditHistoryItem, SignatureBlockData } from "@/modules/audit/audit.service";
 import { SignatureBlock } from "@/components/planification/SignatureBlock";
 
 // ── Tipos de props ─────────────────────────────────────────────────────────────
 
 interface PlanRowData {
-  dcd: string;
-  ejeTransversales?: number[];
+  dcdItems: DcdItem[];
   indicators: string[];
   methodologyItems: MethodologySubItem[];
-  resources: string[];
+  resources: MethodologySubItem[];
   evaluations: string[];
 }
 
@@ -741,9 +741,9 @@ export function ReviewClient({
                 <td colSpan={3} className="hdr-blue text-white font-semibold text-center">Pautas</td>
               </tr>
               {([
-                { key: "dua_p1" as ReviewSectionKey, color: "hdr-dua-p1", label: "P I:", desc: "PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN", pautas: meta?.p1Pautas },
-                { key: "dua_p2" as ReviewSectionKey, color: "hdr-dua-p2", label: "P II:", desc: "OFRECER MÚLTIPLES MEDIOS PARA LA ACCIÓN Y EXPRESIÓN", pautas: meta?.p2Pautas },
-                { key: "dua_p3" as ReviewSectionKey, color: "hdr-dua-p3", label: "P III:", desc: "PROPORCIONAR MÚLTIPLES MEDIOS PARA LA MOTIVACIÓN E IMPLICACIÓN EN EL APRENDIZAJE", pautas: meta?.p3Pautas },
+                { key: "dua_p1" as ReviewSectionKey, color: "hdr-dua-p1", label: "P I:", desc: "PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN", sel: meta?.p1 ?? null, pIdx: 0 },
+                { key: "dua_p2" as ReviewSectionKey, color: "hdr-dua-p2", label: "P II:", desc: "OFRECER MÚLTIPLES MEDIOS PARA LA ACCIÓN Y EXPRESIÓN", sel: meta?.p2 ?? null, pIdx: 1 },
+                { key: "dua_p3" as ReviewSectionKey, color: "hdr-dua-p3", label: "P III:", desc: "PROPORCIONAR MÚLTIPLES MEDIOS PARA LA MOTIVACIÓN E IMPLICACIÓN EN EL APRENDIZAJE", sel: meta?.p3 ?? null, pIdx: 2 },
               ]).map((p) => (
                 <tr key={p.key}>
                   <td colSpan={2} className={p.color} style={{ minWidth: "40px" }}>&nbsp;</td>
@@ -753,9 +753,26 @@ export function ReviewClient({
                   <td colSpan={3}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                       <div>
-                        {p.pautas?.filter(Boolean).length ? (
-                          <ul className="list-none m-0 p-0 space-y-0.5">{p.pautas.filter(Boolean).map((x, i) => <li key={i}>• {x}</li>)}</ul>
-                        ) : <span className="text-gray-400">—</span>}
+                        {(() => {
+                          const entries = p.sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
+                          if (!entries.length) return <span className="text-gray-400">—</span>;
+                          return (
+                            <ul className="list-none m-0 p-0 space-y-1">
+                              {entries.map((entry) => {
+                                const pd = DUA_PRINCIPIOS[p.pIdx].pautas.find((x) => x.num === entry.pauta);
+                                return (
+                                  <li key={entry.pauta}>
+                                    • {pd?.label ?? `Pauta ${entry.pauta}`}
+                                    {entry.subPautas.map((sn) => {
+                                      const sp = pd?.subPautas.find((s) => s.num === sn);
+                                      return <div key={sn} className="pl-3">– P{p.pIdx + 1}:{entry.pauta}.{sn} {sp?.label ?? ""}</div>;
+                                    })}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          );
+                        })()}
                       </div>
                       <SectionControl sectionKey={p.key} states={states} disabled={isLocked} onApprove={handleApprove} onSaveComment={handleSaveComment} />
                     </div>
@@ -801,10 +818,6 @@ export function ReviewClient({
                   const rowKey  = `row_${i}` as `row_${number}`;
                   const hasComment = !!states[rowKey]?.comment;
 
-                  const ejeInfos = (row.data.ejeTransversales ?? [])
-                    .map((id) => EJES_TRANSVERSALES.find((e) => e.id === id))
-                    .filter(Boolean) as typeof EJES_TRANSVERSALES[number][];
-
                   const methodologyEmpty = !row.data.methodologyItems.some((m) => m.text);
 
                   return (
@@ -812,14 +825,27 @@ export function ReviewClient({
                       <tr className={hasComment ? "pum-row-commented" : isOdd ? "pum-row-odd" : ""}>
                         <td className="text-center text-gray-500 align-top">{i + 1}</td>
                         <td className="align-top">
-                          <span className="whitespace-pre-wrap leading-snug">{row.data.dcd || <span className="text-gray-300">—</span>}</span>
-                          {ejeInfos.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {ejeInfos.map((eje) => (
-                                <img key={eje.id} src={`/icons/ejes-transversales/${eje.file}`} alt={eje.label} title={eje.label} width={14} height={14} className="w-[14px] h-[14px] object-contain shrink-0" />
-                              ))}
+                          {row.data.dcdItems.some((d) => d.text) ? (
+                            <div className="flex flex-col gap-2">
+                              {row.data.dcdItems.filter((d) => d.text).map((dcdItem, j) => {
+                                const ejeInfos = dcdItem.ejes
+                                  .map((id) => ALL_EJES.find((e) => e.id === id))
+                                  .filter(Boolean) as typeof ALL_EJES[number][];
+                                return (
+                                  <div key={j} className={j > 0 ? "pt-1 border-t border-gray-200" : ""}>
+                                    <span className="whitespace-pre-wrap leading-snug">{dcdItem.text}</span>
+                                    {ejeInfos.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {ejeInfos.map((eje) => (
+                                          <img key={eje.id} src={`/icons/ejes-transversales/${eje.file}`} alt={eje.label} title={eje.label} width={14} height={14} className="w-[14px] h-[14px] object-contain shrink-0" />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          )}
+                          ) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="align-top">
                           {row.data.indicators.filter(Boolean).length > 0 ? (
@@ -835,7 +861,7 @@ export function ReviewClient({
                                 <li key={j} className="flex items-start gap-1">
                                   {item.principle && (
                                     <span className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[item.principle.principio as 1|2|3] }}>
-                                      P{item.principle.principio}.{(item.principle.numeros ?? [(item.principle as unknown as {numero?: number}).numero ?? 1]).join(",")}
+                                      {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}
                                     </span>
                                   )}
                                   <span className="leading-snug">{item.text}</span>
@@ -845,9 +871,18 @@ export function ReviewClient({
                           ) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="align-top">
-                          {row.data.resources.filter(Boolean).length > 0 ? (
-                            <ul className="list-none m-0 p-0 space-y-0.5">
-                              {row.data.resources.filter(Boolean).map((t, j) => <li key={j} className="leading-snug">• {t}</li>)}
+                          {row.data.resources.filter((r) => r.text).length > 0 ? (
+                            <ul className="list-none m-0 p-0 space-y-1">
+                              {row.data.resources.filter((r) => r.text).map((item, j) => (
+                                <li key={j} className="flex items-start gap-1">
+                                  {item.principle && (
+                                    <span className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[item.principle.principio as 1|2|3] }}>
+                                      {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}
+                                    </span>
+                                  )}
+                                  <span className="leading-snug">• {item.text}</span>
+                                </li>
+                              ))}
                             </ul>
                           ) : <span className="text-gray-300">—</span>}
                         </td>

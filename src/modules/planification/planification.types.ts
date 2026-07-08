@@ -28,20 +28,43 @@ export interface PlanMetadata {
   fechFin: string;
   ejesTransversales: string; // texto libre (e.g., "Educación Socioemocional")
   aportes: AporteMultimodal[]; // máximo 6
-  p1Pautas: string[];
-  p2Pautas: string[];
-  p3Pautas: string[];
+  p1: DuaSelection | null;
+  p2: DuaSelection | null;
+  p3: DuaSelection | null;
 }
 
 // ── Tipos del editor PUM ───────────────────────────────────────────────────────
 
-/** ID de uno de los 10 ejes transversales institucionales. */
-export type EjeTransversalId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+/** ID de uno de los 34 ejes/íconos (10 institucionales + 24 ERE). */
+export type EjeTransversalId =
+  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+  | 11 | 12 | 13 | 14 | 15 | 16 | 17
+  | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27
+  | 28 | 29 | 30 | 31 | 32 | 33 | 34;
 
-/** Icono de principio pedagógico: P1–P3 con una o varias pautas seleccionadas. */
+/** Una entrada de Destreza con Criterio de Desempeño con sus iconos. */
+export interface DcdItem {
+  text: string;
+  ejes: EjeTransversalId[];
+}
+
+/** Selección DUA: lista de pautas con sus sub-pautas seleccionadas.
+ *  Permite seleccionar sub-pautas de múltiples pautas dentro del mismo principio. */
+export type DuaSelection = Array<{ pauta: number; subPautas: number[] }>;
+
+/** Icono de principio pedagógico: P1–P3 con una pauta y sub-pautas seleccionadas. */
 export interface PrincipioIcon {
   principio: 1 | 2 | 3;
-  numeros: number[]; // indices 1-based de las pautas seleccionadas dentro del principio
+  pauta:     number;   // pauta seleccionada (1–3)
+  subPautas: number[]; // sub-pautas seleccionadas dentro de esa pauta
+}
+
+/** Formatea el código de badge: P2:1.3 o P2:1.(2,3) */
+export function formatPrincipioLabel(p: PrincipioIcon): string {
+  const { principio, pauta, subPautas } = p;
+  if (subPautas.length === 0) return `P${principio}:${pauta}`;
+  const sub = subPautas.length === 1 ? `${subPautas[0]}` : `(${subPautas.join(",")})`;
+  return `P${principio}:${pauta}.${sub}`;
 }
 
 /** Un ítem de la columna "¿Cómo van a aprender?" con su principio opcional. */
@@ -52,11 +75,10 @@ export interface MethodologySubItem {
 
 /** Estructura de datos de una fila PUM (guardada como JSON en la BD). */
 export interface PumRowData {
-  dcd: string;
-  ejeTransversales: EjeTransversalId[];
+  dcdItems: DcdItem[];
   indicators: string[];
   methodologyItems: MethodologySubItem[];
-  resources: string[];
+  resources: MethodologySubItem[];
   evaluations: string[];
 }
 

@@ -18,8 +18,9 @@ import {
 } from "@react-pdf/renderer";
 import { PDFDocument } from "pdf-lib";
 import type { Planification, PlanMetadata, MethodologySubItem } from "@/modules/planification/planification.types";
+import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 import type { SignatureBlockData } from "@/modules/audit/audit.service";
-import { EJES_TRANSVERSALES } from "@/constants/planification";
+import { ALL_EJES, DUA_PRINCIPIOS } from "@/constants/planification";
 import type { PlanContext } from "./docx-builder";
 
 // ── Registro de fuentes ───────────────────────────────────────────────────────
@@ -143,14 +144,12 @@ const S = StyleSheet.create({
     backgroundColor: C.blue,
     paddingHorizontal: 4, paddingVertical: 3,
     justifyContent: "center",
-    minWidth: 0,
   },
   pumHdrTxt: { fontSize: 12, fontFamily: FONT_BOLD, fontWeight: "bold", color: C.white },
   pumCell: {
     borderWidth: 0.5, borderColor: C.border,
     paddingHorizontal: 4, paddingVertical: 3,
     backgroundColor: C.white,
-    minWidth: 0,
   },
   bullet: { marginBottom: 1 },
   badgeView: {
@@ -191,14 +190,8 @@ function trackToSubnivel(track: string): string {
 
 function BulletList({ items }: { items: string[] }) {
   const nonEmpty = items.filter(Boolean);
-  if (nonEmpty.length === 0) return <Text style={S.muted}>—</Text>;
-  return (
-    <View>
-      {nonEmpty.map((item, i) => (
-        <Text key={i} style={[S.val, S.bullet]}>• {item}</Text>
-      ))}
-    </View>
-  );
+  if (nonEmpty.length === 0) return <Text style={S.val}>—</Text>;
+  return <Text style={S.val}>{nonEmpty.map((item, i) => (i > 0 ? `\n• ${item}` : `• ${item}`)).join("")}</Text>;
 }
 
 // ── Secciones del documento ───────────────────────────────────────────────────
@@ -347,7 +340,22 @@ function InfoTable({ ctx, meta }: { ctx: PlanContext; meta: PlanMetadata }) {
           2: { prefix: "P II:",  desc: "OFRECER MÚLTIPLES MEDIOS PARA LA ACCIÓN Y EXPRESIÓN" },
           3: { prefix: "P III:", desc: "PROPORCIONAR MÚLTIPLES MEDIOS PARA LA MOTIVACIÓN E IMPLICACIÓN EN EL APRENDIZAJE" },
         };
-        const pautas = p === 1 ? meta.p1Pautas : p === 2 ? meta.p2Pautas : meta.p3Pautas;
+        const sel = p === 1 ? meta.p1 : p === 2 ? meta.p2 : meta.p3;
+        const pautaLines: string[] = sel
+          ? sel
+              .filter((e) => e.subPautas.length > 0)
+              .sort((a, b) => a.pauta - b.pauta)
+              .flatMap((entry) => {
+                const pd = DUA_PRINCIPIOS[p - 1].pautas.find((x) => x.num === entry.pauta);
+                return [
+                  pd?.label ?? `Pauta ${entry.pauta}`,
+                  ...entry.subPautas.map((sn) => {
+                    const sp = pd?.subPautas.find((s) => s.num === sn);
+                    return `  P${p}:${entry.pauta}.${sn} ${sp?.label ?? ""}`;
+                  }),
+                ];
+              })
+          : [];
         return (
           <View key={p} style={S.row}>
             <View style={[S.cell, { flex: 2, backgroundColor: DUA_COLORS[p] }]} />
@@ -357,7 +365,7 @@ function InfoTable({ ctx, meta }: { ctx: PlanContext; meta: PlanMetadata }) {
                 {labels[p].desc}
               </Text>
             </View>
-            <View style={[S.cell, { flex: 3 }]}><BulletList items={pautas} /></View>
+            <View style={[S.cell, { flex: 3 }]}><BulletList items={pautaLines} /></View>
           </View>
         );
       })}
@@ -367,31 +375,36 @@ function InfoTable({ ctx, meta }: { ctx: PlanContext; meta: PlanMetadata }) {
 
 // ── Tabla PUM principal ───────────────────────────────────────────────────────
 
+// Anchos absolutos en puntos — evita que react-pdf/yoga haga cálculos relativos incorrectos
+// Área de contenido: 792 (Letter landscape) − 28×2 (padding) = 736 pt
 const PUM_COLS = [
-  { label: "#",                    flex: 0.4 },
-  { label: "¿Qué van a aprender?", flex: 2   },
-  { label: "¿Qué evaluar?",        flex: 1.7 },
-  { label: "¿Cómo van a aprender?",flex: 2.5 },
-  { label: "Recursos",             flex: 1.3 },
-  { label: "¿Cómo evaluar?",       flex: 2.1 },
-] as const;
+  { label: "#",                    w:  29 },
+  { label: "¿Qué van a aprender?", w: 118 },
+  { label: "¿Qué evaluar?",        w: 125 },
+  { label: "¿Cómo van a aprender?",w: 184 },
+  { label: "Recursos",             w: 125 },
+  { label: "¿Cómo evaluar?",       w: 155 },
+] as const; // total = 736 pt
 
+// Un solo <Text> con hijos inline — react-pdf mide la altura de Text correctamente;
+// los View anidados dentro de celdas con ancho relativo provocan cálculos erróneos.
 function MethodologyItems({ items }: { items: MethodologySubItem[] }) {
   const nonEmpty = items.filter((i) => i.text);
-  if (nonEmpty.length === 0) return <Text style={S.muted}>—</Text>;
+  if (nonEmpty.length === 0) return <Text style={S.val}>—</Text>;
   return (
-    <View>
-      {nonEmpty.map((item, i) => (
-        <View key={i} style={[S.methodRow, { marginBottom: i < nonEmpty.length - 1 ? 4 : 0 }]}>
-          {item.principle && (
-            <View style={[S.badgeView, { backgroundColor: BADGE_COLORS[item.principle.principio] }]}>
-              <Text style={S.badgeTxt}>P{item.principle.principio}.{(item.principle.numeros ?? [(item.principle as unknown as {numero?: number}).numero ?? 1]).join(",")}</Text>
-            </View>
-          )}
-          <Text style={[S.val, { flex: 1 }]}>{item.text}</Text>
-        </View>
+    <Text style={S.val}>
+      {nonEmpty.map((item, idx) => (
+        <Text key={idx}>
+          {idx > 0 ? "\n\n" : ""}
+          {item.principle
+            ? <Text style={{ color: BADGE_COLORS[item.principle.principio], fontFamily: FONT_BOLD }}>
+                {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}{" "}
+              </Text>
+            : null}
+          {"• "}{item.text}
+        </Text>
       ))}
-    </View>
+    </Text>
   );
 }
 
@@ -400,7 +413,7 @@ function PumTable({ plan }: { plan: Planification }) {
     <View style={[S.table, { marginTop: 6 }]}>
       <View style={S.row}>
         {PUM_COLS.map((col) => (
-          <View key={col.label} style={[S.pumHdr, { flex: col.flex }]}>
+          <View key={col.label} style={[S.pumHdr, { width: col.w }]}>
             <Text style={S.pumHdrTxt}>{col.label}</Text>
           </View>
         ))}
@@ -409,7 +422,7 @@ function PumTable({ plan }: { plan: Planification }) {
       {plan.rows.length === 0 ? (
         <View style={S.row}>
           <View style={[S.pumCell, { flex: 1, alignItems: "center" }]}>
-            <Text style={S.muted}>Sin filas registradas</Text>
+            <Text style={S.val}>Sin filas registradas</Text>
           </View>
         </View>
       ) : (
@@ -417,20 +430,28 @@ function PumTable({ plan }: { plan: Planification }) {
           const odd = i % 2 === 1;
           const bg = odd ? C.bgAlt : C.white;
           const methodologyEmpty = !row.data.methodologyItems.some((m) => m.text);
-          const ejes = (row.data.ejeTransversales ?? [])
-            .map((id: number) => EJES_TRANSVERSALES.find((e) => e.id === id))
-            .filter(Boolean) as typeof EJES_TRANSVERSALES[number][];
+          const dcdNonEmpty = row.data.dcdItems.filter((d) => d.text);
+
+          // DCD: texto plano con separador entre destrezas
+          const dcdText = dcdNonEmpty.length === 0
+            ? "—"
+            : dcdNonEmpty.map((d) => d.text).join("\n\n");
+
+          // Ejes de la primera destreza (simplificado para el PDF)
+          const firstEjes = dcdNonEmpty.length > 0
+            ? dcdNonEmpty[0].ejes.map((id: number) => ALL_EJES.find((e) => e.id === id)).filter(Boolean) as typeof ALL_EJES[number][]
+            : [];
 
           return (
-            <View key={row.id} style={S.row} wrap={false}>
-              <View style={[S.pumCell, { flex: PUM_COLS[0].flex, backgroundColor: bg, alignItems: "center", justifyContent: "center" }]}>
-                <Text style={S.muted}>{i + 1}</Text>
+            <View key={row.id} style={S.row}>
+              <View style={[S.pumCell, { width: PUM_COLS[0].w, backgroundColor: bg, alignItems: "center", justifyContent: "center" }]}>
+                <Text style={S.val}>{i + 1}</Text>
               </View>
-              <View style={[S.pumCell, { flex: PUM_COLS[1].flex, backgroundColor: bg }]}>
-                <Text style={S.val}>{row.data.dcd || "—"}</Text>
-                {ejes.length > 0 && (
+              <View style={[S.pumCell, { width: PUM_COLS[1].w, backgroundColor: bg }]}>
+                <Text style={S.val}>{dcdText}</Text>
+                {firstEjes.length > 0 && (
                   <View style={[S.ejeRow, { flexWrap: "wrap" }]}>
-                    {ejes.map((eje) => {
+                    {firstEjes.map((eje) => {
                       const ejeIcon = ejeIconBase64(eje.file);
                       return ejeIcon ? (
                         <Image key={eje.id} src={ejeIcon} style={[S.ejeImg, { marginRight: 4 }]} />
@@ -439,16 +460,16 @@ function PumTable({ plan }: { plan: Planification }) {
                   </View>
                 )}
               </View>
-              <View style={[S.pumCell, { flex: PUM_COLS[2].flex, backgroundColor: bg }]}>
+              <View style={[S.pumCell, { width: PUM_COLS[2].w, backgroundColor: bg }]}>
                 <BulletList items={row.data.indicators} />
               </View>
-              <View style={[S.pumCell, { flex: PUM_COLS[3].flex, backgroundColor: methodologyEmpty ? "#D9D9D9" : bg }]}>
+              <View style={[S.pumCell, { width: PUM_COLS[3].w, backgroundColor: methodologyEmpty ? "#D9D9D9" : bg }]}>
                 <MethodologyItems items={row.data.methodologyItems} />
               </View>
-              <View style={[S.pumCell, { flex: PUM_COLS[4].flex, backgroundColor: bg }]}>
-                <BulletList items={row.data.resources} />
+              <View style={[S.pumCell, { width: PUM_COLS[4].w, backgroundColor: bg }]}>
+                <MethodologyItems items={row.data.resources} />
               </View>
-              <View style={[S.pumCell, { flex: PUM_COLS[5].flex, backgroundColor: bg }]}>
+              <View style={[S.pumCell, { width: PUM_COLS[5].w, backgroundColor: bg }]}>
                 <BulletList items={row.data.evaluations} />
               </View>
             </View>
@@ -523,7 +544,7 @@ function PlanDocument({ plan, ctx, signatureBlock }: { plan: Planification; ctx:
   const meta: PlanMetadata = ctx.metadata ?? {
     areaEstudio: "", numUnidad: "", titulo: "", objetivos: [], criterios: [],
     nPeriodos: "", fechInicio: "", fechFin: "", ejesTransversales: "",
-    aportes: [], p1Pautas: [], p2Pautas: [], p3Pautas: [],
+    aportes: [], p1: null, p2: null, p3: null,
   };
 
   return (

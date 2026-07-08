@@ -9,6 +9,7 @@ import type {
   PlanTeacher,
   PlanificationRow,
   PumRowData,
+  DcdItem,
   MethodologySubItem,
   EjeTransversalId,
   PlanMetadata,
@@ -42,27 +43,35 @@ export function normalizePumRowData(raw: unknown): PumRowData {
 
   if (isLegacy) {
     return {
-      dcd: String(data.dcd ?? ""),
-      ejeTransversales: [],
+      dcdItems: [{ text: String(data.dcd ?? ""), ejes: [] }],
       indicators: data.indicator ? [String(data.indicator)] : [],
       methodologyItems: data.methodology
         ? [{ text: String(data.methodology), principle: null }]
         : [],
-      resources: data.resources ? [String(data.resources)] : [],
+      resources: data.resources ? [{ text: String(data.resources), principle: null }] : [],
       evaluations: data.evaluation ? [String(data.evaluation)] : [],
     };
   }
 
-  let ejeTransversales: EjeTransversalId[] = [];
-  if (Array.isArray(data.ejeTransversales)) {
-    ejeTransversales = data.ejeTransversales as EjeTransversalId[];
-  } else if (data.ejeTransversal != null) {
-    ejeTransversales = [data.ejeTransversal as EjeTransversalId];
+  // Normalize dcdItems: new format or backward compat from old dcd + ejeTransversales
+  let dcdItems: DcdItem[];
+  if (Array.isArray(data.dcdItems) && data.dcdItems.length > 0) {
+    dcdItems = (data.dcdItems as Array<Record<string, unknown>>).map((item) => ({
+      text: String(item.text ?? ""),
+      ejes: Array.isArray(item.ejes) ? (item.ejes as EjeTransversalId[]) : [],
+    }));
+  } else {
+    let ejes: EjeTransversalId[] = [];
+    if (Array.isArray(data.ejeTransversales)) {
+      ejes = data.ejeTransversales as EjeTransversalId[];
+    } else if (data.ejeTransversal != null) {
+      ejes = [data.ejeTransversal as EjeTransversalId];
+    }
+    dcdItems = [{ text: String(data.dcd ?? ""), ejes }];
   }
 
   return {
-    dcd: String(data.dcd ?? ""),
-    ejeTransversales,
+    dcdItems,
     indicators: Array.isArray(data.indicators)
       ? (data.indicators as unknown[]).map(String)
       : [],
@@ -70,12 +79,45 @@ export function normalizePumRowData(raw: unknown): PumRowData {
       ? (data.methodologyItems as MethodologySubItem[])
       : [],
     resources: Array.isArray(data.resources)
-      ? (data.resources as unknown[]).map(String)
+      ? (data.resources as unknown[]).map((item) =>
+          typeof item === "string"
+            ? { text: item, principle: null }
+            : (item as MethodologySubItem)
+        )
       : [],
     evaluations: Array.isArray(data.evaluations)
       ? (data.evaluations as unknown[]).map(String)
       : [],
   };
+}
+
+function parseDuaSel(val: unknown): import("@/modules/planification/planification.types").DuaSelection | null {
+  if (!val) return null;
+  if (Array.isArray(val)) {
+    const arr = (val as unknown[])
+      .filter(
+        (item): item is { pauta: number; subPautas: number[] } =>
+          !!item &&
+          typeof item === "object" &&
+          typeof (item as Record<string, unknown>).pauta === "number" &&
+          Array.isArray((item as Record<string, unknown>).subPautas),
+      )
+      .map((item) => ({
+        pauta: item.pauta,
+        subPautas: (item.subPautas as unknown[]).filter((n): n is number => typeof n === "number"),
+      }))
+      .filter((e) => e.subPautas.length > 0);
+    return arr.length > 0 ? arr : null;
+  }
+  // Old single-object format: { pauta, subPautas } → wrap in array
+  if (typeof val === "object") {
+    const o = val as Record<string, unknown>;
+    if (typeof o.pauta === "number" && Array.isArray(o.subPautas)) {
+      const subPautas = (o.subPautas as unknown[]).filter((n): n is number => typeof n === "number");
+      return subPautas.length > 0 ? [{ pauta: o.pauta, subPautas }] : null;
+    }
+  }
+  return null;
 }
 
 export function normalizePlanMetadata(raw: unknown): PlanMetadata | null {
@@ -100,16 +142,15 @@ export function normalizePlanMetadata(raw: unknown): PlanMetadata | null {
           como:   String(a.como ?? ""),
         }))
       : [],
-    p1Pautas: strArr(m.p1Pautas),
-    p2Pautas: strArr(m.p2Pautas),
-    p3Pautas: strArr(m.p3Pautas),
+    p1: parseDuaSel(m.p1),
+    p2: parseDuaSel(m.p2),
+    p3: parseDuaSel(m.p3),
   };
 }
 
 function emptyPumRowData(): PumRowData {
   return {
-    dcd: "",
-    ejeTransversales: [],
+    dcdItems: [{ text: "", ejes: [] }],
     indicators: [],
     methodologyItems: [],
     resources: [],

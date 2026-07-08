@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma/client";
 import { planificationService } from "@/modules/planification/planification.service";
 import { appConfig } from "@/config/app.config";
 import { ROUTES } from "@/constants/routes";
-import { EJES_TRANSVERSALES, PRINCIPIO_COLORS } from "@/constants/planification";
+import { ALL_EJES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
+import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 import { ExportMenu } from "@/components/planification/ExportMenu";
 import { BreadcrumbPUM } from "@/components/layout/BreadcrumbPUM";
 import { SignatureBlock } from "@/components/planification/SignatureBlock";
@@ -332,11 +333,27 @@ export default async function PreviewPage({
                     <span className="font-bold">P I:</span> PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN
                   </td>
                   <td colSpan={3}>
-                    {meta?.p1Pautas?.filter(Boolean).length ? (
-                      <ul className="list-none m-0 p-0 space-y-0.5">
-                        {meta.p1Pautas.filter(Boolean).map((p, i) => <li key={i}>• {p}</li>)}
-                      </ul>
-                    ) : <span className="text-gray-400">—</span>}
+                    {(() => {
+                      const sel = meta?.p1;
+                      const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
+                      if (!entries.length) return <span className="text-gray-400">—</span>;
+                      return (
+                        <ul className="list-none m-0 p-0 space-y-1">
+                          {entries.map((entry) => {
+                            const pd = DUA_PRINCIPIOS[0].pautas.find((p) => p.num === entry.pauta);
+                            return (
+                              <li key={entry.pauta}>
+                                • {pd?.label ?? `Pauta ${entry.pauta}`}
+                                {entry.subPautas.map((sn) => {
+                                  const sp = pd?.subPautas.find((s) => s.num === sn);
+                                  return <div key={sn} className="pl-3">– P1:{entry.pauta}.{sn} {sp?.label ?? ""}</div>;
+                                })}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
                   </td>
                 </tr>
 
@@ -347,11 +364,27 @@ export default async function PreviewPage({
                     <span className="font-bold">P II:</span> OFRECER MÚLTIPLES MEDIOS PARA LA ACCIÓN Y EXPRESIÓN
                   </td>
                   <td colSpan={3}>
-                    {meta?.p2Pautas?.filter(Boolean).length ? (
-                      <ul className="list-none m-0 p-0 space-y-0.5">
-                        {meta.p2Pautas.filter(Boolean).map((p, i) => <li key={i}>• {p}</li>)}
-                      </ul>
-                    ) : <span className="text-gray-400">—</span>}
+                    {(() => {
+                      const sel = meta?.p2;
+                      const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
+                      if (!entries.length) return <span className="text-gray-400">—</span>;
+                      return (
+                        <ul className="list-none m-0 p-0 space-y-1">
+                          {entries.map((entry) => {
+                            const pd = DUA_PRINCIPIOS[1].pautas.find((p) => p.num === entry.pauta);
+                            return (
+                              <li key={entry.pauta}>
+                                • {pd?.label ?? `Pauta ${entry.pauta}`}
+                                {entry.subPautas.map((sn) => {
+                                  const sp = pd?.subPautas.find((s) => s.num === sn);
+                                  return <div key={sn} className="pl-3">– P2:{entry.pauta}.{sn} {sp?.label ?? ""}</div>;
+                                })}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
                   </td>
                 </tr>
 
@@ -362,11 +395,27 @@ export default async function PreviewPage({
                     <span className="font-bold">P III:</span> PROPORCIONAR MÚLTIPLES MEDIOS PARA LA MOTIVACIÓN E IMPLICACIÓN EN EL APRENDIZAJE
                   </td>
                   <td colSpan={3}>
-                    {meta?.p3Pautas?.filter(Boolean).length ? (
-                      <ul className="list-none m-0 p-0 space-y-0.5">
-                        {meta.p3Pautas.filter(Boolean).map((p, i) => <li key={i}>• {p}</li>)}
-                      </ul>
-                    ) : <span className="text-gray-400">—</span>}
+                    {(() => {
+                      const sel = meta?.p3;
+                      const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
+                      if (!entries.length) return <span className="text-gray-400">—</span>;
+                      return (
+                        <ul className="list-none m-0 p-0 space-y-1">
+                          {entries.map((entry) => {
+                            const pd = DUA_PRINCIPIOS[2].pautas.find((p) => p.num === entry.pauta);
+                            return (
+                              <li key={entry.pauta}>
+                                • {pd?.label ?? `Pauta ${entry.pauta}`}
+                                {entry.subPautas.map((sn) => {
+                                  const sp = pd?.subPautas.find((s) => s.num === sn);
+                                  return <div key={sn} className="pl-3">– P3:{entry.pauta}.{sn} {sp?.label ?? ""}</div>;
+                                })}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
                   </td>
                 </tr>
 
@@ -406,9 +455,6 @@ export default async function PreviewPage({
                 ) : (
                   plan!.rows.map((row, i) => {
                     const isOdd = i % 2 === 1;
-                    const ejeInfos = (row.data.ejeTransversales ?? [])
-                      .map((id) => EJES_TRANSVERSALES.find((e) => e.id === id))
-                      .filter(Boolean) as typeof EJES_TRANSVERSALES[number][];
 
                     return (
                       <tr key={row.id} className={isOdd ? "pum-row-odd" : ""}>
@@ -416,26 +462,37 @@ export default async function PreviewPage({
                         {/* # */}
                         <td className="text-center text-gray-500 align-top">{i + 1}</td>
 
-                        {/* ¿Qué van a aprender? — DCD + ejes */}
+                        {/* ¿Qué van a aprender? — DCD items */}
                         <td className="align-top">
-                          <span className="whitespace-pre-wrap leading-snug">
-                            {row.data.dcd || <span className="text-gray-300">—</span>}
-                          </span>
-                          {ejeInfos.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {ejeInfos.map((ejeInfo) => (
-                                <img
-                                  key={ejeInfo.id}
-                                  src={`/icons/ejes-transversales/${ejeInfo.file}`}
-                                  alt={ejeInfo.label}
-                                  title={ejeInfo.label}
-                                  width={14}
-                                  height={14}
-                                  className="w-[14px] h-[14px] object-contain shrink-0"
-                                />
-                              ))}
+                          {row.data.dcdItems.some((d) => d.text) ? (
+                            <div className="flex flex-col gap-2">
+                              {row.data.dcdItems.filter((d) => d.text).map((dcdItem, j) => {
+                                const ejeInfos = dcdItem.ejes
+                                  .map((id) => ALL_EJES.find((e) => e.id === id))
+                                  .filter(Boolean) as typeof ALL_EJES[number][];
+                                return (
+                                  <div key={j} className={j > 0 ? "pt-2 border-t border-gray-200" : ""}>
+                                    <span className="whitespace-pre-wrap leading-snug">{dcdItem.text}</span>
+                                    {ejeInfos.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {ejeInfos.map((ejeInfo) => (
+                                          <img
+                                            key={ejeInfo.id}
+                                            src={`/icons/ejes-transversales/${ejeInfo.file}`}
+                                            alt={ejeInfo.label}
+                                            title={ejeInfo.label}
+                                            width={14}
+                                            height={14}
+                                            className="w-[14px] h-[14px] object-contain shrink-0"
+                                          />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          )}
+                          ) : <span className="text-gray-300">—</span>}
                         </td>
 
                         {/* ¿Qué evaluar? — indicadores */}
@@ -462,7 +519,7 @@ export default async function PreviewPage({
                                         backgroundColor: PRINCIPIO_COLORS[item.principle.principio as 1 | 2 | 3],
                                       }}
                                     >
-                                      P{item.principle.principio}.{(item.principle.numeros ?? [(item.principle as unknown as {numero?: number}).numero ?? 1]).join(",")}
+                                      {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}
                                     </span>
                                   )}
                                   <span className="leading-snug">{item.text}</span>
@@ -474,10 +531,17 @@ export default async function PreviewPage({
 
                         {/* Recursos */}
                         <td className="align-top">
-                          {row.data.resources.filter(Boolean).length > 0 ? (
-                            <ul className="list-none m-0 p-0 space-y-0.5">
-                              {row.data.resources.filter(Boolean).map((t, j) => (
-                                <li key={j} className="leading-snug">• {t}</li>
+                          {row.data.resources.filter((r) => r.text).length > 0 ? (
+                            <ul className="list-none m-0 p-0 space-y-1">
+                              {row.data.resources.filter((r) => r.text).map((item, j) => (
+                                <li key={j} className="flex items-start gap-1">
+                                  {item.principle && (
+                                    <span className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[item.principle.principio as 1|2|3] }}>
+                                      {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}
+                                    </span>
+                                  )}
+                                  <span className="leading-snug">• {item.text}</span>
+                                </li>
                               ))}
                             </ul>
                           ) : <span className="text-gray-300">—</span>}

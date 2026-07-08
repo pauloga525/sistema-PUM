@@ -29,7 +29,8 @@ import type {
   PlanMetadata,
 } from "@/modules/planification/planification.types";
 import type { SignatureBlockData } from "@/modules/audit/audit.service";
-import { EJES_TRANSVERSALES, PRINCIPIO_COLORS_HEX } from "@/constants/planification";
+import { ALL_EJES, PRINCIPIO_COLORS_HEX, DUA_PRINCIPIOS } from "@/constants/planification";
+import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 
 // ── Cache de íconos PNG ───────────────────────────────────────────────────────
 const _iconCache = new Map<string, Buffer>();
@@ -98,6 +99,26 @@ function listPatch(items: string[]) {
   };
 }
 
+function duaSelectionToLines(
+  sel: import("@/modules/planification/planification.types").DuaSelection | null | undefined,
+  pIdx: number
+): string[] {
+  if (!sel || sel.length === 0) return [];
+  return sel
+    .filter((e) => e.subPautas.length > 0)
+    .sort((a, b) => a.pauta - b.pauta)
+    .flatMap((entry) => {
+      const pd = DUA_PRINCIPIOS[pIdx].pautas.find((p) => p.num === entry.pauta);
+      return [
+        pd?.label ?? `Pauta ${entry.pauta}`,
+        ...entry.subPautas.map((sn) => {
+          const sp = pd?.subPautas.find((s) => s.num === sn);
+          return `  P${pIdx + 1}:${entry.pauta}.${sn} ${sp?.label ?? ""}`.trim();
+        }),
+      ];
+    });
+}
+
 // ── Helpers de tabla PUM ──────────────────────────────────────────────────────
 
 const twip = (mm: number) => convertMillimetersToTwip(mm);
@@ -160,34 +181,39 @@ function simpleCell(text: string, widthPct: number, isShaded: boolean): TableCel
 }
 
 function dcdCell(data: PumRowData, widthPct: number, isShaded: boolean): TableCell {
-  const ejes = (data.ejeTransversales ?? [])
-    .map((id) => EJES_TRANSVERSALES.find((e) => e.id === id))
-    .filter(Boolean) as typeof EJES_TRANSVERSALES[number][];
+  const nonEmpty = data.dcdItems.filter((d) => d.text);
 
-  const children: Paragraph[] = [
-    new Paragraph({
-      children: [
-        new TextRun({ text: data.dcd || "—", size: 24, font: FONT, color: data.dcd ? COLOR_TEXT : COLOR_MUTED }),
-      ],
-      spacing: { after: ejes.length > 0 ? 80 : 0 },
-    }),
-  ];
-
-  if (ejes.length > 0) {
-    children.push(
-      new Paragraph({
-        children: ejes.flatMap((eje) => [
-          new ImageRun({
-            data: readIcon(eje.file),
-            transformation: { width: 16, height: 16 },
-            type: "png",
+  const children: Paragraph[] = nonEmpty.length === 0
+    ? [new Paragraph({ children: [new TextRun({ text: "—", size: 24, font: FONT, color: COLOR_MUTED })] })]
+    : nonEmpty.flatMap((dcdItem, idx) => {
+        const ejes = dcdItem.ejes
+          .map((id) => ALL_EJES.find((e) => e.id === id))
+          .filter(Boolean) as typeof ALL_EJES[number][];
+        const paragraphs: Paragraph[] = [
+          new Paragraph({
+            children: [
+              new TextRun({ text: dcdItem.text, size: 24, font: FONT, color: COLOR_TEXT }),
+            ],
+            spacing: { before: idx > 0 ? 120 : 0, after: ejes.length > 0 ? 80 : 0 },
           }),
-          new TextRun({ text: "  ", size: 20, font: FONT }),
-        ]),
-        spacing: { after: 0 },
-      })
-    );
-  }
+        ];
+        if (ejes.length > 0) {
+          paragraphs.push(
+            new Paragraph({
+              children: ejes.flatMap((eje) => [
+                new ImageRun({
+                  data: readIcon(eje.file),
+                  transformation: { width: 16, height: 16 },
+                  type: "png",
+                }),
+                new TextRun({ text: "  ", size: 20, font: FONT }),
+              ]),
+              spacing: { after: 0 },
+            })
+          );
+        }
+        return paragraphs;
+      });
 
   return new TableCell({
     width: { size: widthPct, type: WidthType.PERCENTAGE },
@@ -236,7 +262,7 @@ function methodologyCell(items: MethodologySubItem[], widthPct: number, isShaded
         const principleRuns: TextRun[] = p
           ? [
               new TextRun({
-                text: ` P${p.principio}.${(p.numeros ?? [(p as unknown as {numero?: number}).numero ?? 1]).join(",")} `,
+                text: ` ${formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])} `,
                 size: 20,
                 bold: true,
                 font: FONT,
@@ -364,10 +390,10 @@ function buildSignatureTable(data: SignatureBlockData): Table {
 function buildPumTable(plan: Planification): Table {
   const COLS = [
     { label: "#",                     subtitle: undefined,                                                                pct:  4 },
-    { label: "¿Qué van a aprender?",  subtitle: "Destreza con Criterio de Desempeño / Competencia",                     pct: 20 },
+    { label: "¿Qué van a aprender?",  subtitle: "Destreza con Criterio de Desempeño / Competencia",                     pct: 16 },
     { label: "¿Qué evaluar?",         subtitle: "Indicadores de evaluación",                                             pct: 18 },
     { label: "¿Cómo van a aprender?", subtitle: "Metodologías para los aprendizajes · Estrategias Metodológicas · DUA", pct: 25 },
-    { label: "Recursos",              subtitle: undefined,                                                                pct: 13 },
+    { label: "Recursos",              subtitle: undefined,                                                                pct: 17 },
     { label: "¿Cómo evaluar?",        subtitle: "Actividades de Evaluación / Técnicas / Instrumentos",                   pct: 20 },
   ];
 
@@ -384,7 +410,7 @@ function buildPumTable(plan: Planification): Table {
         dcdCell(row.data,                           COLS[1].pct, odd),
         listCell(row.data.indicators,               COLS[2].pct, odd),
         methodologyCell(row.data.methodologyItems,  COLS[3].pct, odd),
-        listCell(row.data.resources,                COLS[4].pct, odd),
+        methodologyCell(row.data.resources,          COLS[4].pct, odd),
         listCell(row.data.evaluations,              COLS[5].pct, odd),
       ],
     });
@@ -444,9 +470,9 @@ export class DocxBuilder {
       fechFin: "",
       ejesTransversales: "",
       aportes: [],
-      p1Pautas: [],
-      p2Pautas: [],
-      p3Pautas: [],
+      p1: null,
+      p2: null,
+      p3: null,
     };
 
     // Aportes: siempre 6 filas en el template
@@ -488,9 +514,9 @@ export class DocxBuilder {
       "dim6": textPatch(aportes[5].dim),    "aporte6": textPatch(aportes[5].aporte),    "como6": textPatch(aportes[5].como),
 
       // DUA — Pautas por principio
-      "p1-pautas": listPatch(meta.p1Pautas),
-      "p2-pautas": listPatch(meta.p2Pautas),
-      "p3-pautas": listPatch(meta.p3Pautas),
+      "p1-pautas": listPatch(duaSelectionToLines(meta.p1, 0)),
+      "p2-pautas": listPatch(duaSelectionToLines(meta.p2, 1)),
+      "p3-pautas": listPatch(duaSelectionToLines(meta.p3, 2)),
 
       // ── Tabla PUM principal + membrete de firmas ────────────────────────
       "tabla": {

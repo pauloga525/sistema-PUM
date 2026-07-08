@@ -9,21 +9,52 @@ const AporteMultimodalSchema = z.object({
   como:   z.string().max(1000),
 });
 
-export const PlanMetadataSchema = z.object({
-  areaEstudio:       z.string().max(200),
-  numUnidad:         z.string().max(10),
-  titulo:            z.string().max(500),
-  objetivos:         z.array(z.string().max(1000)).max(10),
-  criterios:         z.array(z.string().max(1000)).max(10),
-  nPeriodos:         z.string().max(20),
-  fechInicio:        z.string().max(50),
-  fechFin:           z.string().max(50),
-  ejesTransversales: z.string().max(500),
-  aportes:           z.array(AporteMultimodalSchema).max(6),
-  p1Pautas:          z.array(z.string().max(500)).max(10),
-  p2Pautas:          z.array(z.string().max(500)).max(10),
-  p3Pautas:          z.array(z.string().max(500)).max(10),
+const DuaPautaEntrySchema = z.object({
+  pauta:     z.number().int().min(1).max(3),
+  subPautas: z.array(z.number().int().min(1)).max(15),
 });
+
+const DuaSelectionSchema = z.array(DuaPautaEntrySchema);
+
+// Backward compat: old format was a single { pauta, subPautas } object → wrap in array.
+// Also handles legacy string[] (p1Pautas) by returning null.
+function normalizeDua(val: unknown): unknown {
+  if (val === null || val === undefined) return null;
+  if (Array.isArray(val)) return val;
+  if (typeof val === "object") {
+    const o = val as Record<string, unknown>;
+    if (typeof o.pauta === "number") return [val];
+  }
+  return null;
+}
+
+export const PlanMetadataSchema = z.preprocess(
+  (raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+    const r = raw as Record<string, unknown>;
+    return {
+      ...r,
+      p1: normalizeDua("p1" in r ? r.p1 : null),
+      p2: normalizeDua("p2" in r ? r.p2 : null),
+      p3: normalizeDua("p3" in r ? r.p3 : null),
+    };
+  },
+  z.object({
+    areaEstudio:       z.string().max(200),
+    numUnidad:         z.string().max(10),
+    titulo:            z.string().max(500),
+    objetivos:         z.array(z.string().max(1000)).max(10),
+    criterios:         z.array(z.string().max(1000)).max(10),
+    nPeriodos:         z.string().max(20),
+    fechInicio:        z.string().max(50),
+    fechFin:           z.string().max(50),
+    ejesTransversales: z.string().max(500),
+    aportes:           z.array(AporteMultimodalSchema).max(6),
+    p1:                DuaSelectionSchema.nullable(),
+    p2:                DuaSelectionSchema.nullable(),
+    p3:                DuaSelectionSchema.nullable(),
+  })
+);
 
 export const SaveMetadataSchema = z.object({
   planificationId: z.string().uuid("ID de planificación inválido"),
@@ -35,23 +66,37 @@ export type SaveMetadataInput = z.infer<typeof SaveMetadataSchema>;
 // ── Sub-schemas ───────────────────────────────────────────────────────────────
 
 const EjeTransversalSchema = z.union([
-  z.literal(1), z.literal(2), z.literal(3), z.literal(4),  z.literal(5),
-  z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(10),
+  z.literal(1),  z.literal(2),  z.literal(3),  z.literal(4),
+  z.literal(5),  z.literal(6),  z.literal(7),  z.literal(8),
+  z.literal(9),  z.literal(10),
+  z.literal(11), z.literal(12), z.literal(13), z.literal(14),
+  z.literal(15), z.literal(16), z.literal(17),
+  z.literal(18), z.literal(19), z.literal(20), z.literal(21),
+  z.literal(22), z.literal(23), z.literal(24), z.literal(25),
+  z.literal(26), z.literal(27), z.literal(28), z.literal(29),
+  z.literal(30), z.literal(31), z.literal(32), z.literal(33),
+  z.literal(34),
 ]);
 
 const PrincipioIconSchema = z.preprocess(
-  // Backward compat: old records stored { numero: n }, new records store { numeros: [n, ...] }
+  // Backward compat: old records stored { principio, numeros[] } or { principio, numero }
+  // New format: { principio, pauta, subPautas[] }
   (raw) => {
     if (!raw || typeof raw !== "object") return raw;
     const r = raw as Record<string, unknown>;
-    if (!Array.isArray(r.numeros) && typeof r.numero === "number") {
-      return { ...r, numeros: [r.numero] };
+    if (!r.principio) return raw;
+    if (!("pauta" in r)) {
+      const firstNum = Array.isArray(r.numeros)
+        ? (r.numeros as number[])[0]
+        : typeof r.numero === "number" ? r.numero : 1;
+      return { principio: r.principio, pauta: firstNum ?? 1, subPautas: [] };
     }
     return raw;
   },
   z.object({
     principio: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-    numeros:   z.array(z.number().int().min(1).max(10)).min(1).max(10),
+    pauta:     z.number().int().min(1).max(3),
+    subPautas: z.array(z.number().int().min(1)).min(0).max(15),
   }).nullable()
 );
 
@@ -60,14 +105,39 @@ const MethodologyItemSchema = z.object({
   principle: PrincipioIconSchema,
 });
 
-const PumRowDataSchema = z.object({
-  dcd:              z.string().max(2000),
-  ejeTransversales: z.array(EjeTransversalSchema).max(10),
+const DcdItemSchema = z.object({
+  text: z.string().max(2000),
+  ejes: z.array(EjeTransversalSchema).max(10),
+});
+
+const PumRowDataSchema = z.preprocess(
+  (raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+    const r = raw as Record<string, unknown>;
+    // backward compat: old format had top-level dcd + ejeTransversales
+    if (!("dcdItems" in r)) {
+      const text = typeof r.dcd === "string" ? r.dcd : "";
+      const ejes = Array.isArray(r.ejeTransversales) ? r.ejeTransversales : [];
+      return { ...r, dcdItems: [{ text, ejes }] };
+    }
+    return raw;
+  },
+  z.object({
+  dcdItems:         z.array(DcdItemSchema).min(1).max(10),
   indicators:       z.array(z.string().max(1000)).max(20),
   methodologyItems: z.array(MethodologyItemSchema).max(20),
-  resources:        z.array(z.string().max(1000)).max(20),
+  resources: z.preprocess(
+    (val) => {
+      if (!Array.isArray(val)) return val;
+      return val.map((item) =>
+        typeof item === "string" ? { text: item, principle: null } : item
+      );
+    },
+    z.array(MethodologyItemSchema).max(20),
+  ),
   evaluations:      z.array(z.string().max(1000)).max(20),
-});
+  }),
+);
 
 // ── Schemas principales ───────────────────────────────────────────────────────
 

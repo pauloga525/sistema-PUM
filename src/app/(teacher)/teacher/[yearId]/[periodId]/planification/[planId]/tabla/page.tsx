@@ -281,12 +281,7 @@ export default async function PlanTablaPage({
         onFinalize={finalizeAction}
         onClearFeedback={clearCoordinatorFeedbackAction}
         rowFeedback={Object.keys(rowFeedback).length > 0 ? rowFeedback : undefined}
-        pautaCounts={{
-          1: (plan!.metadata as { p1Pautas?: string[] } | null)?.p1Pautas?.filter(Boolean).length ?? 0,
-          2: (plan!.metadata as { p2Pautas?: string[] } | null)?.p2Pautas?.filter(Boolean).length ?? 0,
-          3: (plan!.metadata as { p3Pautas?: string[] } | null)?.p3Pautas?.filter(Boolean).length ?? 0,
-        }}
-      />
+        />
 
       {/* Row count hint */}
       {!isFinalized && (
