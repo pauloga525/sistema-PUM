@@ -52,25 +52,37 @@ export interface DcdItem {
  *  Permite seleccionar sub-pautas de múltiples pautas dentro del mismo principio. */
 export type DuaSelection = Array<{ pauta: number; subPautas: number[] }>;
 
-/** Icono de principio pedagógico: P1–P3 con una pauta y sub-pautas seleccionadas. */
+/** Icono de principio pedagógico: P1–P3 con selecciones multi-pauta. */
 export interface PrincipioIcon {
   principio: 1 | 2 | 3;
-  pauta:     number;   // pauta seleccionada (1–3)
-  subPautas: number[]; // sub-pautas seleccionadas dentro de esa pauta
+  selections: DuaSelection; // pautas seleccionadas, cada una con sus sub-pautas
 }
 
-/** Formatea el código de badge: P2:1.3 o P2:1.(2,3) */
+/** Formatea el código de badge.
+ *  Una pauta:      P2:1  |  P2:1(3)  |  P2:1(2,3)
+ *  Varias pautas:  P2:{1(2,3)}{2(1,4)}
+ */
 export function formatPrincipioLabel(p: PrincipioIcon): string {
-  const { principio, pauta, subPautas } = p;
-  if (subPautas.length === 0) return `P${principio}:${pauta}`;
-  const sub = subPautas.length === 1 ? `${subPautas[0]}` : `(${subPautas.join(",")})`;
-  return `P${principio}:${pauta}.${sub}`;
+  const { principio, selections } = p;
+  if (!selections || selections.length === 0) return `P${principio}`;
+  const sorted = [...selections].sort((a, b) => a.pauta - b.pauta);
+  if (sorted.length === 1) {
+    const { pauta, subPautas } = sorted[0];
+    if (!subPautas || subPautas.length === 0) return `P${principio}:${pauta}`;
+    const sub = subPautas.length === 1 ? `${subPautas[0]}` : `(${subPautas.join(",")})`;
+    return `P${principio}:${pauta}${sub}`;
+  }
+  const parts = sorted.map(({ pauta, subPautas }) => {
+    if (!subPautas || subPautas.length === 0) return `{${pauta}}`;
+    return `{${pauta}(${subPautas.join(",")})}`;
+  });
+  return `P${principio}:${parts.join("")}`;
 }
 
-/** Un ítem de la columna "¿Cómo van a aprender?" con su principio opcional. */
+/** Un ítem de la columna "¿Cómo van a aprender?" con sus principios DUA opcionales. */
 export interface MethodologySubItem {
   text: string;
-  principle: PrincipioIcon | null;
+  principles: PrincipioIcon[]; // hasta 3 (uno por P1/P2/P3)
 }
 
 /** Estructura de datos de una fila PUM (guardada como JSON en la BD). */

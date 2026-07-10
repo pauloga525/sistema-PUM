@@ -46,9 +46,9 @@ export function normalizePumRowData(raw: unknown): PumRowData {
       dcdItems: [{ text: String(data.dcd ?? ""), ejes: [] }],
       indicators: data.indicator ? [String(data.indicator)] : [],
       methodologyItems: data.methodology
-        ? [{ text: String(data.methodology), principle: null }]
+        ? [{ text: String(data.methodology), principles: [] }]
         : [],
-      resources: data.resources ? [{ text: String(data.resources), principle: null }] : [],
+      resources: data.resources ? [{ text: String(data.resources), principles: [] }] : [],
       evaluations: data.evaluation ? [String(data.evaluation)] : [],
     };
   }
@@ -81,7 +81,7 @@ export function normalizePumRowData(raw: unknown): PumRowData {
     resources: Array.isArray(data.resources)
       ? (data.resources as unknown[]).map((item) =>
           typeof item === "string"
-            ? { text: item, principle: null }
+            ? { text: item, principles: [] }
             : (item as MethodologySubItem)
         )
       : [],

@@ -396,11 +396,11 @@ function MethodologyItems({ items }: { items: MethodologySubItem[] }) {
       {nonEmpty.map((item, idx) => (
         <Text key={idx}>
           {idx > 0 ? "\n\n" : ""}
-          {item.principle
-            ? <Text style={{ color: BADGE_COLORS[item.principle.principio], fontFamily: FONT_BOLD }}>
-                {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}{" "}
-              </Text>
-            : null}
+          {(item.principles ?? []).map((p) => (
+            <Text key={p.principio} style={{ color: BADGE_COLORS[p.principio], fontFamily: FONT_BOLD }}>
+              {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}{" "}
+            </Text>
+          ))}
           {"• "}{item.text}
         </Text>
       ))}

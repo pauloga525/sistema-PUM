@@ -3,7 +3,7 @@
 import { useState, useTransition, useCallback, useRef, useEffect, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import type { PlanificationRow, EjeTransversalId, PrincipioIcon, DcdItem } from "@/modules/planification/planification.types";
+import type { PlanificationRow, EjeTransversalId, PrincipioIcon, DuaSelection, DcdItem } from "@/modules/planification/planification.types";
 import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 import type { ActionResult } from "@/types";
 import type { SavePlanificationRowsInput } from "@/modules/planification/planification.schema";
@@ -26,7 +26,7 @@ interface LocalDcdItem {
 interface LocalMethodologyItem {
   localId: string;
   text: string;
-  principle: PrincipioIcon | null;
+  principles: PrincipioIcon[];
 }
 
 interface LocalPumRow {
@@ -49,23 +49,27 @@ const newId = () => `lid-${++seq}`;
 
 // ── Conversión servidor → local ───────────────────────────────────────────────
 
-// Backward compat: handles old { principio, numeros[] } and { principio, numero } formats
+// Backward compat: handles old { principio, pauta, subPautas }, { principio, numeros[] }, { principio, numero }
 function normalizePrinciple(raw: unknown): PrincipioIcon | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const principio = r.principio as 1 | 2 | 3;
   if (![1, 2, 3].includes(principio)) return null;
-  // New format
-  if (typeof r.pauta === "number" && Array.isArray(r.subPautas)) {
-    return { principio, pauta: r.pauta as number, subPautas: r.subPautas as number[] };
+  // New format: { principio, selections }
+  if (Array.isArray(r.selections)) {
+    return { principio, selections: r.selections as DuaSelection };
   }
-  // Old format: { principio, numeros[] }
+  // Old format: { principio, pauta, subPautas }
+  if (typeof r.pauta === "number" && Array.isArray(r.subPautas)) {
+    return { principio, selections: [{ pauta: r.pauta, subPautas: r.subPautas as number[] }] };
+  }
+  // Very old: { principio, numeros[] }
   if (Array.isArray(r.numeros) && r.numeros.length > 0) {
-    return { principio, pauta: (r.numeros as number[])[0], subPautas: [] };
+    return { principio, selections: [{ pauta: (r.numeros as number[])[0], subPautas: [] }] };
   }
   // Very old: { principio, numero }
-  if (typeof r.numero === "number") return { principio, pauta: r.numero, subPautas: [] };
-  return { principio, pauta: 1, subPautas: [] };
+  if (typeof r.numero === "number") return { principio, selections: [{ pauta: r.numero, subPautas: [] }] };
+  return { principio, selections: [] };
 }
 
 function toLocalRow(r: PlanificationRow): LocalPumRow {
@@ -83,15 +87,15 @@ function toLocalRow(r: PlanificationRow): LocalPumRow {
     methodologyItems: r.data.methodologyItems.length > 0
       ? r.data.methodologyItems.map(m => ({
           localId: newId(), text: m.text,
-          principle: normalizePrinciple(m.principle as unknown),
+          principles: (m.principles ?? []).map(p => normalizePrinciple(p as unknown)).filter(Boolean) as PrincipioIcon[],
         }))
-      : [{ localId: newId(), text: "", principle: null }],
+      : [{ localId: newId(), text: "", principles: [] }],
     resources: r.data.resources.length > 0
       ? r.data.resources.map(m => ({
           localId: newId(), text: m.text,
-          principle: normalizePrinciple(m.principle as unknown),
+          principles: (m.principles ?? []).map(p => normalizePrinciple(p as unknown)).filter(Boolean) as PrincipioIcon[],
         }))
-      : [{ localId: newId(), text: "", principle: null }],
+      : [{ localId: newId(), text: "", principles: [] }],
     evaluations: r.data.evaluations.length > 0
       ? r.data.evaluations.map(t => ({ localId: newId(), text: t }))
       : [{ localId: newId(), text: "" }],
@@ -103,8 +107,8 @@ function emptyRow(): LocalPumRow {
     localId: newId(),
     dcdItems:        [{ localId: newId(), text: "", ejes: [] }],
     indicators:      [{ localId: newId(), text: "" }],
-    methodologyItems:[{ localId: newId(), text: "", principle: null }],
-    resources:       [{ localId: newId(), text: "", principle: null }],
+    methodologyItems:[{ localId: newId(), text: "", principles: [] }],
+    resources:       [{ localId: newId(), text: "", principles: [] }],
     evaluations:     [{ localId: newId(), text: "" }],
   };
 }
@@ -263,7 +267,7 @@ function EjeTransversalSelector({
               <div className="px-5 py-4 flex flex-col gap-5">
                 {/* Grupo: Valores Sociales */}
                 <div>
-                  <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Valores Sociales</p>
+                  <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Pacto Educativo Global</p>
                   <div className="grid grid-cols-4 gap-2">
                     {ERE_SOCIAL.map((eje) => {
                       const sel = value.includes(eje.id as EjeTransversalId);
@@ -349,112 +353,122 @@ function EjeTransversalSelector({
 }
 
 // ── PrincipleBadge ────────────────────────────────────────────────────────────
+// El principio (P1/P2/P3) es fijo — se elige con "+Px" en la lista.
+// El modal solo permite configurar pautas y sub-pautas.
 
 function PrincipleBadge({
   principle, isOpen, disabled,
-  onToggle, onPickPrincipio, onPickPauta, onToggleSubPauta, onClear,
+  onToggle, onUpdate,
 }: {
-  principle: PrincipioIcon | null;
+  principle: PrincipioIcon;   // nunca null: se crea con +Px
   isOpen: boolean;
   disabled?: boolean;
   onToggle: () => void;
-  onPickPrincipio: (p: 1 | 2 | 3) => void;
-  onPickPauta: (pauta: number) => void;
-  onToggleSubPauta: (n: number) => void;
-  onClear: () => void;
+  onUpdate: (p: PrincipioIcon | null) => void;
 }) {
-  const color = principle ? PRINCIPIO_COLORS[principle.principio] : "#94A3B8";
-  const label = principle ? formatPrincipioLabel(principle) : "P?";
+  const color = PRINCIPIO_COLORS[principle.principio];
+  const label = formatPrincipioLabel(principle);
 
-  // Sub-pautas disponibles para la pauta actualmente seleccionada
-  const currentPrincipioDef = principle
-    ? DUA_PRINCIPIOS.find((p) => p.num === principle.principio)
-    : undefined;
-  const currentPautaDef = principle && currentPrincipioDef
-    ? currentPrincipioDef.pautas.find((p) => p.num === principle.pauta)
+  const [local, setLocal] = useState<PrincipioIcon>(principle);
+  const [activePauta, setActivePauta] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isOpen) { setLocal(principle); setActivePauta(null); }
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clickPauta = (pautaNum: number) => {
+    const inSel = local.selections.some((s) => s.pauta === pautaNum);
+    if (activePauta === pautaNum) {
+      setLocal({ ...local, selections: local.selections.filter((s) => s.pauta !== pautaNum) });
+      setActivePauta(null);
+    } else if (inSel) {
+      setActivePauta(pautaNum);
+    } else {
+      setLocal({ ...local, selections: [...local.selections, { pauta: pautaNum, subPautas: [] }] });
+      setActivePauta(pautaNum);
+    }
+  };
+
+  const toggleSubPauta = (subNum: number) => {
+    if (activePauta === null) return;
+    setLocal({
+      ...local,
+      selections: local.selections.map((s) => {
+        if (s.pauta !== activePauta) return s;
+        const newSubs = s.subPautas.includes(subNum)
+          ? s.subPautas.filter((n) => n !== subNum)
+          : [...s.subPautas, subNum].sort((a, b) => a - b);
+        return { ...s, subPautas: newSubs };
+      }),
+    });
+  };
+
+  const handleListo = () => { onUpdate(local); onToggle(); };
+  const handleClear = () => { onUpdate(null); onToggle(); };
+
+  const principioDef = DUA_PRINCIPIOS.find((p) => p.num === local.principio);
+  const activePautaDef = activePauta !== null && principioDef
+    ? principioDef.pautas.find((p) => p.num === activePauta)
     : undefined;
 
   return (
     <div className="relative shrink-0">
       <button
         type="button"
-        title={principle ? `${label} — click para editar` : "Seleccionar principio DUA"}
+        title={`${label} — click para editar`}
         onClick={disabled ? undefined : onToggle}
-        className={`min-w-[2.75rem] h-9 px-1.5 rounded-full flex items-center justify-center text-[0.58rem] font-bold text-white transition-all ${
+        className={`min-w-[2.75rem] h-8 px-1.5 rounded-full flex items-center justify-center text-[0.58rem] font-bold text-white transition-all ${
           disabled ? "opacity-60 cursor-default" : "cursor-pointer hover:opacity-90"
         } ${isOpen ? "ring-2 ring-offset-1" : ""}`}
-        style={{ backgroundColor: color, ...(isOpen ? { outlineColor: color } : {}) }}
+        style={{ backgroundColor: color }}
       >
         {label}
       </button>
 
       {isOpen && !disabled && createPortal(
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
-            onClick={onToggle}
-            aria-hidden="true"
-          />
-
-          {/* Modal centrado */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onToggle}>
-            <div
-              className="bg-white rounded-2xl shadow-2xl w-80 max-h-[90vh] overflow-y-auto"
-              style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.25)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
+          <div className="fixed inset-0 z-40" style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }} onClick={handleListo} aria-hidden="true" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={handleListo}>
+            <div className="bg-white rounded-2xl shadow-2xl w-80 max-h-[90vh] overflow-y-auto" style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.25)" }} onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ borderBottom: "1px solid #f1f5f9" }}>
-                <span className="text-sm font-bold text-pum-text">Principio DUA</span>
-                <button type="button" onClick={onToggle} className="text-slate-400 hover:text-slate-600 cursor-pointer text-lg leading-none">×</button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white px-2.5 py-1 rounded-full" style={{ backgroundColor: color }}>
+                    P{local.principio}
+                  </span>
+                  <span className="text-sm font-bold text-pum-text">Principio DUA</span>
+                </div>
+                <button type="button" onClick={handleListo} className="text-slate-400 hover:text-slate-600 cursor-pointer text-lg leading-none">×</button>
               </div>
 
               <div className="px-5 py-4 flex flex-col gap-4">
-                {/* Selector de principio */}
-                <div>
-                  <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Principio</p>
-                  <div className="flex gap-2">
-                    {([1, 2, 3] as const).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => onPickPrincipio(p)}
-                        className={`flex-1 py-2 text-sm font-bold text-white rounded-xl cursor-pointer transition-all ${
-                          principle?.principio === p ? "ring-2 ring-offset-2" : "opacity-60 hover:opacity-85"
-                        }`}
-                        style={{
-                          backgroundColor: PRINCIPIO_COLORS[p],
-                          ...(principle?.principio === p ? { ringColor: PRINCIPIO_COLORS[p] } : {}),
-                        }}
-                      >
-                        P{p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Selector de pauta */}
-                {principle && currentPrincipioDef && (
+                {/* Pautas */}
+                {principioDef && (
                   <div>
-                    <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Pauta</p>
+                    <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-1">
+                      Pauta{" "}
+                      <span className="normal-case font-normal text-pum-text-disabled">— click para seleccionar, doble click para quitar</span>
+                    </p>
                     <div className="flex flex-col gap-1.5">
-                      {currentPrincipioDef.pautas.map((pd) => {
-                        const selected = principle.pauta === pd.num;
+                      {principioDef.pautas.map((pd) => {
+                        const inSel = local.selections.some((s) => s.pauta === pd.num);
+                        const isActive = activePauta === pd.num;
+                        const selEntry = local.selections.find((s) => s.pauta === pd.num);
                         return (
-                          <button
-                            key={pd.num}
-                            type="button"
-                            onClick={() => onPickPauta(pd.num)}
+                          <button key={pd.num} type="button" onClick={() => clickPauta(pd.num)}
                             className="text-left text-xs px-3 py-2 rounded-xl cursor-pointer transition-all border"
-                            style={
-                              selected
-                                ? { backgroundColor: color, color: "#fff", borderColor: color, fontWeight: 600 }
-                                : { backgroundColor: "#f8fafc", color: "#374151", borderColor: "#e2e8f0" }
-                            }
+                            style={isActive
+                              ? { backgroundColor: color, color: "#fff", borderColor: color, fontWeight: 700 }
+                              : inSel
+                              ? { backgroundColor: `${color}22`, color: "#374151", borderColor: color, fontWeight: 600 }
+                              : { backgroundColor: "#f8fafc", color: "#374151", borderColor: "#e2e8f0" }}
                           >
-                            {pd.num}. {pd.label.replace(/^Pauta \d+:\s*/, "")}
+                            <span>{pd.num}. {pd.label.replace(/^Pauta \d+:\s*/, "")}</span>
+                            {inSel && selEntry && selEntry.subPautas.length > 0 && (
+                              <span className="ml-1.5 text-[0.6rem] font-bold opacity-80">
+                                ({selEntry.subPautas.map((n) => `${local.principio}:${pd.num}.${n}`).join(", ")})
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -462,29 +476,21 @@ function PrincipleBadge({
                   </div>
                 )}
 
-                {/* Sub-pautas */}
-                {principle && currentPautaDef && (
+                {/* Sub-pautas de la pauta activa */}
+                {activePautaDef && (
                   <div>
-                    <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Sub-pautas</p>
+                    <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Sub-pautas — Pauta {activePauta}</p>
                     <div className="flex flex-col gap-1.5">
-                      {currentPautaDef.subPautas.map((sp) => {
-                        const checked = principle.subPautas.includes(sp.num);
+                      {activePautaDef.subPautas.map((sp) => {
+                        const checked = local.selections.find((s) => s.pauta === activePauta)?.subPautas.includes(sp.num) ?? false;
                         return (
-                          <button
-                            key={sp.num}
-                            type="button"
-                            onClick={() => onToggleSubPauta(sp.num)}
+                          <button key={sp.num} type="button" onClick={() => toggleSubPauta(sp.num)}
                             className="text-left text-xs px-3 py-2 rounded-xl cursor-pointer transition-all border"
-                            style={
-                              checked
-                                ? { backgroundColor: color, color: "#fff", borderColor: color, fontWeight: 600 }
-                                : { backgroundColor: "#f8fafc", color: "#374151", borderColor: "#e2e8f0" }
-                            }
+                            style={checked
+                              ? { backgroundColor: color, color: "#fff", borderColor: color, fontWeight: 600 }
+                              : { backgroundColor: "#f8fafc", color: "#374151", borderColor: "#e2e8f0" }}
                           >
-                            <span style={{ fontWeight: checked ? 700 : 500 }}>
-                              {principle.principio}:{principle.pauta}.{sp.num}
-                            </span>{" "}
-                            — {sp.label}
+                            <span style={{ fontWeight: checked ? 700 : 500 }}>{local.principio}:{activePauta}.{sp.num}</span>{" "}— {sp.label}
                           </button>
                         );
                       })}
@@ -493,23 +499,9 @@ function PrincipleBadge({
                 )}
               </div>
 
-              {/* Footer */}
               <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: "1px solid #f1f5f9" }}>
-                <button
-                  type="button"
-                  onClick={onClear}
-                  className="text-xs text-red-400 hover:text-red-600 cursor-pointer"
-                >
-                  Quitar principio
-                </button>
-                <button
-                  type="button"
-                  onClick={onToggle}
-                  className="text-xs font-bold px-4 py-1.5 rounded-xl text-white cursor-pointer"
-                  style={{ backgroundColor: color !== "#94A3B8" ? color : "#64748b" }}
-                >
-                  ✓ Listo
-                </button>
+                <button type="button" onClick={handleClear} className="text-xs text-red-400 hover:text-red-600 cursor-pointer">Quitar principio</button>
+                <button type="button" onClick={handleListo} className="text-xs font-bold px-4 py-1.5 rounded-xl text-white cursor-pointer" style={{ backgroundColor: color }}>✓ Listo</button>
               </div>
             </div>
           </div>
@@ -573,35 +565,54 @@ function SubItemList({
 function MethodologyItemsList({
   items, disabled, openPickerId, placeholder,
   onAdd, onRemove, onUpdateText,
-  onTogglePicker, onPickPrincipio, onPickPauta, onToggleSubPauta, onClearPrinciple,
+  onTogglePicker, onUpdatePrinciple, onAddPrinciple,
 }: {
   items: LocalMethodologyItem[];
   disabled?: boolean;
-  openPickerId: string | null;
+  openPickerId: { itemId: string; principio: 1|2|3 } | null;
   placeholder?: string;
   onAdd: () => void;
   onRemove: (localId: string) => void;
   onUpdateText: (localId: string, value: string) => void;
-  onTogglePicker: (localId: string) => void;
-  onPickPrincipio: (itemLocalId: string, p: 1 | 2 | 3) => void;
-  onPickPauta: (itemLocalId: string, pauta: number) => void;
-  onToggleSubPauta: (itemLocalId: string, n: number) => void;
-  onClearPrinciple: (localId: string) => void;
+  onTogglePicker: (itemLocalId: string, principio: 1|2|3) => void;
+  onUpdatePrinciple: (itemLocalId: string, principio: 1|2|3, p: PrincipioIcon | null) => void;
+  onAddPrinciple: (itemLocalId: string, principio: 1|2|3) => void;
 }) {
   return (
     <div className="flex flex-col gap-2">
       {items.map((item) => (
         <div key={item.localId} className="flex gap-1.5 items-start">
-          <PrincipleBadge
-            principle={item.principle}
-            isOpen={openPickerId === item.localId}
-            disabled={disabled}
-            onToggle={() => onTogglePicker(item.localId)}
-            onPickPrincipio={(p) => onPickPrincipio(item.localId, p)}
-            onPickPauta={(pauta) => onPickPauta(item.localId, pauta)}
-            onToggleSubPauta={(n) => onToggleSubPauta(item.localId, n)}
-            onClear={() => onClearPrinciple(item.localId)}
-          />
+          {/* Columna de badges + botones +Px */}
+          <div className="flex flex-col gap-1 shrink-0">
+            {item.principles.map((p) => (
+              <PrincipleBadge
+                key={p.principio}
+                principle={p}
+                isOpen={openPickerId?.itemId === item.localId && openPickerId?.principio === p.principio}
+                disabled={disabled}
+                onToggle={() => onTogglePicker(item.localId, p.principio)}
+                onUpdate={(updated) => onUpdatePrinciple(item.localId, p.principio, updated)}
+              />
+            ))}
+            {!disabled && item.principles.length < 3 && (
+              <div className="flex gap-0.5 flex-wrap">
+                {([1, 2, 3] as const)
+                  .filter((p) => !item.principles.some((ip) => ip.principio === p))
+                  .map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => onAddPrinciple(item.localId, p)}
+                      title={`Agregar Principio ${p}`}
+                      className="text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full text-white cursor-pointer hover:opacity-85 transition-opacity"
+                      style={{ backgroundColor: PRINCIPIO_COLORS[p] }}
+                    >
+                      +P{p}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
           <AutoTextarea
             value={item.text}
             onChange={(v) => onUpdateText(item.localId, v)}
@@ -700,7 +711,7 @@ export function PlanificationTable({
   const [rows, setRows] = useState<LocalPumRow[]>(() =>
     initialRows.length > 0 ? initialRows.map(toLocalRow) : [emptyRow()]
   );
-  const [openPrinciplePicker, setOpenPrinciplePicker] = useState<string | null>(null);
+  const [openPrinciplePicker, setOpenPrinciplePicker] = useState<{ itemId: string; principio: 1|2|3 } | null>(null);
   const [saveStatus, setSaveStatus]   = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError]     = useState<string | null>(null);
   const [showFinalizeDialog, setShowFinalizeDialog] = useState(false);
@@ -740,8 +751,8 @@ export function PlanificationTable({
       data: {
         dcdItems:         r.dcdItems.map((d) => ({ text: d.text, ejes: d.ejes })),
         indicators:       r.indicators.map((s) => s.text),
-        methodologyItems: r.methodologyItems.map((m) => ({ text: m.text, principle: m.principle })),
-        resources:        r.resources.map((m) => ({ text: m.text, principle: m.principle })),
+        methodologyItems: r.methodologyItems.map((m) => ({ text: m.text, principles: m.principles })),
+        resources:        r.resources.map((m) => ({ text: m.text, principles: m.principles })),
         evaluations:      r.evaluations.map((s) => s.text),
       },
     })),
@@ -866,7 +877,7 @@ export function PlanificationTable({
   const addMethodologyItem = (rowId: string) => {
     setRows((p) => p.map((r) =>
       r.localId === rowId
-        ? { ...r, methodologyItems: [...r.methodologyItems, { localId: newId(), text: "", principle: null }] }
+        ? { ...r, methodologyItems: [...r.methodologyItems, { localId: newId(), text: "", principles: [] }] }
         : r
     ));
     markRowEdited(rowId);
@@ -893,67 +904,40 @@ export function PlanificationTable({
     markDirty();
   };
 
-  const handlePickPrincipio = (rowId: string, itemId: string, principio: 1 | 2 | 3) => {
-    setRows((p) => p.map((r) =>
+  const handleUpdatePrincipleMeth = (rowId: string, itemId: string, principio: 1|2|3, updated: PrincipioIcon | null) => {
+    setRows((prev) => prev.map((r) =>
       r.localId === rowId
         ? {
             ...r,
             methodologyItems: r.methodologyItems.map((i) => {
               if (i.localId !== itemId) return i;
-              // Keep pauta only if same principle, else reset
-              const pauta = i.principle?.principio === principio ? i.principle.pauta : 1;
-              return { ...i, principle: { principio, pauta, subPautas: [] } };
+              const principles = updated === null
+                ? i.principles.filter((p) => p.principio !== principio)
+                : i.principles.map((p) => p.principio === principio ? updated : p);
+              return { ...i, principles };
             }),
           }
-        : r
-    ));
-    markRowEdited(rowId);
-    markDirty();
-  };
-
-  const handlePickPauta = (rowId: string, itemId: string, pauta: number) => {
-    setRows((p) => p.map((r) =>
-      r.localId === rowId
-        ? {
-            ...r,
-            methodologyItems: r.methodologyItems.map((i) => {
-              if (i.localId !== itemId || !i.principle) return i;
-              return { ...i, principle: { ...i.principle, pauta, subPautas: [] } };
-            }),
-          }
-        : r
-    ));
-    markRowEdited(rowId);
-    markDirty();
-  };
-
-  const handleToggleSubPauta = (rowId: string, itemId: string, n: number) => {
-    setRows((p) => p.map((r) =>
-      r.localId === rowId
-        ? {
-            ...r,
-            methodologyItems: r.methodologyItems.map((i) => {
-              if (i.localId !== itemId || !i.principle) return i;
-              const current = i.principle.subPautas;
-              const newSubs = current.includes(n)
-                ? current.filter((s) => s !== n)
-                : [...current, n].sort((a, b) => a - b);
-              return { ...i, principle: { ...i.principle, subPautas: newSubs } };
-            }),
-          }
-        : r
-    ));
-    markRowEdited(rowId);
-    markDirty();
-  };
-
-  const clearPrinciple = (rowId: string, itemId: string) => {
-    setRows((p) => p.map((r) =>
-      r.localId === rowId
-        ? { ...r, methodologyItems: r.methodologyItems.map((i) => i.localId === itemId ? { ...i, principle: null } : i) }
         : r
     ));
     setOpenPrinciplePicker(null);
+    markRowEdited(rowId);
+    markDirty();
+  };
+
+  const handleAddPrincipleMeth = (rowId: string, itemId: string, principio: 1|2|3) => {
+    setRows((prev) => prev.map((r) =>
+      r.localId === rowId
+        ? {
+            ...r,
+            methodologyItems: r.methodologyItems.map((i) =>
+              i.localId === itemId && !i.principles.some((p) => p.principio === principio)
+                ? { ...i, principles: [...i.principles, { principio, selections: [] }] }
+                : i
+            ),
+          }
+        : r
+    ));
+    setOpenPrinciplePicker({ itemId, principio });
     markRowEdited(rowId);
     markDirty();
   };
@@ -963,7 +947,7 @@ export function PlanificationTable({
   const addResourceItem = (rowId: string) => {
     setRows((p) => p.map((r) =>
       r.localId === rowId
-        ? { ...r, resources: [...r.resources, { localId: newId(), text: "", principle: null }] }
+        ? { ...r, resources: [...r.resources, { localId: newId(), text: "", principles: [] }] }
         : r
     ));
     markRowEdited(rowId); markDirty();
@@ -987,63 +971,39 @@ export function PlanificationTable({
     markRowEdited(rowId); markDirty();
   };
 
-  const handlePickPrincipioRes = (rowId: string, itemId: string, principio: 1 | 2 | 3) => {
-    setRows((p) => p.map((r) =>
+  const handleUpdatePrincipleRes = (rowId: string, itemId: string, principio: 1|2|3, updated: PrincipioIcon | null) => {
+    setRows((prev) => prev.map((r) =>
       r.localId === rowId
         ? {
             ...r,
             resources: r.resources.map((i) => {
               if (i.localId !== itemId) return i;
-              const pauta = i.principle?.principio === principio ? i.principle.pauta : 1;
-              return { ...i, principle: { principio, pauta, subPautas: [] } };
+              const principles = updated === null
+                ? i.principles.filter((p) => p.principio !== principio)
+                : i.principles.map((p) => p.principio === principio ? updated : p);
+              return { ...i, principles };
             }),
           }
-        : r
-    ));
-    markRowEdited(rowId); markDirty();
-  };
-
-  const handlePickPautaRes = (rowId: string, itemId: string, pauta: number) => {
-    setRows((p) => p.map((r) =>
-      r.localId === rowId
-        ? {
-            ...r,
-            resources: r.resources.map((i) => {
-              if (i.localId !== itemId || !i.principle) return i;
-              return { ...i, principle: { ...i.principle, pauta, subPautas: [] } };
-            }),
-          }
-        : r
-    ));
-    markRowEdited(rowId); markDirty();
-  };
-
-  const handleToggleSubPautaRes = (rowId: string, itemId: string, n: number) => {
-    setRows((p) => p.map((r) =>
-      r.localId === rowId
-        ? {
-            ...r,
-            resources: r.resources.map((i) => {
-              if (i.localId !== itemId || !i.principle) return i;
-              const current = i.principle.subPautas;
-              const newSubs = current.includes(n)
-                ? current.filter((s) => s !== n)
-                : [...current, n].sort((a, b) => a - b);
-              return { ...i, principle: { ...i.principle, subPautas: newSubs } };
-            }),
-          }
-        : r
-    ));
-    markRowEdited(rowId); markDirty();
-  };
-
-  const clearPrincipleRes = (rowId: string, itemId: string) => {
-    setRows((p) => p.map((r) =>
-      r.localId === rowId
-        ? { ...r, resources: r.resources.map((i) => i.localId === itemId ? { ...i, principle: null } : i) }
         : r
     ));
     setOpenPrinciplePicker(null);
+    markRowEdited(rowId); markDirty();
+  };
+
+  const handleAddPrincipleRes = (rowId: string, itemId: string, principio: 1|2|3) => {
+    setRows((prev) => prev.map((r) =>
+      r.localId === rowId
+        ? {
+            ...r,
+            resources: r.resources.map((i) =>
+              i.localId === itemId && !i.principles.some((p) => p.principio === principio)
+                ? { ...i, principles: [...i.principles, { principio, selections: [] }] }
+                : i
+            ),
+          }
+        : r
+    ));
+    setOpenPrinciplePicker({ itemId, principio });
     markRowEdited(rowId); markDirty();
   };
 
@@ -1058,11 +1018,11 @@ export function PlanificationTable({
   // Fixed-width columns: text wraps vertically instead of expanding horizontally
   const HEADERS = [
     { label: "#",                     w: "3%",  subtitle: undefined, title: undefined },
-    { label: "¿Qué van a aprender?",  w: "22%", subtitle: "Destreza con Criterio de Desempeño / Competencia",                              title: "DCD — Destrezas con Criterios de Desempeño: habilidades y conocimientos que el estudiante debe dominar" },
-    { label: "¿Qué evaluar?",         w: "17%", subtitle: "Indicadores de evaluación",                                                     title: "Indicadores de logro: criterios observables para verificar que se alcanzó la destreza" },
+    { label: "¿Qué van a aprender?",  w: "18%", subtitle: "Destreza con Criterio de Desempeño / Competencia",                              title: "DCD — Destrezas con Criterios de Desempeño: habilidades y conocimientos que el estudiante debe dominar" },
+    { label: "¿Qué evaluar?",         w: "16%", subtitle: "Indicadores de evaluación",                                                     title: "Indicadores de logro: criterios observables para verificar que se alcanzó la destreza" },
     { label: "¿Cómo van a aprender?", w: "22%", subtitle: "Metodologías para los aprendizajes · Estrategias Metodológicas · DUA",         title: "Metodología y Principios DUA (Diseño Universal para el Aprendizaje): estrategias de enseñanza inclusiva" },
-    { label: "Recursos",              w: "13%", subtitle: undefined,                                                                        title: "Materiales, herramientas y medios necesarios para la clase" },
-    { label: "¿Cómo evaluar?",        w: "19%", subtitle: "Actividades de Evaluación / Técnicas / Instrumentos",                           title: "Técnicas e instrumentos de evaluación formativa y sumativa" },
+    { label: "Recursos",              w: "19%", subtitle: undefined,                                                                        title: "Materiales, herramientas y medios necesarios para la clase" },
+    { label: "¿Cómo evaluar?",        w: "18%", subtitle: "Actividades de Evaluación / Técnicas / Instrumentos",                           title: "Técnicas e instrumentos de evaluación formativa y sumativa" },
   ];
 
   return (
@@ -1256,13 +1216,14 @@ export function PlanificationTable({
                     onAdd={() => addMethodologyItem(row.localId)}
                     onRemove={(id) => removeMethodologyItem(row.localId, id)}
                     onUpdateText={(id, v) => updateMethodologyText(row.localId, id, v)}
-                    onTogglePicker={(id) =>
-                      setOpenPrinciplePicker(openPrinciplePicker === id ? null : id)
+                    onTogglePicker={(id, principio) =>
+                      setOpenPrinciplePicker(
+                        openPrinciplePicker?.itemId === id && openPrinciplePicker?.principio === principio
+                          ? null : { itemId: id, principio }
+                      )
                     }
-                    onPickPrincipio={(id, p) => handlePickPrincipio(row.localId, id, p)}
-                    onPickPauta={(id, pauta) => handlePickPauta(row.localId, id, pauta)}
-                    onToggleSubPauta={(id, n) => handleToggleSubPauta(row.localId, id, n)}
-                    onClearPrinciple={(id) => clearPrinciple(row.localId, id)}
+                    onUpdatePrinciple={(id, principio, p) => handleUpdatePrincipleMeth(row.localId, id, principio, p)}
+                    onAddPrinciple={(id, principio) => handleAddPrincipleMeth(row.localId, id, principio)}
                   />
                 </td>
 
@@ -1276,13 +1237,14 @@ export function PlanificationTable({
                     onAdd={() => addResourceItem(row.localId)}
                     onRemove={(id) => removeResourceItem(row.localId, id)}
                     onUpdateText={(id, v) => updateResourceText(row.localId, id, v)}
-                    onTogglePicker={(id) =>
-                      setOpenPrinciplePicker(openPrinciplePicker === id ? null : id)
+                    onTogglePicker={(id, principio) =>
+                      setOpenPrinciplePicker(
+                        openPrinciplePicker?.itemId === id && openPrinciplePicker?.principio === principio
+                          ? null : { itemId: id, principio }
+                      )
                     }
-                    onPickPrincipio={(id, p) => handlePickPrincipioRes(row.localId, id, p)}
-                    onPickPauta={(id, p) => handlePickPautaRes(row.localId, id, p)}
-                    onToggleSubPauta={(id, n) => handleToggleSubPautaRes(row.localId, id, n)}
-                    onClearPrinciple={(id) => clearPrincipleRes(row.localId, id)}
+                    onUpdatePrinciple={(id, principio, p) => handleUpdatePrincipleRes(row.localId, id, principio, p)}
+                    onAddPrinciple={(id, principio) => handleAddPrincipleRes(row.localId, id, principio)}
                   />
                 </td>
 

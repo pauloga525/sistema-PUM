@@ -859,11 +859,13 @@ export function ReviewClient({
                             <ul className="list-none m-0 p-0 space-y-1">
                               {row.data.methodologyItems.filter((m) => m.text).map((item, j) => (
                                 <li key={j} className="flex items-start gap-1">
-                                  {item.principle && (
-                                    <span className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[item.principle.principio as 1|2|3] }}>
-                                      {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}
-                                    </span>
-                                  )}
+                                  <span className="flex gap-0.5 flex-wrap shrink-0">
+                                    {(item.principles ?? []).map((p) => (
+                                      <span key={p.principio} className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[p.principio as 1|2|3] }}>
+                                        {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}
+                                      </span>
+                                    ))}
+                                  </span>
                                   <span className="leading-snug">{item.text}</span>
                                 </li>
                               ))}
@@ -875,11 +877,13 @@ export function ReviewClient({
                             <ul className="list-none m-0 p-0 space-y-1">
                               {row.data.resources.filter((r) => r.text).map((item, j) => (
                                 <li key={j} className="flex items-start gap-1">
-                                  {item.principle && (
-                                    <span className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[item.principle.principio as 1|2|3] }}>
-                                      {formatPrincipioLabel(item.principle as Parameters<typeof formatPrincipioLabel>[0])}
-                                    </span>
-                                  )}
+                                  <span className="flex gap-0.5 flex-wrap shrink-0">
+                                    {(item.principles ?? []).map((p) => (
+                                      <span key={p.principio} className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[p.principio as 1|2|3] }}>
+                                        {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}
+                                      </span>
+                                    ))}
+                                  </span>
                                   <span className="leading-snug">• {item.text}</span>
                                 </li>
                               ))}

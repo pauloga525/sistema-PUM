@@ -79,31 +79,73 @@ const EjeTransversalSchema = z.union([
 ]);
 
 const PrincipioIconSchema = z.preprocess(
-  // Backward compat: old records stored { principio, numeros[] } or { principio, numero }
-  // New format: { principio, pauta, subPautas[] }
+  // Backward compat: old records stored { principio, pauta, subPautas[] }
+  //   or { principio, numeros[] } or { principio, numero }
+  // New format: { principio, selections: [{ pauta, subPautas }] }
   (raw) => {
     if (!raw || typeof raw !== "object") return raw;
     const r = raw as Record<string, unknown>;
     if (!r.principio) return raw;
-    if (!("pauta" in r)) {
-      const firstNum = Array.isArray(r.numeros)
-        ? (r.numeros as number[])[0]
-        : typeof r.numero === "number" ? r.numero : 1;
-      return { principio: r.principio, pauta: firstNum ?? 1, subPautas: [] };
+    // Already new format
+    if (Array.isArray(r.selections)) return raw;
+    // Old format: { principio, pauta, subPautas }
+    if (typeof r.pauta === "number" && Array.isArray(r.subPautas)) {
+      return { principio: r.principio, selections: [{ pauta: r.pauta, subPautas: r.subPautas }] };
+    }
+    // Very old: { principio, numeros[] } or { principio, numero }
+    const firstNum = Array.isArray(r.numeros)
+      ? (r.numeros as number[])[0]
+      : typeof r.numero === "number" ? r.numero : 1;
+    return { principio: r.principio, selections: [{ pauta: firstNum ?? 1, subPautas: [] }] };
+  },
+  z.object({
+    principio: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    selections: z.array(z.object({
+      pauta:     z.number().int().min(1).max(3),
+      subPautas: z.array(z.number().int().min(1)).min(0).max(15),
+    })).max(3),
+  }).nullable()
+);
+
+const PrincipioIconItemSchema = z.preprocess(
+  (raw) => {
+    if (!raw || typeof raw !== "object") return raw;
+    const r = raw as Record<string, unknown>;
+    if (!r.principio) return raw;
+    if (Array.isArray(r.selections)) return raw;
+    if (typeof r.pauta === "number" && Array.isArray(r.subPautas)) {
+      return { principio: r.principio, selections: [{ pauta: r.pauta, subPautas: r.subPautas }] };
+    }
+    const firstNum = Array.isArray(r.numeros)
+      ? (r.numeros as number[])[0]
+      : typeof r.numero === "number" ? r.numero : 1;
+    return { principio: r.principio, selections: [{ pauta: firstNum ?? 1, subPautas: [] }] };
+  },
+  z.object({
+    principio: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    selections: z.array(z.object({
+      pauta:     z.number().int().min(1).max(3),
+      subPautas: z.array(z.number().int().min(1)).min(0).max(15),
+    })).max(3),
+  })
+);
+
+const MethodologyItemSchema = z.preprocess(
+  (raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+    const r = raw as Record<string, unknown>;
+    // Backward compat: old format had single `principle: PrincipioIcon | null`
+    if (!("principles" in r)) {
+      const p = r.principle ?? null;
+      return { text: r.text, principles: p ? [p] : [] };
     }
     return raw;
   },
   z.object({
-    principio: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-    pauta:     z.number().int().min(1).max(3),
-    subPautas: z.array(z.number().int().min(1)).min(0).max(15),
-  }).nullable()
+    text:       z.string().max(2000),
+    principles: z.array(PrincipioIconItemSchema).max(3),
+  })
 );
-
-const MethodologyItemSchema = z.object({
-  text: z.string().max(2000),
-  principle: PrincipioIconSchema,
-});
 
 const DcdItemSchema = z.object({
   text: z.string().max(2000),
@@ -130,7 +172,7 @@ const PumRowDataSchema = z.preprocess(
     (val) => {
       if (!Array.isArray(val)) return val;
       return val.map((item) =>
-        typeof item === "string" ? { text: item, principle: null } : item
+        typeof item === "string" ? { text: item, principles: [] } : item
       );
     },
     z.array(MethodologyItemSchema).max(20),

@@ -258,24 +258,21 @@ function methodologyCell(items: MethodologySubItem[], widthPct: number, isShaded
   const children: Paragraph[] = isEmpty
     ? [new Paragraph({ children: [new TextRun({ text: "—", size: 24, font: FONT, color: COLOR_MUTED })] })]
     : nonEmpty.map((item, idx) => {
-        const p = item.principle;
-        const principleRuns: TextRun[] = p
-          ? [
-              new TextRun({
-                text: ` ${formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])} `,
-                size: 20,
-                bold: true,
-                font: FONT,
-                color: COLOR_WHITE,
-                shading: {
-                  type: ShadingType.SOLID,
-                  fill: PRINCIPIO_COLORS_HEX[p.principio],
-                  color: PRINCIPIO_COLORS_HEX[p.principio],
-                },
-              }),
-              new TextRun({ text: "  ", size: 20, font: FONT }),
-            ]
-          : [];
+        const principleRuns: TextRun[] = (item.principles ?? []).flatMap((p) => [
+          new TextRun({
+            text: ` ${formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])} `,
+            size: 20,
+            bold: true,
+            font: FONT,
+            color: COLOR_WHITE,
+            shading: {
+              type: ShadingType.SOLID,
+              fill: PRINCIPIO_COLORS_HEX[p.principio],
+              color: PRINCIPIO_COLORS_HEX[p.principio],
+            },
+          }),
+          new TextRun({ text: "  ", size: 20, font: FONT }),
+        ]);
         return new Paragraph({
           children: [
             ...principleRuns,

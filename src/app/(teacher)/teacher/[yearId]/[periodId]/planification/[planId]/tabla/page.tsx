@@ -111,7 +111,7 @@ export default async function PlanTablaPage({
   }
 
   return (
-    <div className="flex-1 flex flex-col p-6 sm:p-8 max-w-7xl mx-auto w-full">
+    <div className="flex-1 flex flex-col p-4 sm:p-6 w-full">
       {/* Breadcrumb */}
       <div className="mb-6">
         <BreadcrumbPUM
