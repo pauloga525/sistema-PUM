@@ -565,8 +565,9 @@ function PlanDocument({ plan, ctx, signatureBlock }: { plan: Planification; ctx:
 // ── Fusión con membrete usando pdf-lib ────────────────────────────────────────
 // Carga membrete.pdf, copia su página 1 como fondo, y dibuja el contenido encima.
 // Las áreas sin contenido (paddingTop) quedan transparentes → membrete visible.
-async function applyMembrete(contentBuffer: Buffer): Promise<Buffer> {
-  const membretePath = path.join(process.cwd(), "src", "templates", "membrete.pdf");
+async function applyMembrete(contentBuffer: Buffer, isUpper: boolean): Promise<Buffer> {
+  const membreteFile = isUpper ? "membrete-superior.pdf" : "membrete.pdf";
+  const membretePath = path.join(process.cwd(), "src", "templates", membreteFile);
   const membreteBytes = fs.readFileSync(membretePath);
 
   const membreteDoc = await PDFDocument.load(membreteBytes);
@@ -598,5 +599,6 @@ export async function buildPdfBuffer(plan: Planification, ctx: PlanContext, sign
     ? contentBuffer
     : Buffer.from(contentBuffer as unknown as ArrayBuffer);
 
-  return applyMembrete(content);
+  const isUpper = ctx.levelTrack === "BACHILLERATO" || (ctx.levelTrack === "BASICA" && ctx.levelOrderIndex >= 8);
+  return applyMembrete(content, isUpper);
 }

@@ -310,8 +310,13 @@ export class PlanificationService {
       prisma.teacherAssignment.findMany({
         where: { teacherId, academicYearId: yearId, active: true },
         include: { subject: true, level: true },
-        orderBy: [{ level: { orderIndex: "asc" } }, { subject: { name: "asc" } }],
-      }),
+      }).then((rows) =>
+        rows.sort((a, b) =>
+          a.level.orderIndex !== b.level.orderIndex
+            ? a.level.orderIndex - b.level.orderIndex
+            : a.subject.name.localeCompare(b.subject.name, "es")
+        )
+      ),
       prisma.planificationTeacher.findMany({
         where: { teacherId },
         select: {
@@ -385,8 +390,13 @@ export class PlanificationService {
           subject: true,
           level:   true,
         },
-        orderBy: [{ level: { orderIndex: "asc" } }, { subject: { name: "asc" } }],
-      }),
+      }).then((rows) =>
+        rows.sort((a, b) =>
+          a.level.orderIndex !== b.level.orderIndex
+            ? a.level.orderIndex - b.level.orderIndex
+            : a.subject.name.localeCompare(b.subject.name, "es")
+        )
+      ),
       prisma.period.findMany({
         where: { academicYearId: yearId },
         orderBy: { number: "asc" },

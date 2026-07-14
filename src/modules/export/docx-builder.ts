@@ -59,10 +59,16 @@ export interface PlanContext {
   teacherName: string;
   subjectName: string;
   levelName: string;
-  levelTrack: string; // "BASICA" | "BACHILLERATO"
+  levelTrack: string;      // "BASICA" | "BACHILLERATO"
+  levelOrderIndex: number; // posición del nivel (1-10 básica, 1-3 bachiller)
   yearLabel: string;
   periodName: string;
   metadata: PlanMetadata | null;
+}
+
+/** True para 8vo-10mo básica y cualquier curso de bachillerato. */
+function isUpperLevel(ctx: PlanContext): boolean {
+  return ctx.levelTrack === "BACHILLERATO" || (ctx.levelTrack === "BASICA" && ctx.levelOrderIndex >= 8);
 }
 
 // ── Helpers de parches ────────────────────────────────────────────────────────
@@ -453,7 +459,8 @@ async function setSideMargins(docxBuffer: Buffer, mm: number): Promise<Buffer> {
 
 export class DocxBuilder {
   async build(plan: Planification, ctx: PlanContext, signatureBlock?: SignatureBlockData | null): Promise<Buffer> {
-    const templatePath = path.join(process.cwd(), "src", "templates", "pum-template.docx");
+    const templateFile = isUpperLevel(ctx) ? "pum-template-superior.docx" : "pum-template.docx";
+    const templatePath = path.join(process.cwd(), "src", "templates", templateFile);
     const templateBuffer = fs.readFileSync(templatePath);
 
     const meta: PlanMetadata = ctx.metadata ?? {

@@ -43,14 +43,15 @@ export class ExportService {
     const teacherNames = plan.teachers.map((t) => t.name ?? "Docente").join(", ");
 
     const ctx = {
-      institutionName: appConfig.institutionName,
-      teacherName:     teacherNames,
-      subjectName:     subject.name,
-      levelName:       level.name,
-      levelTrack:      level.track,
-      yearLabel:       year.label,
-      periodName:      period.name,
-      metadata:        plan.metadata,
+      institutionName:  appConfig.institutionName,
+      teacherName:      teacherNames,
+      subjectName:      subject.name,
+      levelName:        level.name,
+      levelTrack:       level.track,
+      levelOrderIndex:  level.orderIndex,
+      yearLabel:        year.label,
+      periodName:       period.name,
+      metadata:         plan.metadata,
     };
 
     const safeName = [subject.name, level.code, year.label, period.number]
@@ -144,14 +145,15 @@ export class ExportService {
       const teacherNames = plan.teachers.map((t) => t.name ?? "Docente").join(", ");
 
       const ctx = {
-        institutionName: appConfig.institutionName,
-        teacherName:     teacherNames,
-        subjectName:     subject.name,
-        levelName:       level.name,
-        levelTrack:      level.track,
-        yearLabel:       year.label,
-        periodName:      period.name,
-        metadata:        plan.metadata,
+        institutionName:  appConfig.institutionName,
+        teacherName:      teacherNames,
+        subjectName:      subject.name,
+        levelName:        level.name,
+        levelTrack:       level.track,
+        levelOrderIndex:  level.orderIndex,
+        yearLabel:        year.label,
+        periodName:       period.name,
+        metadata:         plan.metadata,
       };
 
       const buffer = await docxBuilder.build(plan, ctx);
