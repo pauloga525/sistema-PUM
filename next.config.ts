@@ -23,10 +23,11 @@ function loadEnvLocal(): Record<string, string> {
 const env = loadEnvLocal();
 
 // Hosts adicionales permitidos para acceder al servidor de desarrollo.
-// Actualiza CLOUDFLARE_TUNNEL_HOST en .env.local cuando cambie el túnel.
+// "*.trycloudflare.com" cubre cualquier túnel temporal sin actualizar .env.local.
 const extraDevOrigins: string[] = [
-  env.DEV_LAN_IP            ?? "",
-  env.CLOUDFLARE_TUNNEL_HOST ?? "",
+  "*.trycloudflare.com",                   // cualquier sesión de Cloudflare Tunnel
+  env.DEV_LAN_IP             ?? "",        // IP de la LAN local
+  env.CLOUDFLARE_TUNNEL_HOST ?? "",        // URL específica del túnel activo (por si acaso)
 ].filter(Boolean);
 
 const nextConfig: NextConfig = {
