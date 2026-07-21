@@ -737,8 +737,8 @@ export function ReviewClient({
               </tr>
               <tr>
                 <td colSpan={2} className="hdr-blue text-white font-semibold text-center">Colorimetría</td>
-                <td colSpan={5} className="hdr-blue text-white font-semibold text-center">Principio</td>
-                <td colSpan={3} className="hdr-blue text-white font-semibold text-center">Pautas</td>
+                <td colSpan={3} className="hdr-blue text-white font-semibold text-center">Principio</td>
+                <td colSpan={5} className="hdr-blue text-white font-semibold text-center">Pautas</td>
               </tr>
               {([
                 { key: "dua_p1" as ReviewSectionKey, color: "hdr-dua-p1", label: "P I:", desc: "PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN", sel: meta?.p1 ?? null, pIdx: 0 },
@@ -747,10 +747,10 @@ export function ReviewClient({
               ]).map((p) => (
                 <tr key={p.key}>
                   <td colSpan={2} className={p.color} style={{ minWidth: "40px" }}>&nbsp;</td>
-                  <td colSpan={5}>
+                  <td colSpan={3}>
                     <span className="font-bold">{p.label}</span> {p.desc}
                   </td>
-                  <td colSpan={3}>
+                  <td colSpan={5}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                       <div>
                         {(() => {

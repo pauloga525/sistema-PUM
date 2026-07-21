@@ -322,17 +322,17 @@ export default async function PreviewPage({
                 </tr>
                 <tr>
                   <td colSpan={2} className="hdr-blue text-white font-semibold text-center">Colorimetría</td>
-                  <td colSpan={5} className="hdr-blue text-white font-semibold text-center">Principio</td>
-                  <td colSpan={3} className="hdr-blue text-white font-semibold text-center">Pautas</td>
+                  <td colSpan={3} className="hdr-blue text-white font-semibold text-center">Principio</td>
+                  <td colSpan={5} className="hdr-blue text-white font-semibold text-center">Pautas</td>
                 </tr>
 
                 {/* P1 */}
                 <tr>
                   <td colSpan={2} className="hdr-dua-p1" style={{ minWidth: "40px" }}>&nbsp;</td>
-                  <td colSpan={5}>
+                  <td colSpan={3}>
                     <span className="font-bold">P I:</span> PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN
                   </td>
-                  <td colSpan={3}>
+                  <td colSpan={5}>
                     {(() => {
                       const sel = meta?.p1;
                       const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
@@ -360,10 +360,10 @@ export default async function PreviewPage({
                 {/* P2 */}
                 <tr>
                   <td colSpan={2} className="hdr-dua-p2">&nbsp;</td>
-                  <td colSpan={5}>
+                  <td colSpan={3}>
                     <span className="font-bold">P II:</span> OFRECER MÚLTIPLES MEDIOS PARA LA ACCIÓN Y EXPRESIÓN
                   </td>
-                  <td colSpan={3}>
+                  <td colSpan={5}>
                     {(() => {
                       const sel = meta?.p2;
                       const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
@@ -391,10 +391,10 @@ export default async function PreviewPage({
                 {/* P3 */}
                 <tr>
                   <td colSpan={2} className="hdr-dua-p3">&nbsp;</td>
-                  <td colSpan={5}>
+                  <td colSpan={3}>
                     <span className="font-bold">P III:</span> PROPORCIONAR MÚLTIPLES MEDIOS PARA LA MOTIVACIÓN E IMPLICACIÓN EN EL APRENDIZAJE
                   </td>
-                  <td colSpan={3}>
+                  <td colSpan={5}>
                     {(() => {
                       const sel = meta?.p3;
                       const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
