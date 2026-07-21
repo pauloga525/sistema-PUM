@@ -282,9 +282,13 @@ function methodologyCell(items: MethodologySubItem[], widthPct: number, isShaded
         return new Paragraph({
           children: [
             ...principleRuns,
+            ...(principleRuns.length > 0 ? [new TextRun({ break: 1 })] : []),
             new TextRun({ text: item.text, size: 24, font: FONT, color: COLOR_TEXT }),
           ],
-          spacing: { after: idx < nonEmpty.length - 1 ? 80 : 0 },
+          spacing: { before: idx > 0 ? 80 : 0, after: 0 },
+          border: idx > 0 ? {
+            top: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1", space: 4 },
+          } : {},
         });
       });
 

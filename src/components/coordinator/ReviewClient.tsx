@@ -310,8 +310,15 @@ export function ReviewClient({
   const isReviewed = (key: AnySectionKey) =>
     states[key]?.approved === true || !!(states[key]?.comment?.trim());
 
-  // Gate checks use only blocking sections — meta_* and plan_* don't block
-  const allApproved = BLOCKING_REVIEW_KEYS.every((k) => states[k]?.approved) &&
+  // Gate checks use only blocking sections — meta_* and plan_* don't block progress,
+  // BUT if any optional section has a comment without approval the coordinator intends
+  // to send feedback, so we must NOT show "Aprobar PUM completo" in that case.
+  const anyOptionalCommented = REVIEW_SECTION_KEYS
+    .filter((k) => k.startsWith("meta_") || k.startsWith("plan_"))
+    .some((k) => !!(states[k]?.comment?.trim()) && !states[k]?.approved);
+
+  const allApproved = !anyOptionalCommented &&
+                      BLOCKING_REVIEW_KEYS.every((k) => states[k]?.approved) &&
                       rowKeys.every((k) => states[k]?.approved);
 
   const allReviewed = BLOCKING_REVIEW_KEYS.every(isReviewed) &&
@@ -408,11 +415,11 @@ export function ReviewClient({
   const meta = plan.metadata;
 
   const PUM_COLS: { label: string; subtitle?: string; width: string; key: ReviewSectionKey }[] = [
-    { label: "¿Qué van a aprender?",  subtitle: "Destreza con Criterio de Desempeño / Competencia",                     width: "18%", key: "pum_dcd" },
-    { label: "¿Qué evaluar?",         subtitle: "Indicadores de evaluación",                                             width: "16%", key: "pum_indicators" },
-    { label: "¿Cómo van a aprender?", subtitle: "Metodologías para los aprendizajes · Estrategias Metodológicas · DUA", width: "23%", key: "pum_methodology" },
-    { label: "Recursos",              subtitle: undefined,                                                                width: "12%", key: "pum_resources" },
-    { label: "¿Cómo evaluar?",        subtitle: "Actividades de Evaluación / Técnicas / Instrumentos",                   width: "20%", key: "pum_evaluations" },
+    { label: "¿Qué van a aprender?",  subtitle: "Destreza con Criterio de Desempeño / Competencia",                     width: "15%", key: "pum_dcd" },
+    { label: "¿Qué evaluar?",         subtitle: "Indicadores de evaluación",                                             width: "13%", key: "pum_indicators" },
+    { label: "¿Cómo van a aprender?", subtitle: "Metodologías para los aprendizajes · Estrategias Metodológicas · DUA", width: "26%", key: "pum_methodology" },
+    { label: "Recursos",              subtitle: undefined,                                                                width: "17%", key: "pum_resources" },
+    { label: "¿Cómo evaluar?",        subtitle: "Actividades de Evaluación / Técnicas / Instrumentos",                   width: "18%", key: "pum_evaluations" },
   ];
 
   // Badge text and color for the progress indicator

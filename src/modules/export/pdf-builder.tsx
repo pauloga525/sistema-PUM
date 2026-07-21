@@ -331,8 +331,8 @@ function InfoTable({ ctx, meta }: { ctx: PlanContext; meta: PlanMetadata }) {
       <RosaHeaderRow title="DISEÑO UNIVERSAL DEL APRENDIZAJE" />
       <View style={S.row}>
         <View style={[S.hdrCell, { flex: 2 }]}><Text style={S.hdrText}>Colorimetría</Text></View>
-        <View style={[S.hdrCell, { flex: 5 }]}><Text style={S.hdrText}>Principio</Text></View>
-        <View style={[S.hdrCell, { flex: 3 }]}><Text style={S.hdrText}>Pautas</Text></View>
+        <View style={[S.hdrCell, { flex: 3 }]}><Text style={S.hdrText}>Principio</Text></View>
+        <View style={[S.hdrCell, { flex: 5 }]}><Text style={S.hdrText}>Pautas</Text></View>
       </View>
       {([1, 2, 3] as const).map((p) => {
         const labels: Record<1 | 2 | 3, { prefix: string; desc: string }> = {
@@ -359,13 +359,13 @@ function InfoTable({ ctx, meta }: { ctx: PlanContext; meta: PlanMetadata }) {
         return (
           <View key={p} style={S.row}>
             <View style={[S.cell, { flex: 2, backgroundColor: DUA_COLORS[p] }]} />
-            <View style={[S.cell, { flex: 5 }]}>
+            <View style={[S.cell, { flex: 3 }]}>
               <Text style={S.val}>
                 <Text style={{ fontFamily: FONT_BOLD, fontWeight: "bold" }}>{labels[p].prefix} </Text>
                 {labels[p].desc}
               </Text>
             </View>
-            <View style={[S.cell, { flex: 3 }]}><BulletList items={pautaLines} /></View>
+            <View style={[S.cell, { flex: 5 }]}><BulletList items={pautaLines} /></View>
           </View>
         );
       })}
@@ -401,6 +401,7 @@ function MethodologyItems({ items }: { items: MethodologySubItem[] }) {
               {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}{" "}
             </Text>
           ))}
+          {(item.principles ?? []).length > 0 ? "\n" : ""}
           {"• "}{item.text}
         </Text>
       ))}
