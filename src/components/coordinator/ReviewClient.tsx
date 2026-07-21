@@ -856,9 +856,9 @@ export function ReviewClient({
                         </td>
                         <td className="align-top" style={methodologyEmpty ? { backgroundColor: "#D9D9D9" } : {}}>
                           {row.data.methodologyItems.filter((m) => m.text).length > 0 ? (
-                            <ul className="list-none m-0 p-0 space-y-1">
+                            <ul className="list-none m-0 p-0 divide-y divide-gray-200">
                               {row.data.methodologyItems.filter((m) => m.text).map((item, j) => (
-                                <li key={j} className="flex flex-col gap-0.5">
+                                <li key={j} className="flex flex-col gap-0.5 py-1.5 first:pt-0">
                                   {(item.principles ?? []).length > 0 && (
                                     <span className="flex gap-0.5 flex-wrap">
                                       {(item.principles ?? []).map((p) => (
@@ -868,7 +868,7 @@ export function ReviewClient({
                                       ))}
                                     </span>
                                   )}
-                                  <span className="leading-snug">{item.text}</span>
+                                  <span className="leading-snug">• {item.text}</span>
                                 </li>
                               ))}
                             </ul>
@@ -876,9 +876,9 @@ export function ReviewClient({
                         </td>
                         <td className="align-top">
                           {row.data.resources.filter((r) => r.text).length > 0 ? (
-                            <ul className="list-none m-0 p-0 space-y-1">
+                            <ul className="list-none m-0 p-0 divide-y divide-gray-200">
                               {row.data.resources.filter((r) => r.text).map((item, j) => (
-                                <li key={j} className="flex flex-col gap-0.5">
+                                <li key={j} className="flex flex-col gap-0.5 py-1.5 first:pt-0">
                                   {(item.principles ?? []).length > 0 && (
                                     <span className="flex gap-0.5 flex-wrap">
                                       {(item.principles ?? []).map((p) => (

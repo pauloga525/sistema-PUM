@@ -579,9 +579,9 @@ function MethodologyItemsList({
   onAddPrinciple: (itemLocalId: string, principio: 1|2|3) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col divide-y divide-gray-200">
       {items.map((item) => (
-        <div key={item.localId} className="flex gap-1.5 items-start">
+        <div key={item.localId} className="flex gap-1.5 items-start py-2.5 first:pt-0">
           {/* Columna de badges + botones +Px */}
           <div className="flex flex-col gap-1 shrink-0">
             {item.principles.map((p) => (
