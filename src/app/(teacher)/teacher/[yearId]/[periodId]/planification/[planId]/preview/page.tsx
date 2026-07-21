@@ -511,14 +511,16 @@ export default async function PreviewPage({
                           {row.data.methodologyItems.filter((m) => m.text).length > 0 ? (
                             <ul className="list-none m-0 p-0 space-y-1">
                               {row.data.methodologyItems.filter((m) => m.text).map((item, j) => (
-                                <li key={j} className="flex items-start gap-1">
-                                  <span className="flex gap-0.5 flex-wrap shrink-0">
-                                    {(item.principles ?? []).map((p) => (
-                                      <span key={p.principio} className={`badge badge-p${p.principio}`} style={{ backgroundColor: PRINCIPIO_COLORS[p.principio as 1|2|3] }}>
-                                        {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}
-                                      </span>
-                                    ))}
-                                  </span>
+                                <li key={j} className="flex flex-col gap-0.5">
+                                  {(item.principles ?? []).length > 0 && (
+                                    <span className="flex gap-0.5 flex-wrap">
+                                      {(item.principles ?? []).map((p) => (
+                                        <span key={p.principio} className={`badge badge-p${p.principio}`} style={{ backgroundColor: PRINCIPIO_COLORS[p.principio as 1|2|3] }}>
+                                          {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  )}
                                   <span className="leading-snug">{item.text}</span>
                                 </li>
                               ))}
@@ -531,14 +533,16 @@ export default async function PreviewPage({
                           {row.data.resources.filter((r) => r.text).length > 0 ? (
                             <ul className="list-none m-0 p-0 space-y-1">
                               {row.data.resources.filter((r) => r.text).map((item, j) => (
-                                <li key={j} className="flex items-start gap-1">
-                                  <span className="flex gap-0.5 flex-wrap shrink-0">
-                                    {(item.principles ?? []).map((p) => (
-                                      <span key={p.principio} className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[p.principio as 1|2|3] }}>
-                                        {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}
-                                      </span>
-                                    ))}
-                                  </span>
+                                <li key={j} className="flex flex-col gap-0.5">
+                                  {(item.principles ?? []).length > 0 && (
+                                    <span className="flex gap-0.5 flex-wrap">
+                                      {(item.principles ?? []).map((p) => (
+                                        <span key={p.principio} className="badge" style={{ backgroundColor: PRINCIPIO_COLORS[p.principio as 1|2|3] }}>
+                                          {formatPrincipioLabel(p as Parameters<typeof formatPrincipioLabel>[0])}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  )}
                                   <span className="leading-snug">• {item.text}</span>
                                 </li>
                               ))}
