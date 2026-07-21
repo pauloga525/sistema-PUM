@@ -91,9 +91,9 @@ export default async function PreviewPage({
           .hdr-blue { background-color: #1E40AF !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .hdr-section { background-color: #BFDBFE !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .hdr-green { background-color: #E0F2FE !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .hdr-dua-p1 { background-color: #D1FAE5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .hdr-dua-p2 { background-color: #EDE9FE !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .hdr-dua-p3 { background-color: #E0F2FE !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .hdr-dua-p1 { background-color: #6EE7B7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .hdr-dua-p2 { background-color: #C4B5FD !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .hdr-dua-p3 { background-color: #7DD3FC !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .pum-row-odd td { background-color: #F1F5F9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .badge-p1 { background-color: #059669 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .badge-p2 { background-color: #7C3AED !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -104,9 +104,9 @@ export default async function PreviewPage({
         .hdr-blue  { background-color: #1E40AF; }
         .hdr-section { background-color: #BFDBFE; }
         .hdr-green { background-color: #E0F2FE; }
-        .hdr-dua-p1 { background-color: #D1FAE5; }
-        .hdr-dua-p2 { background-color: #EDE9FE; }
-        .hdr-dua-p3 { background-color: #E0F2FE; }
+        .hdr-dua-p1 { background-color: #6EE7B7; }
+        .hdr-dua-p2 { background-color: #C4B5FD; }
+        .hdr-dua-p3 { background-color: #7DD3FC; }
         .pum-row-odd td { background-color: #F1F5F9; }
         .badge-p1 { background-color: #059669; }
         .badge-p2 { background-color: #7C3AED; }
@@ -322,17 +322,17 @@ export default async function PreviewPage({
                 </tr>
                 <tr>
                   <td colSpan={2} className="hdr-blue text-white font-semibold text-center">Colorimetría</td>
-                  <td colSpan={3} className="hdr-blue text-white font-semibold text-center">Principio</td>
-                  <td colSpan={5} className="hdr-blue text-white font-semibold text-center">Pautas</td>
+                  <td colSpan={2} className="hdr-blue text-white font-semibold text-center">Principio</td>
+                  <td colSpan={6} className="hdr-blue text-white font-semibold text-center">Pautas</td>
                 </tr>
 
                 {/* P1 */}
                 <tr>
                   <td colSpan={2} className="hdr-dua-p1" style={{ minWidth: "40px" }}>&nbsp;</td>
-                  <td colSpan={3}>
+                  <td colSpan={2}>
                     <span className="font-bold">P I:</span> PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN
                   </td>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     {(() => {
                       const sel = meta?.p1;
                       const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
@@ -360,10 +360,10 @@ export default async function PreviewPage({
                 {/* P2 */}
                 <tr>
                   <td colSpan={2} className="hdr-dua-p2">&nbsp;</td>
-                  <td colSpan={3}>
+                  <td colSpan={2}>
                     <span className="font-bold">P II:</span> OFRECER MÚLTIPLES MEDIOS PARA LA ACCIÓN Y EXPRESIÓN
                   </td>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     {(() => {
                       const sel = meta?.p2;
                       const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];
@@ -391,10 +391,10 @@ export default async function PreviewPage({
                 {/* P3 */}
                 <tr>
                   <td colSpan={2} className="hdr-dua-p3">&nbsp;</td>
-                  <td colSpan={3}>
+                  <td colSpan={2}>
                     <span className="font-bold">P III:</span> PROPORCIONAR MÚLTIPLES MEDIOS PARA LA MOTIVACIÓN E IMPLICACIÓN EN EL APRENDIZAJE
                   </td>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     {(() => {
                       const sel = meta?.p3;
                       const entries = sel?.filter((e) => e.subPautas.length > 0).sort((a, b) => a.pauta - b.pauta) ?? [];

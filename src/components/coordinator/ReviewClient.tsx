@@ -563,9 +563,9 @@ export function ReviewClient({
         .lbl { font-weight: 700; color: #1e3a8a; white-space: nowrap; }
         .hdr-blue { background-color: #1E40AF; }
         .hdr-section { background-color: #BFDBFE; }
-        .hdr-dua-p1 { background-color: #D1FAE5; }
-        .hdr-dua-p2 { background-color: #EDE9FE; }
-        .hdr-dua-p3 { background-color: #E0F2FE; }
+        .hdr-dua-p1 { background-color: #6EE7B7; }
+        .hdr-dua-p2 { background-color: #C4B5FD; }
+        .hdr-dua-p3 { background-color: #7DD3FC; }
         .pum-row-odd td { background-color: #F1F5F9; }
         .pum-row-commented td { background-color: rgba(249,115,22,0.09) !important; }
         .pum-row-comment-bar td { background-color: rgba(249,115,22,0.16); border-bottom: 2px solid rgba(249,115,22,0.35); }
@@ -737,8 +737,8 @@ export function ReviewClient({
               </tr>
               <tr>
                 <td colSpan={2} className="hdr-blue text-white font-semibold text-center">Colorimetría</td>
-                <td colSpan={3} className="hdr-blue text-white font-semibold text-center">Principio</td>
-                <td colSpan={5} className="hdr-blue text-white font-semibold text-center">Pautas</td>
+                <td colSpan={2} className="hdr-blue text-white font-semibold text-center">Principio</td>
+                <td colSpan={6} className="hdr-blue text-white font-semibold text-center">Pautas</td>
               </tr>
               {([
                 { key: "dua_p1" as ReviewSectionKey, color: "hdr-dua-p1", label: "P I:", desc: "PROVEER MÚLTIPLES FORMAS DE REPRESENTACIÓN", sel: meta?.p1 ?? null, pIdx: 0 },
@@ -747,10 +747,10 @@ export function ReviewClient({
               ]).map((p) => (
                 <tr key={p.key}>
                   <td colSpan={2} className={p.color} style={{ minWidth: "40px" }}>&nbsp;</td>
-                  <td colSpan={3}>
+                  <td colSpan={2}>
                     <span className="font-bold">{p.label}</span> {p.desc}
                   </td>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                       <div>
                         {(() => {
