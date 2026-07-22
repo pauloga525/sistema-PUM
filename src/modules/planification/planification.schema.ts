@@ -53,6 +53,8 @@ export const PlanMetadataSchema = z.preprocess(
     p1:                DuaSelectionSchema.nullable(),
     p2:                DuaSelectionSchema.nullable(),
     p3:                DuaSelectionSchema.nullable(),
+    nivelSubnivelOverride: z.string().max(200).optional(),
+    nivelGradoOverride:    z.string().max(200).optional(),
   })
 );
 

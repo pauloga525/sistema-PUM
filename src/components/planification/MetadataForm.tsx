@@ -371,9 +371,11 @@ interface Props {
   onClearFeedback?: (planId: string, keys: string[]) => Promise<void>;
   proceedPath?: string;
   coordinatorFeedback?: SectionStates;
+  defaultNivelSub?: string;
+  defaultNivelGrado?: string;
 }
 
-export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onClearFeedback, proceedPath, coordinatorFeedback }: Props) {
+export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onClearFeedback, proceedPath, coordinatorFeedback, defaultNivelSub = "", defaultNivelGrado = "" }: Props) {
   const router = useRouter();
   const [form, setForm]     = useState<PlanMetadata>(() => mergeWithEmpty(initialMetadata));
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -387,6 +389,10 @@ export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onC
   const [localFeedback, setLocalFeedback] = useState<SectionStates>(() => ({ ...(coordinatorFeedback ?? {}) }));
   // Track which keys were cleared in this session so we can persist the cleanup on save
   const clearedKeysRef = useRef<Set<string>>(new Set());
+
+  // Nivel Educativo override editing state
+  const [nivelEditing, setNivelEditing] = useState(false);
+  const [showNivelWarning, setShowNivelWarning] = useState(false);
 
   const clearFeedback = useCallback((key: keyof SectionStates) => {
     setLocalFeedback((prev) => {
@@ -509,6 +515,89 @@ export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onC
 
       {/* Body */}
       <div className="p-5 space-y-6">
+
+        {/* ── Nivel Educativo ──────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center justify-between" style={{ marginBottom: "0.75rem" }}>
+            <div style={{ borderLeft: "3px solid rgba(0,39,83,0.20)", paddingLeft: "0.625rem" }}>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#5A6A82" }}>
+                Nivel Educativo
+              </h3>
+            </div>
+            {!disabled && !nivelEditing && (
+              <button
+                type="button"
+                onClick={() => setShowNivelWarning(true)}
+                className="flex items-center gap-1 text-[11px] font-semibold"
+                style={{ color: "#002753", background: "rgba(0,39,83,0.06)", border: "1px solid rgba(0,39,83,0.14)", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Editar
+              </button>
+            )}
+            {!disabled && nivelEditing && (
+              <span className="text-[11px] font-medium" style={{ color: "#b45309", background: "rgba(249,115,22,0.10)", border: "1px solid rgba(249,115,22,0.25)", borderRadius: 6, padding: "3px 10px" }}>
+                Modo edición activo
+              </span>
+            )}
+          </div>
+          <FeedbackHighlight state={localFeedback["meta_nivel"]}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <FieldLabel>Subnivel</FieldLabel>
+                <TextInput
+                  value={form.nivelSubnivelOverride ?? defaultNivelSub}
+                  onChange={(v) => { set("nivelSubnivelOverride", v); clearFeedback("meta_nivel"); }}
+                  placeholder="Ej: Educación Básica"
+                  disabled={disabled || !nivelEditing}
+                />
+              </div>
+              <div>
+                <FieldLabel>Grados / Nivel</FieldLabel>
+                <TextInput
+                  value={form.nivelGradoOverride ?? defaultNivelGrado}
+                  onChange={(v) => { set("nivelGradoOverride", v); clearFeedback("meta_nivel"); }}
+                  placeholder="Ej: 3ro de Bachillerato"
+                  disabled={disabled || !nivelEditing}
+                />
+              </div>
+            </div>
+          </FeedbackHighlight>
+        </section>
+
+        {/* Warning modal — uses portal to escape backdrop-filter stacking context */}
+        {showNivelWarning && typeof document !== "undefined" && createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center"
+            style={{ zIndex: 9999, background: "rgba(0,0,0,0.45)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowNivelWarning(false); }}
+          >
+            <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", width: 380, maxWidth: "90vw", boxShadow: "0 12px 40px rgba(0,0,0,0.20)" }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#002753" }}>
+                ¿Editar Nivel Educativo?
+              </h3>
+              <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: "#334155", lineHeight: 1.6 }}>
+                Esta información se llena automáticamente según tu asignación docente.
+                Edítala <strong>solo si tu coordinador lo ha solicitado</strong>, para poder corregir el subnivel o los grados.
+              </p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowNivelWarning(false)}
+                  style={{ padding: "7px 18px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f1f5f9", fontSize: 13, color: "#334155", cursor: "pointer", fontWeight: 500 }}
+                >Cancelar</button>
+                <button
+                  type="button"
+                  onClick={() => { setShowNivelWarning(false); setNivelEditing(true); }}
+                  style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: "#b45309", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >Sí, editar</button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* ── Identificación ──────────────────────────────────────────── */}
         <section>

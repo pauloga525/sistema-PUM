@@ -299,30 +299,21 @@ export function ReviewClient({
   // All non-pum_ keys that show coordinator controls in the UI (includes meta_* and plan_* extras)
   const activeSectionKeys = REVIEW_SECTION_KEYS.filter((k) => !k.startsWith("pum_"));
 
-  // Only the 6 blocking sections (aportes_* + dua_*) count toward progress and gate the buttons.
-  // meta_* and plan_* controls are optional extras that don't block the workflow.
-  const totalSections  = BLOCKING_REVIEW_KEYS.length + rowKeys.length;
-  const approvedCount  =
-    BLOCKING_REVIEW_KEYS.filter((k) => states[k]?.approved).length +
-    rowKeys.filter((k) => states[k]?.approved).length;
+  // All sections that appear in the coordinator UI: header/meta sections + PUM rows
+  const allSectionKeys: AnySectionKey[] = [...activeSectionKeys, ...rowKeys];
+  const totalSections = allSectionKeys.length;
 
   // "Reviewed" = approved OR has a non-empty comment
   const isReviewed = (key: AnySectionKey) =>
     states[key]?.approved === true || !!(states[key]?.comment?.trim());
 
-  // Gate checks use only blocking sections — meta_* and plan_* don't block progress,
-  // BUT if any optional section has a comment without approval the coordinator intends
-  // to send feedback, so we must NOT show "Aprobar PUM completo" in that case.
-  const anyOptionalCommented = REVIEW_SECTION_KEYS
-    .filter((k) => k.startsWith("meta_") || k.startsWith("plan_"))
-    .some((k) => !!(states[k]?.comment?.trim()) && !states[k]?.approved);
+  const reviewedCount = allSectionKeys.filter(isReviewed).length;
 
-  const allApproved = !anyOptionalCommented &&
-                      BLOCKING_REVIEW_KEYS.every((k) => states[k]?.approved) &&
-                      rowKeys.every((k) => states[k]?.approved);
+  // "Aprobar PUM completo" requires EVERY section to be explicitly approved
+  const allApproved = allSectionKeys.every((k) => states[k]?.approved === true);
 
-  const allReviewed = BLOCKING_REVIEW_KEYS.every(isReviewed) &&
-                      rowKeys.every(isReviewed);
+  // "Enviar retroalimentación" requires every section to have been either approved or commented
+  const allReviewed = allSectionKeys.every(isReviewed);
 
   const handleApprove = (key: AnySectionKey, current: boolean) => {
     if (!onUpdateSection) return;
@@ -408,11 +399,13 @@ export function ReviewClient({
     setHistoryLoading(false);
   };
 
-  const nivelSub = plan.levelTrack === "BACHILLERATO" ? "Bachillerato"
-    : plan.levelTrack === "BASICA" ? "Educación Básica"
-    : plan.levelTrack;
-
   const meta = plan.metadata;
+
+  const nivelSub = meta?.nivelSubnivelOverride
+    || (plan.levelTrack === "BACHILLERATO" ? "Bachillerato"
+      : plan.levelTrack === "BASICA" ? "Educación Básica"
+      : plan.levelTrack);
+  const nivelGrado = meta?.nivelGradoOverride || plan.levelName;
 
   const PUM_COLS: { label: string; subtitle?: string; width: string; key: ReviewSectionKey }[] = [
     { label: "¿Qué van a aprender?",  subtitle: "Destreza con Criterio de Desempeño / Competencia",                     width: "15%", key: "pum_dcd" },
@@ -427,7 +420,7 @@ export function ReviewClient({
     ? "✓ PUM Aprobado"
     : isFeedbackSent
     ? "↑ Retroalimentación enviada"
-    : `${approvedCount} / ${totalSections} secciones revisadas`;
+    : `${reviewedCount} / ${totalSections} secciones revisadas`;
 
   const badgeStyle = isApproved
     ? { background: "#dcfce7", color: "#166534" }
@@ -465,7 +458,7 @@ export function ReviewClient({
                 height: "100%",
                 borderRadius: "999px",
                 background: barColor,
-                width: `${Math.round((approvedCount / Math.max(totalSections, 1)) * 100)}%`,
+                width: `${Math.round((reviewedCount / Math.max(totalSections, 1)) * 100)}%`,
                 transition: "width 300ms",
               }}
             />
@@ -620,7 +613,7 @@ export function ReviewClient({
                 <td className="lbl" style={{ width: "7%" }}>Grados</td>
                 <td colSpan={6}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
-                    <span>{plan.levelName}</span>
+                    <span>{nivelGrado}</span>
                     <SectionControl sectionKey="meta_nivel" states={states} disabled={isLocked} onApprove={handleApprove} onSaveComment={handleSaveComment} />
                   </div>
                 </td>

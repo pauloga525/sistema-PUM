@@ -496,8 +496,8 @@ export class DocxBuilder {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const patches: Record<string, any> = {
       // ── Datos Informativos ──────────────────────────────────────────────
-      "nivel-educat-sub": textPatch(trackToSubnivel(ctx.levelTrack)),
-      "nivel":            textPatch(ctx.levelName),
+      "nivel-educat-sub": textPatch(meta.nivelSubnivelOverride || trackToSubnivel(ctx.levelTrack)),
+      "nivel":            textPatch(meta.nivelGradoOverride || ctx.levelName),
       "curso":            textPatch(""),
       "area-estudio":     textPatch(meta.areaEstudio),
       "asignatura":       textPatch(ctx.subjectName),

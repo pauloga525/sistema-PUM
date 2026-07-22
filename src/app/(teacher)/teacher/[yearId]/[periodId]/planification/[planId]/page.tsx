@@ -258,6 +258,12 @@ export default async function PlanMetadataPage({
         onClearFeedback={clearCoordinatorFeedbackAction}
         proceedPath={isFinalized ? undefined : tablaPath}
         coordinatorFeedback={review?.sectionStates}
+        defaultNivelSub={
+          level.track === "BACHILLERATO" ? "Bachillerato"
+          : level.track === "BASICA" ? "Educación Básica"
+          : level.track
+        }
+        defaultNivelGrado={level.name}
       />
     </div>
   );

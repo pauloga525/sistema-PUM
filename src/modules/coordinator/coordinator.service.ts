@@ -7,18 +7,22 @@ import type { AssignedTeacher, TeacherAssignmentEntry, FinalizedPlanEntry, PlanR
 // All non-pum_ keys (includes meta_*, plan_*, aportes_*, dua_*) — used for normalizing states
 const ALL_FIXED_KEYS = REVIEW_SECTION_KEYS.filter((k) => !k.startsWith("pum_"));
 
-// Only the 6 original blocking keys (aportes_* + dua_*) count toward progress and gate approval
+// All non-pum_ fixed keys + dynamic row keys count toward progress
+// "reviewed" = approved OR has a non-empty comment (mirrors ReviewClient.isReviewed)
 function countProgress(
   states: SectionStates,
   rowCount: number,
 ): { approved: number; total: number } {
-  const fixedApproved = BLOCKING_REVIEW_KEYS.filter((k) => states[k]?.approved).length;
-  const rowApproved = Object.keys(states).filter(
-    (k) => /^row_\d+$/.test(k) && (states as Record<string, { approved: boolean }>)[k]?.approved,
+  const isReviewed = (s: { approved: boolean; comment: string | null } | undefined) =>
+    s?.approved === true || !!(s?.comment?.trim());
+
+  const fixedReviewed = ALL_FIXED_KEYS.filter((k) => isReviewed(states[k])).length;
+  const rowReviewed = Object.keys(states).filter(
+    (k) => /^row_\d+$/.test(k) && isReviewed((states as Record<string, { approved: boolean; comment: string | null }>)[k]),
   ).length;
   return {
-    approved: fixedApproved + rowApproved,
-    total: BLOCKING_REVIEW_KEYS.length + rowCount,
+    approved: fixedReviewed + rowReviewed,
+    total: ALL_FIXED_KEYS.length + rowCount,
   };
 }
 
@@ -401,13 +405,13 @@ export const coordinatorService = {
 
     const states = normalizeStates(review.sectionStates);
 
-    // Only the 6 blocking sections (aportes_* + dua_*) must all be approved
-    const sectionsDone = BLOCKING_REVIEW_KEYS.every((k) => states[k]?.approved);
+    // All fixed sections (meta_*, plan_*, aportes_*, dua_*) must be approved
+    const sectionsDone = ALL_FIXED_KEYS.every((k) => states[k]?.approved === true);
 
     // All existing row_N keys must be approved
     const rowKeys = Object.keys(states).filter((k) => /^row_\d+$/.test(k));
     const rowsDone = rowKeys.length > 0 &&
-      rowKeys.every((k) => (states as Record<string, { approved: boolean }>)[k]?.approved);
+      rowKeys.every((k) => (states as Record<string, { approved: boolean }>)[k]?.approved === true);
 
     if (!sectionsDone || !rowsDone) return false;
 

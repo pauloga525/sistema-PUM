@@ -64,10 +64,12 @@ export default async function PreviewPage({
   const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
   const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-right.png"));
 
-  // Subnivel legible desde track
-  const nivelSub = level.track === "BACHILLERATO" ? "Bachillerato"
-    : level.track === "BASICA" ? "Educación Básica"
-    : level.track;
+  // Subnivel — prefer teacher override if set
+  const nivelSub = meta?.nivelSubnivelOverride
+    || (level.track === "BACHILLERATO" ? "Bachillerato"
+      : level.track === "BASICA" ? "Educación Básica"
+      : level.track);
+  const nivelGrado = meta?.nivelGradoOverride || level.name;
 
   // Columnas tabla PUM
   const PUM_COLS = [
@@ -203,7 +205,7 @@ export default async function PreviewPage({
                   <td className="lbl" style={{ width: "7%" }}>Subnivel</td>
                   <td style={{ width: "20%" }}>{nivelSub}</td>
                   <td className="lbl" style={{ width: "7%" }}>Grados</td>
-                  <td colSpan={6}>{level.name}</td>
+                  <td colSpan={6}>{nivelGrado}</td>
                 </tr>
 
                 {/* Área y Asignatura */}

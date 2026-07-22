@@ -145,6 +145,12 @@ export function normalizePlanMetadata(raw: unknown): PlanMetadata | null {
     p1: parseDuaSel(m.p1),
     p2: parseDuaSel(m.p2),
     p3: parseDuaSel(m.p3),
+    ...(typeof m.nivelSubnivelOverride === "string" && m.nivelSubnivelOverride
+      ? { nivelSubnivelOverride: m.nivelSubnivelOverride }
+      : {}),
+    ...(typeof m.nivelGradoOverride === "string" && m.nivelGradoOverride
+      ? { nivelGradoOverride: m.nivelGradoOverride }
+      : {}),
   };
 }
 

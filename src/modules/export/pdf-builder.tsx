@@ -229,7 +229,8 @@ function RosaHeaderRow({ title }: { title: string }) {
 // ── Tabla de Datos Informativos + Planificación + Aportes + DUA ───────────────
 
 function InfoTable({ ctx, meta }: { ctx: PlanContext; meta: PlanMetadata }) {
-  const nivelSub = trackToSubnivel(ctx.levelTrack);
+  const nivelSub = meta.nivelSubnivelOverride || trackToSubnivel(ctx.levelTrack);
+  const nivelGrado = meta.nivelGradoOverride || ctx.levelName;
   const aportes = [
     ...meta.aportes,
     ...Array.from({ length: Math.max(0, 6 - meta.aportes.length) }, () => ({ dim: "", aporte: "", como: "" })),
@@ -257,7 +258,7 @@ function InfoTable({ ctx, meta }: { ctx: PlanContext; meta: PlanMetadata }) {
         <View style={[S.lblCell, S2]}><Text style={S.lbl}>Subnivel</Text></View>
         <View style={[S.cell,    S3]}><Text style={S.val}>{nivelSub}</Text></View>
         <View style={[S.lblCell, S4]}><Text style={S.lbl}>Grados</Text></View>
-        <View style={[S.cell,    LAST]}><Text style={S.val}>{ctx.levelName}</Text></View>
+        <View style={[S.cell,    LAST]}><Text style={S.val}>{nivelGrado}</Text></View>
       </View>
 
       {/* Área de Estudio | val(30%) | Asignatura | val  → borders: 20%·50%·58% */}

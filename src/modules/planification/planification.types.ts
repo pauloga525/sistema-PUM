@@ -31,6 +31,9 @@ export interface PlanMetadata {
   p1: DuaSelection | null;
   p2: DuaSelection | null;
   p3: DuaSelection | null;
+  // Override manual del docente cuando el coordinador solicita corrección de nivel
+  nivelSubnivelOverride?: string;
+  nivelGradoOverride?: string;
 }
 
 // ── Tipos del editor PUM ───────────────────────────────────────────────────────
