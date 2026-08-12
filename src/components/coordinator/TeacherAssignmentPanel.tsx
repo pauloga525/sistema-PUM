@@ -172,6 +172,7 @@ function AddAssignmentModal({
 function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; catalog: CatalogData; isSelf: boolean }) {
   const [addOpen,    setAddOpen]   = useState(false);
   const [isPending,  start]        = useTransition();
+  const [roleMsg,    setRoleMsg]   = useState<{ ok: boolean; text: string } | null>(null);
 
   const handleRemove = (assignmentId: string) => {
     start(async () => {
@@ -181,13 +182,21 @@ function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; c
 
   const handleSetPrimary = (assignmentId: string) => {
     start(async () => {
-      await setPrimaryEditorAction(assignmentId, teacher.id, true);
+      const res = await setPrimaryEditorAction(assignmentId, teacher.id, true);
+      if (!res.ok) {
+        setRoleMsg({ ok: false, text: res.error ?? "Error al asignar editor" });
+        setTimeout(() => setRoleMsg(null), 5000);
+      }
     });
   };
 
   const handleUnsetPrimary = (assignmentId: string) => {
     start(async () => {
-      await setPrimaryEditorAction(assignmentId, teacher.id, false);
+      const res = await setPrimaryEditorAction(assignmentId, teacher.id, false);
+      if (!res.ok) {
+        setRoleMsg({ ok: false, text: res.error ?? "Error al quitar editor" });
+        setTimeout(() => setRoleMsg(null), 5000);
+      }
     });
   };
 
@@ -255,6 +264,14 @@ function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; c
             <p className="text-[11px] text-pum-text-muted">
               El docente marcado como <strong>Editor</strong> es el único que puede modificar el PUM de esa materia y nivel. Los demás docentes co-asignados solo pueden visualizarlo.
             </p>
+            {roleMsg && (
+              <p
+                className="mt-1 text-[11px] font-medium px-2 py-1 rounded"
+                style={{ background: roleMsg.ok ? "#f0fdf4" : "#fef2f2", color: roleMsg.ok ? "#166534" : "#991b1b" }}
+              >
+                {roleMsg.text}
+              </p>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -299,9 +316,9 @@ function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; c
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          disabled={isPending}
-                          onClick={() => a.isEditor !== true && handleSetPrimary(a.id)}
-                          className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
+                          disabled={isPending || a.isEditor === true}
+                          onClick={() => handleSetPrimary(a.id)}
+                          className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors"
                           style={
                             a.isEditor === true
                               ? { background: "#166534", color: "#ffffff", cursor: "default" }
@@ -312,9 +329,9 @@ function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; c
                         </button>
                         <button
                           type="button"
-                          disabled={isPending}
-                          onClick={() => a.isEditor === true && handleUnsetPrimary(a.id)}
-                          className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
+                          disabled={isPending || a.isEditor !== true}
+                          onClick={() => handleUnsetPrimary(a.id)}
+                          className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors"
                           style={
                             a.isEditor !== true
                               ? { background: "#166534", color: "#ffffff", cursor: "default" }

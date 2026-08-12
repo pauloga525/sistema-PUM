@@ -119,12 +119,14 @@ export const coordinatorService = {
     });
 
     // Construir un mapa: "teacherId|subjectId|levelId|yearId" → isEditor
-    // Si hay múltiples periodos para el mismo combo, basta con que uno sea editor.
+    // true si el docente es editor en AL MENOS UN periodo del combo.
+    // false si existe PUM pero NO es editor en ningún periodo.
     const editorMap = new Map<string, boolean>();
     for (const link of planLinks) {
       const key = `${link.teacherId}|${link.planification.subjectId}|${link.planification.levelId}|${link.planification.academicYearId}`;
-      // Si en cualquier periodo del combo es editor, marcamos true
-      if (!editorMap.has(key) || link.isEditor) {
+      const current = editorMap.get(key);
+      // Si ya hay un true para esta key, no lo pisamos con false
+      if (current !== true) {
         editorMap.set(key, link.isEditor);
       }
     }
