@@ -135,37 +135,24 @@ export async function setPrimaryEditorAction(
 
     await prisma.$transaction(async (tx) => {
       if (setAsEditor) {
-        // 1. Quitar isPrimaryEditor de todas las asignaciones del mismo combo
-        await tx.teacherAssignment.updateMany({
-          where: { subjectId, levelId, academicYearId, active: true },
-          data:  { isPrimaryEditor: false },
-        });
-
-        // 2. Marcar la asignación elegida como editor principal
-        await tx.teacherAssignment.update({
-          where: { id: assignmentId },
-          data:  { isPrimaryEditor: true },
-        });
-
-        // 3. Si ya existen PUMs para este combo, reasignar isEditor en PlanificationTeacher.
-        // Obtener todos los docentes co-asignados para este combo (tengan PUM o no).
+        // Obtener todos los docentes co-asignados para este combo
         const coAssigned = await tx.teacherAssignment.findMany({
           where: { subjectId, levelId, academicYearId, active: true },
           select: { teacherId: true },
         });
         const allTeacherIds = [...new Set(coAssigned.map((a) => a.teacherId))];
 
+        // Reasignar isEditor en todos los PUMs del combo
         const plans = await tx.planification.findMany({
           where: { academicYearId, subjectId, levelId },
           select: { id: true },
         });
 
         for (const p of plans) {
-          // Upsert: crea el vínculo si no existe, o actualiza isEditor si ya existe
           await Promise.all(
             allTeacherIds.map((tid) =>
               tx.planificationTeacher.upsert({
-                where: { planificationId_teacherId: { planificationId: p.id, teacherId: tid } },
+                where:  { planificationId_teacherId: { planificationId: p.id, teacherId: tid } },
                 create: { planificationId: p.id, teacherId: tid, isEditor: tid === targetAssignment.teacherId },
                 update: { isEditor: tid === targetAssignment.teacherId },
               })
@@ -173,14 +160,7 @@ export async function setPrimaryEditorAction(
           );
         }
       } else {
-        // Quitar rol de editor: poner isEditor=false en PlanificationTeacher
-        // y limpiar isPrimaryEditor en TeacherAssignment.
-        await tx.teacherAssignment.update({
-          where: { id: assignmentId },
-          data:  { isPrimaryEditor: false },
-        });
-
-        // Actualizar PlanificationTeacher para todos los PUMs del combo
+        // Quitar rol de editor en todos los PUMs del combo para este docente
         const plans = await tx.planification.findMany({
           where: { academicYearId, subjectId, levelId },
           select: { id: true },
