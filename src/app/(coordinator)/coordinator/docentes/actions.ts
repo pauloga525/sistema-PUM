@@ -108,13 +108,27 @@ export async function setPrimaryEditorAction(
       return { ok: false, error: "Asignación no encontrada" };
     }
 
-    // Verificar que el coordinador tiene acceso al docente dueño de la asignación
+    // Verificar que el coordinador tiene acceso al docente dueño de la asignación.
+    // Se acepta si: (a) el docente es el propio coordinador, (b) existe CoordinatorAssignment,
+    // o (c) el coordinador tiene al menos una asignación activa para el mismo combo
+    //    (subjectId + levelId + academicYearId) — lo que indica que supervisa ese PUM.
     const ownerTeacherId = targetAssignment.teacherId;
     if (ownerTeacherId !== session.user.id) {
-      const ca = await prisma.coordinatorAssignment.findUnique({
-        where: { coordinatorId_teacherId: { coordinatorId: session.user.id, teacherId: ownerTeacherId } },
-      });
-      if (!ca) return { ok: false, error: "No tienes acceso a este docente" };
+      const [ca, sharedCombo] = await Promise.all([
+        prisma.coordinatorAssignment.findUnique({
+          where: { coordinatorId_teacherId: { coordinatorId: session.user.id, teacherId: ownerTeacherId } },
+        }),
+        prisma.teacherAssignment.findFirst({
+          where: {
+            teacherId:      session.user.id,
+            subjectId:      targetAssignment.subjectId,
+            levelId:        targetAssignment.levelId,
+            academicYearId: targetAssignment.academicYearId,
+            active:         true,
+          },
+        }),
+      ]);
+      if (!ca && !sharedCombo) return { ok: false, error: "No tienes acceso para gestionar este PUM" };
     }
 
     const { subjectId, levelId, academicYearId } = targetAssignment;
