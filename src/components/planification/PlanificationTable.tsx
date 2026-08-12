@@ -581,9 +581,9 @@ function MethodologyItemsList({
   return (
     <div className="flex flex-col divide-y divide-gray-200">
       {items.map((item) => (
-        <div key={item.localId} className="flex gap-1.5 items-start py-2.5 first:pt-0">
-          {/* Columna de badges + botones +Px */}
-          <div className="flex flex-col gap-1 shrink-0">
+        <div key={item.localId} className="flex flex-col gap-1.5 py-2.5 first:pt-0">
+          {/* Fila superior: badges + botones +Px + botón eliminar */}
+          <div className="flex items-center gap-1 flex-wrap">
             {item.principles.map((p) => (
               <PrincipleBadge
                 key={p.principio}
@@ -595,7 +595,7 @@ function MethodologyItemsList({
               />
             ))}
             {!disabled && item.principles.length < 3 && (
-              <div className="flex gap-0.5 flex-wrap">
+              <>
                 {([1, 2, 3] as const)
                   .filter((p) => !item.principles.some((ip) => ip.principio === p))
                   .map((p) => (
@@ -610,26 +610,27 @@ function MethodologyItemsList({
                       +P{p}
                     </button>
                   ))}
-              </div>
+              </>
+            )}
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => onRemove(item.localId)}
+                title="Eliminar ítem"
+                className="text-pum-text-disabled hover:text-pum-error ml-auto leading-none text-base cursor-pointer shrink-0 transition-colors"
+              >
+                ×
+              </button>
             )}
           </div>
+          {/* Área de texto debajo de los íconos */}
           <AutoTextarea
             value={item.text}
             onChange={(v) => onUpdateText(item.localId, v)}
             disabled={disabled}
             placeholder={placeholder ?? "Estrategia o actividad..."}
-            className="flex-1"
+            className="w-full"
           />
-          {!disabled && (
-            <button
-              type="button"
-              onClick={() => onRemove(item.localId)}
-              title="Eliminar ítem"
-              className="text-pum-text-disabled hover:text-pum-error mt-1 leading-none text-base cursor-pointer shrink-0 transition-colors"
-            >
-              ×
-            </button>
-          )}
         </div>
       ))}
       {!disabled && (

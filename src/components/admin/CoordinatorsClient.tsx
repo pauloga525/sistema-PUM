@@ -9,6 +9,7 @@ import {
   addCoordinatorTeacherAction,
   removeCoordinatorAssignmentAction,
   deleteCoordinatorAction,
+  resetCoordinatorPasswordAction,
   type CoordinatorActionState,
 } from "@/app/(admin)/admin/coordinators/actions";
 
@@ -426,6 +427,7 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
   const [expanded,      setExpanded]      = useState(false);
   const [isPending,     start]            = useTransition();
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [resetMsg,      setResetMsg]      = useState<{ ok: boolean; text: string } | null>(null);
 
   const handleRemove = (assignmentId: string) => {
     start(async () => { await removeCoordinatorAssignmentAction(assignmentId); });
@@ -435,6 +437,18 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
     start(async () => {
       await deleteCoordinatorAction(entry.id);
       setDeleteConfirm(false);
+    });
+  };
+
+  const handleResetPassword = () => {
+    start(async () => {
+      const res = await resetCoordinatorPasswordAction(entry.id);
+      setResetMsg(
+        res.ok
+          ? { ok: true,  text: "Contraseña restablecida a la cédula del coordinador." }
+          : { ok: false, text: res.error ?? "Error al restablecer" }
+      );
+      setTimeout(() => setResetMsg(null), 5000);
     });
   };
 
@@ -522,6 +536,22 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
           </button>
           <button
             type="button"
+            onClick={handleResetPassword}
+            disabled={isPending || !entry.cedula}
+            title={entry.cedula ? "Restablecer contraseña a la cédula" : "Sin cédula — no se puede restablecer"}
+            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg cursor-pointer transition-colors disabled:opacity-40"
+            style={{ background: "rgba(180,83,9,0.08)", color: "#b45309" }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 2v6h-6" />
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M3 22v-6h6" />
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            </svg>
+            Reset contraseña
+          </button>
+          <button
+            type="button"
             onClick={() => setDeleteConfirm(true)}
             disabled={isPending}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-pum-text-disabled hover:text-pum-error hover:bg-red-50 cursor-pointer transition-colors"
@@ -536,6 +566,20 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
           </button>
         </div>
       </div>
+
+      {/* Mensaje de feedback del reset */}
+      {resetMsg && (
+        <div
+          className="px-5 py-2 text-xs font-medium"
+          style={{
+            background: resetMsg.ok ? "#f0fdf4" : "#fef2f2",
+            color:      resetMsg.ok ? "#166534" : "#991b1b",
+            borderBottom: "1px solid rgba(0,39,83,0.06)",
+          }}
+        >
+          {resetMsg.text}
+        </div>
+      )}
 
       {/* Docentes expandibles */}
       {expanded && (

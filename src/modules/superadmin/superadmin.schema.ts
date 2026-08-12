@@ -14,8 +14,14 @@ export const CreateUserSchema = z.object({
 });
 
 export const UpdateUserSchema = z.object({
-  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres").max(100).optional(),
+  name:  z.string().min(2, "El nombre debe tener al menos 2 caracteres").max(100).optional(),
   email: z.string().email("Email inválido").optional(),
+  cedula: z
+    .string()
+    .length(10, "La cédula debe tener exactamente 10 dígitos")
+    .regex(/^\d+$/, "La cédula solo debe contener números")
+    .optional()
+    .nullable(),
   coordinatorArea: z.string().max(100).nullable().optional(),
 });
 

@@ -177,15 +177,16 @@ model SubjectLevel {
 // =============================================================
 
 model TeacherAssignment {
-  id             String   @id @default(uuid())
-  teacherId      String
-  subjectId      String
-  levelId        String
-  academicYearId String
-  periodId       String?  // Periodo específico, null = todos los periodos
-  coordinatorId  String?  // Coordinador responsable de esta asignación
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  id              String   @id @default(uuid())
+  teacherId       String
+  subjectId       String
+  levelId         String
+  academicYearId  String
+  periodId        String?  // Periodo específico, null = todos los periodos
+  coordinatorId   String?  // Coordinador responsable de esta asignación
+  isPrimaryEditor Boolean  @default(false) // Docente designado como editor principal del PUM
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
   teacher      User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   subject      Subject      @relation(fields: [subjectId], references: [id])

@@ -500,7 +500,9 @@ export class PlanificationService {
     });
 
     if (existing) {
-      // Link all co-assigned users (including self-assigned coordinators) as viewers
+      // PUM existente: solo vincular nuevos docentes co-asignados como viewers.
+      // Nunca se toca isEditor de registros ya existentes — el editor actual se preserva.
+      // El coordinador puede cambiar el editor explícitamente desde su panel.
       await Promise.all(
         allTeacherIds.map((tid) =>
           prisma.planificationTeacher.upsert({
@@ -513,6 +515,9 @@ export class PlanificationService {
       return { planId: existing.id, isNewPlan: false };
     }
 
+    // PUM nuevo: quien lo crea es el editor (primer docente que accede).
+    const editorId = teacherId;
+
     const [created, teacher] = await Promise.all([
       prisma.planification.create({
         data: { academicYearId: yearId, periodId, subjectId, levelId, status: "DRAFT" },
@@ -521,12 +526,11 @@ export class PlanificationService {
       prisma.user.findUnique({ where: { id: teacherId }, select: { name: true } }),
     ]);
 
-    // Creator is editor; all other co-assigned users (including coordinators) are viewers
     await prisma.planificationTeacher.createMany({
       data: allTeacherIds.map((tid) => ({
         planificationId: created.id,
         teacherId:       tid,
-        isEditor:        tid === teacherId,
+        isEditor:        tid === editorId,
       })),
       skipDuplicates: true,
     });

@@ -124,6 +124,9 @@ export default async function UserDetailPage({
             isActive={user.isActive}
             hasCedula={!!user.cedula}
             isSelf={isSelf}
+            currentName={user.name ?? null}
+            currentEmail={user.email}
+            currentCedula={user.cedula ?? null}
           />
         </div>
       </div>

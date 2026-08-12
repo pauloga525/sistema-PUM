@@ -43,8 +43,8 @@ export const PlanMetadataSchema = z.preprocess(
     areaEstudio:       z.string().max(200),
     numUnidad:         z.string().max(10),
     titulo:            z.string().max(500),
-    objetivos:         z.array(z.string().max(1000)).max(10),
-    criterios:         z.array(z.string().max(1000)).max(10),
+    objetivos:         z.array(z.string().max(1000)).max(30),
+    criterios:         z.array(z.string().max(1000)).max(30),
     nPeriodos:         z.string().max(20),
     fechInicio:        z.string().max(50),
     fechFin:           z.string().max(50),
@@ -144,14 +144,14 @@ const MethodologyItemSchema = z.preprocess(
     return raw;
   },
   z.object({
-    text:       z.string().max(2000),
+    text:       z.string().max(5000),
     principles: z.array(PrincipioIconItemSchema).max(3),
   })
 );
 
 const DcdItemSchema = z.object({
-  text: z.string().max(2000),
-  ejes: z.array(EjeTransversalSchema).max(10),
+  text: z.string().max(5000),
+  ejes: z.array(EjeTransversalSchema).max(34),
 });
 
 const PumRowDataSchema = z.preprocess(
@@ -167,7 +167,7 @@ const PumRowDataSchema = z.preprocess(
     return raw;
   },
   z.object({
-  dcdItems:         z.array(DcdItemSchema).min(1).max(10),
+  dcdItems:         z.array(DcdItemSchema).min(1).max(30),
   indicators:       z.array(z.string().max(1000)).max(20),
   methodologyItems: z.array(MethodologyItemSchema).max(20),
   resources: z.preprocess(

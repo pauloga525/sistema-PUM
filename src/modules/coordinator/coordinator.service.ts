@@ -100,7 +100,44 @@ export const coordinatorService = {
       }),
     ]);
 
+    // Recopilar todos los teacherIds involucrados para hacer una sola query de PlanificationTeacher
+    const allTeacherIds = [
+      ...cas.map((ca) => ca.teacher.id),
+      ...(self ? [self.id] : []),
+    ];
+
+    // Obtener todos los vínculos PlanificationTeacher de estos docentes de una sola vez
+    const planLinks = await prisma.planificationTeacher.findMany({
+      where: { teacherId: { in: allTeacherIds } },
+      select: {
+        teacherId: true,
+        isEditor:  true,
+        planification: {
+          select: { subjectId: true, levelId: true, academicYearId: true },
+        },
+      },
+    });
+
+    // Construir un mapa: "teacherId|subjectId|levelId|yearId" → isEditor
+    // Si hay múltiples periodos para el mismo combo, basta con que uno sea editor.
+    const editorMap = new Map<string, boolean>();
+    for (const link of planLinks) {
+      const key = `${link.teacherId}|${link.planification.subjectId}|${link.planification.levelId}|${link.planification.academicYearId}`;
+      // Si en cualquier periodo del combo es editor, marcamos true
+      if (!editorMap.has(key) || link.isEditor) {
+        editorMap.set(key, link.isEditor);
+      }
+    }
+
+    // Mapa de combos que tienen PUM (para distinguir null de false)
+    const planExistsMap = new Set<string>();
+    for (const link of planLinks) {
+      const key = `${link.teacherId}|${link.planification.subjectId}|${link.planification.levelId}|${link.planification.academicYearId}`;
+      planExistsMap.add(key);
+    }
+
     function mapAssignments(
+      teacherId: string,
       assignments: Array<{
         id: string; subjectId: string; levelId: string;
         subject: { name: string; code: string };
@@ -108,17 +145,22 @@ export const coordinatorService = {
         academicYear: { id: string; label: string };
       }>
     ): TeacherAssignmentEntry[] {
-      return assignments.map((a) => ({
-        id:          a.id,
-        subjectId:   a.subjectId,
-        subjectName: a.subject.name,
-        subjectCode: a.subject.code,
-        levelId:     a.levelId,
-        levelName:   a.level.name,
-        levelCode:   a.level.code,
-        yearId:      a.academicYear.id,
-        yearLabel:   a.academicYear.label,
-      }));
+      return assignments.map((a) => {
+        const key = `${teacherId}|${a.subjectId}|${a.levelId}|${a.academicYear.id}`;
+        const hasPlan = planExistsMap.has(key);
+        return {
+          id:          a.id,
+          subjectId:   a.subjectId,
+          subjectName: a.subject.name,
+          subjectCode: a.subject.code,
+          levelId:     a.levelId,
+          levelName:   a.level.name,
+          levelCode:   a.level.code,
+          yearId:      a.academicYear.id,
+          yearLabel:   a.academicYear.label,
+          isEditor:    hasPlan ? (editorMap.get(key) ?? false) : null,
+        };
+      });
     }
 
     const teachers: AssignedTeacher[] = cas.map((ca) => ({
@@ -126,7 +168,7 @@ export const coordinatorService = {
       name:        ca.teacher.name,
       email:       ca.teacher.email,
       cedula:      ca.teacher.cedula,
-      assignments: mapAssignments(ca.teacher.assignments),
+      assignments: mapAssignments(ca.teacher.id, ca.teacher.assignments),
     }));
 
     // Prepend coordinator themselves so they can assign subjects to themselves
@@ -136,7 +178,7 @@ export const coordinatorService = {
         name:        self.name,
         email:       self.email,
         cedula:      self.cedula,
-        assignments: mapAssignments(self.assignments),
+        assignments: mapAssignments(self.id, self.assignments),
       });
     }
 

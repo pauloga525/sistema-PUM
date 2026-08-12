@@ -669,6 +669,21 @@ export class AdminService {
     await prisma.user.delete({ where: { id: coordinatorId } });
   }
 
+  async resetCoordinatorPassword(coordinatorId: string) {
+    const user = await prisma.user.findUnique({
+      where:  { id: coordinatorId },
+      select: { role: true, cedula: true },
+    });
+    if (!user) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Coordinador no encontrado");
+    if (user.role !== "COORDINATOR") throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Solo se puede restablecer la contraseña de coordinadores");
+    if (!user.cedula) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "El coordinador no tiene cédula registrada. No es posible restablecer la contraseña");
+    const passwordHash = await bcrypt.hash(user.cedula, 10);
+    await prisma.user.update({
+      where: { id: coordinatorId },
+      data:  { passwordHash, forcePasswordChange: true },
+    });
+  }
+
   async setCoordinatorSubjects(coordinatorId: string, subjectIds: string[]) {
     await prisma.$transaction(async (tx) => {
       await tx.coordinatorSubjectAssignment.deleteMany({ where: { coordinatorId } });

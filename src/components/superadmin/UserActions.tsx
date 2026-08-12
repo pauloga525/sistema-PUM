@@ -7,6 +7,7 @@ import {
   deactivateUserAction,
   reactivateUserAction,
   resetPasswordAction,
+  updateUserAction,
 } from "@/app/(superadmin)/superadmin/users/actions";
 
 const ROLE_OPTIONS = [
@@ -16,21 +17,44 @@ const ROLE_OPTIONS = [
   { value: "SUPERADMIN", label: "Super Administrador" },
 ];
 
+const INPUT_STYLE: React.CSSProperties = {
+  background:   "rgba(243,244,245,0.90)",
+  border:       "1px solid rgba(0,39,83,0.14)",
+  borderRadius: "0.5rem",
+  color:        "#191c1d",
+  width:        "100%",
+  fontSize:     "0.875rem",
+  padding:      "0.5rem 0.75rem",
+  outline:      "none",
+};
+
 interface UserActionsProps {
-  userId: string;
+  userId:      string;
   currentRole: string;
-  isActive: boolean;
-  hasCedula: boolean;
-  isSelf: boolean;
+  isActive:    boolean;
+  hasCedula:   boolean;
+  isSelf:      boolean;
+  // Valores actuales para prellenar el formulario de edición
+  currentName:   string | null;
+  currentEmail:  string;
+  currentCedula: string | null;
 }
 
 interface Message { type: "success" | "error"; text: string }
 
-export function UserActions({ userId, currentRole, isActive, hasCedula, isSelf }: UserActionsProps) {
+export function UserActions({
+  userId, currentRole, isActive, hasCedula, isSelf,
+  currentName, currentEmail, currentCedula,
+}: UserActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedRole, setSelectedRole] = useState(currentRole);
   const [msg, setMsg] = useState<Message | null>(null);
+
+  // Estado del formulario de edición
+  const [editName,   setEditName]   = useState(currentName   ?? "");
+  const [editEmail,  setEditEmail]  = useState(currentEmail);
+  const [editCedula, setEditCedula] = useState(currentCedula ?? "");
 
   const flash = (type: "success" | "error", text: string) => {
     setMsg({ type, text });
@@ -39,6 +63,18 @@ export function UserActions({ userId, currentRole, isActive, hasCedula, isSelf }
 
   const run = (fn: () => Promise<void>) => {
     startTransition(async () => { await fn(); });
+  };
+
+  const handleEditSave = () => {
+    run(async () => {
+      const r = await updateUserAction(userId, {
+        name:   editName.trim()   || undefined,
+        email:  editEmail.trim()  || undefined,
+        cedula: editCedula.trim() || undefined,
+      });
+      if (r.success) { flash("success", "Datos actualizados correctamente"); router.refresh(); }
+      else flash("error", r.error);
+    });
   };
 
   const handleChangeRole = () => {
@@ -66,6 +102,11 @@ export function UserActions({ userId, currentRole, isActive, hasCedula, isSelf }
     });
   };
 
+  const editDirty =
+    editName.trim()   !== (currentName   ?? "") ||
+    editEmail.trim()  !== currentEmail           ||
+    editCedula.trim() !== (currentCedula ?? "");
+
   return (
     <div className="space-y-4">
       {msg && (
@@ -80,6 +121,57 @@ export function UserActions({ userId, currentRole, isActive, hasCedula, isSelf }
           {msg.text}
         </div>
       )}
+
+      {/* Editar datos personales */}
+      <div className="rounded-xl border border-pum-border p-4 bg-white">
+        <p className="text-sm font-semibold text-pum-text mb-3">Editar datos</p>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-pum-text-muted">Nombre completo</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              disabled={isPending}
+              placeholder="Nombre completo"
+              style={INPUT_STYLE}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-pum-text-muted">Correo electrónico</label>
+            <input
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              disabled={isPending}
+              placeholder="correo@institución.edu.ec"
+              style={INPUT_STYLE}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-pum-text-muted">Cédula</label>
+            <input
+              type="text"
+              value={editCedula}
+              onChange={(e) => setEditCedula(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              disabled={isPending}
+              placeholder="0000000000"
+              maxLength={10}
+              style={{ ...INPUT_STYLE, fontFamily: "monospace" }}
+            />
+          </div>
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={handleEditSave}
+              disabled={isPending || !editDirty}
+              className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40 transition-opacity cursor-pointer"
+              style={{ background: "#4c1d95" }}
+            >
+              {isPending ? "Guardando…" : "Guardar cambios"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Cambiar rol */}
       <div className="rounded-xl border border-pum-border p-4 bg-white">

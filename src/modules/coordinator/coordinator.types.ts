@@ -1,15 +1,18 @@
 import type { ReviewStatus, SectionStates } from "@/constants/review";
 
 export interface TeacherAssignmentEntry {
-  id:          string;
-  subjectId:   string;
-  subjectName: string;
-  subjectCode: string;
-  levelId:     string;
-  levelName:   string;
-  levelCode:   string;
-  yearId:      string;
-  yearLabel:   string;
+  id:              string;
+  subjectId:       string;
+  subjectName:     string;
+  subjectCode:     string;
+  levelId:         string;
+  levelName:       string;
+  levelCode:       string;
+  yearId:          string;
+  yearLabel:       string;
+  // true si este docente es el editor activo del PUM para este combo (subjectId+levelId+yearId).
+  // null si no existe PUM aún para ningún periodo de este combo.
+  isEditor: boolean | null;
 }
 
 export interface AssignedTeacher {

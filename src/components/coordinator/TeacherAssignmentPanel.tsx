@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   createTeacherAssignmentAction,
   removeTeacherAssignmentAction,
+  setPrimaryEditorAction,
   type TeacherAssignmentActionState,
 } from "@/app/(coordinator)/coordinator/docentes/actions";
 import type { AssignedTeacher } from "@/modules/coordinator/coordinator.types";
@@ -169,12 +170,24 @@ function AddAssignmentModal({
 // ── Tarjeta de un docente con sus asignaciones ────────────────────────────────
 
 function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; catalog: CatalogData; isSelf: boolean }) {
-  const [addOpen,   setAddOpen]   = useState(false);
-  const [isPending, start]        = useTransition();
+  const [addOpen,    setAddOpen]   = useState(false);
+  const [isPending,  start]        = useTransition();
 
   const handleRemove = (assignmentId: string) => {
     start(async () => {
       await removeTeacherAssignmentAction(assignmentId, teacher.id);
+    });
+  };
+
+  const handleSetPrimary = (assignmentId: string) => {
+    start(async () => {
+      await setPrimaryEditorAction(assignmentId, teacher.id, true);
+    });
+  };
+
+  const handleUnsetPrimary = (assignmentId: string) => {
+    start(async () => {
+      await setPrimaryEditorAction(assignmentId, teacher.id, false);
     });
   };
 
@@ -236,59 +249,101 @@ function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; c
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr style={{ background: "rgba(0,39,83,0.03)", borderBottom: "1px solid rgba(0,39,83,0.06)" }}>
-                {["Materia", "Nivel", "Año lectivo", ""].map((h, i) => (
-                  <th
-                    key={i}
-                    className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-pum-text-disabled"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {teacher.assignments.map((a, i) => (
-                <tr
-                  key={a.id}
-                  style={{
-                    background:   i % 2 !== 0 ? "rgba(0,39,83,0.012)" : "transparent",
-                    borderBottom: "1px solid rgba(0,39,83,0.03)",
-                  }}
-                >
-                  <td className="px-4 py-2.5">
-                    <p className="text-pum-text font-medium">{a.subjectName}</p>
-                    <code
-                      className="text-[10px] font-mono px-1.5 py-0.5 rounded mt-0.5 inline-block"
-                      style={{ background: "rgba(0,39,83,0.07)", color: "#002753" }}
+        <>
+          {/* Leyenda informativa */}
+          <div className="px-5 pt-3 pb-1">
+            <p className="text-[11px] text-pum-text-muted">
+              El docente marcado como <strong>Editor</strong> es el único que puede modificar el PUM de esa materia y nivel. Los demás docentes co-asignados solo pueden visualizarlo.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr style={{ background: "rgba(0,39,83,0.03)", borderBottom: "1px solid rgba(0,39,83,0.06)" }}>
+                  {["Materia", "Nivel", "Año lectivo", "Rol PUM", ""].map((h, i) => (
+                    <th
+                      key={i}
+                      className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-pum-text-disabled"
                     >
-                      {a.subjectCode}
-                    </code>
-                  </td>
-                  <td className="px-4 py-2.5 text-pum-text-muted">
-                    {a.levelName}
-                    <span className="ml-1 text-[11px] text-pum-text-disabled">({a.levelCode})</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-pum-text-muted text-xs">{a.yearLabel}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => handleRemove(a.id)}
-                      className="text-[11px] font-medium px-2.5 py-1 rounded-lg cursor-pointer disabled:opacity-40 transition-colors hover:opacity-80"
-                      style={{ background: "rgba(186,26,26,0.08)", color: "#ba1a1a" }}
-                    >
-                      Quitar
-                    </button>
-                  </td>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {teacher.assignments.map((a, i) => (
+                  <tr
+                    key={a.id}
+                    style={{
+                      background:   i % 2 !== 0 ? "rgba(0,39,83,0.012)" : "transparent",
+                      borderBottom: "1px solid rgba(0,39,83,0.03)",
+                    }}
+                  >
+                    <td className="px-4 py-2.5">
+                      <p className="text-pum-text font-medium">{a.subjectName}</p>
+                      <code
+                        className="text-[10px] font-mono px-1.5 py-0.5 rounded mt-0.5 inline-block"
+                        style={{ background: "rgba(0,39,83,0.07)", color: "#002753" }}
+                      >
+                        {a.subjectCode}
+                      </code>
+                    </td>
+                    <td className="px-4 py-2.5 text-pum-text-muted">
+                      {a.levelName}
+                      <span className="ml-1 text-[11px] text-pum-text-disabled">({a.levelCode})</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-pum-text-muted text-xs">{a.yearLabel}</td>
+
+                    {/* Columna: rol PUM — siempre muestra Planifica + Visualiza */}
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => a.isEditor !== true && handleSetPrimary(a.id)}
+                          className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
+                          style={
+                            a.isEditor === true
+                              ? { background: "#166534", color: "#ffffff", cursor: "default" }
+                              : { background: "rgba(107,114,128,0.12)", color: "#6b7280", cursor: "pointer" }
+                          }
+                        >
+                          Planifica
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => a.isEditor === true && handleUnsetPrimary(a.id)}
+                          className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
+                          style={
+                            a.isEditor !== true
+                              ? { background: "#166534", color: "#ffffff", cursor: "default" }
+                              : { background: "rgba(107,114,128,0.12)", color: "#6b7280", cursor: "pointer" }
+                          }
+                        >
+                          Visualiza
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* Columna: quitar asignación */}
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleRemove(a.id)}
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-lg cursor-pointer disabled:opacity-40 transition-colors hover:opacity-80"
+                        style={{ background: "rgba(186,26,26,0.08)", color: "#ba1a1a" }}
+                      >
+                        Quitar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Modal agregar */}

@@ -113,11 +113,20 @@ class SuperAdminService {
       if (existing) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "Ya existe un usuario con ese email");
     }
 
+    if (data.cedula) {
+      const existing = await prisma.user.findFirst({
+        where: { cedula: data.cedula, id: { not: userId } },
+        select: { id: true },
+      });
+      if (existing) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "Ya existe un usuario con esa cédula");
+    }
+
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.email !== undefined && { email: data.email }),
+        ...(data.cedula !== undefined && { cedula: data.cedula }),
         ...(data.coordinatorArea !== undefined && { coordinatorArea: data.coordinatorArea }),
       },
       select: USER_SELECT,

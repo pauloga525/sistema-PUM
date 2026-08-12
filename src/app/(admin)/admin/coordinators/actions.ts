@@ -129,3 +129,19 @@ export async function deleteCoordinatorAction(
     return { ok: false, error: msg };
   }
 }
+
+export async function resetCoordinatorPasswordAction(
+  coordinatorId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await auth();
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false, error: "No autorizado" };
+
+  try {
+    await adminService.resetCoordinatorPassword(coordinatorId);
+    revalidatePath(ROUTES.ADMIN.COORDINATORS);
+    return { ok: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Error al restablecer la contraseña";
+    return { ok: false, error: msg };
+  }
+}
