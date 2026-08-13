@@ -4,9 +4,9 @@ import { MAX_PUM_ROWS } from "@/constants/planification";
 // ── Metadata schemas ──────────────────────────────────────────────────────────
 
 const AporteMultimodalSchema = z.object({
-  dim:    z.string().max(500),
-  aporte: z.string().max(1000),
-  como:   z.string().max(1000),
+  dim:    z.string().max(5000),
+  aporte: z.string().max(5000),
+  como:   z.string().max(5000),
 });
 
 const DuaPautaEntrySchema = z.object({
@@ -40,21 +40,21 @@ export const PlanMetadataSchema = z.preprocess(
     };
   },
   z.object({
-    areaEstudio:       z.string().max(200),
+    areaEstudio:       z.string().max(5000),
     numUnidad:         z.string().max(10),
-    titulo:            z.string().max(500),
-    objetivos:         z.array(z.string().max(1000)).max(30),
-    criterios:         z.array(z.string().max(1000)).max(30),
+    titulo:            z.string().max(5000),
+    objetivos:         z.array(z.string().max(5000)).max(30),
+    criterios:         z.array(z.string().max(5000)).max(30),
     nPeriodos:         z.string().max(20),
     fechInicio:        z.string().max(50),
     fechFin:           z.string().max(50),
-    ejesTransversales: z.string().max(500),
+    ejesTransversales: z.string().max(5000),
     aportes:           z.array(AporteMultimodalSchema).max(6),
     p1:                DuaSelectionSchema.nullable(),
     p2:                DuaSelectionSchema.nullable(),
     p3:                DuaSelectionSchema.nullable(),
-    nivelSubnivelOverride: z.string().max(200).optional(),
-    nivelGradoOverride:    z.string().max(200).optional(),
+    nivelSubnivelOverride: z.string().max(5000).optional(),
+    nivelGradoOverride:    z.string().max(5000).optional(),
   })
 );
 
@@ -168,7 +168,7 @@ const PumRowDataSchema = z.preprocess(
   },
   z.object({
   dcdItems:         z.array(DcdItemSchema).min(1).max(30),
-  indicators:       z.array(z.string().max(1000)).max(20),
+  indicators:       z.array(z.string().max(5000)).max(20),
   methodologyItems: z.array(MethodologyItemSchema).max(20),
   resources: z.preprocess(
     (val) => {
@@ -179,7 +179,7 @@ const PumRowDataSchema = z.preprocess(
     },
     z.array(MethodologyItemSchema).max(20),
   ),
-  evaluations:      z.array(z.string().max(1000)).max(20),
+  evaluations:      z.array(z.string().max(5000)).max(20),
   }),
 );
 
