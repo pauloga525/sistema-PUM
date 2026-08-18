@@ -1467,15 +1467,46 @@ export function PlanificationTable({
       </div>
       </div>{/* end .relative scroll wrapper */}
 
-      {/* ── Agregar fila ──────────────────────────────────────────────────── */}
-      {!isFinalized && rows.length < 50 && (
-        <button
-          type="button"
-          onClick={addRow}
-          className="text-sm text-pum-primary hover:underline underline-offset-2 text-left cursor-pointer self-start transition-colors"
-        >
-          + Agregar fila
-        </button>
+      {/* ── Agregar fila + Guardar inferior ──────────────────────────────── */}
+      {!isFinalized && (
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          {rows.length < 50 ? (
+            <button
+              type="button"
+              onClick={addRow}
+              className="text-sm text-pum-primary hover:underline underline-offset-2 text-left cursor-pointer self-start transition-colors"
+            >
+              + Agregar fila
+            </button>
+          ) : <span />}
+
+          <div className="flex items-center gap-3">
+            {saveStatus === "saving" && (
+              <span className="text-sm text-pum-text-muted flex items-center gap-1.5">
+                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                </svg>
+                Guardando...
+              </span>
+            )}
+            {saveStatus === "saved" && !isDirty && (
+              <span className="text-sm text-pum-success">✓ Guardado</span>
+            )}
+            {saveStatus === "error" && (
+              <span className="text-sm text-pum-error">{saveError}</span>
+            )}
+            {isDirty && saveStatus === "idle" && (
+              <span className="text-[11px] text-pum-text-disabled">Se guardará automáticamente…</span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={isPending}
+              className="px-4 py-2 text-sm font-medium bg-pum-primary text-white rounded-md hover:bg-pum-primary-hover disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              {isPending && saveStatus === "saving" ? "Guardando..." : "Guardar"}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Dialog de finalización ────────────────────────────────────────── */}

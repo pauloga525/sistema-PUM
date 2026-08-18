@@ -502,7 +502,7 @@ export default async function PreviewPage({
                           {row.data.indicators.filter(Boolean).length > 0 ? (
                             <ul className="list-none m-0 p-0 space-y-0.5">
                               {row.data.indicators.filter(Boolean).map((t, j) => (
-                                <li key={j} className="leading-snug">• {t}</li>
+                                <li key={j} className="leading-snug whitespace-pre-wrap">• {t}</li>
                               ))}
                             </ul>
                           ) : <span className="text-gray-300">—</span>}
@@ -523,7 +523,7 @@ export default async function PreviewPage({
                                       ))}
                                     </span>
                                   )}
-                                  <span className="leading-snug">• {item.text}</span>
+                                  <span className="leading-snug whitespace-pre-wrap">• {item.text}</span>
                                 </li>
                               ))}
                             </ul>
@@ -545,7 +545,7 @@ export default async function PreviewPage({
                                       ))}
                                     </span>
                                   )}
-                                  <span className="leading-snug">• {item.text}</span>
+                                  <span className="leading-snug whitespace-pre-wrap">• {item.text}</span>
                                 </li>
                               ))}
                             </ul>
@@ -557,7 +557,7 @@ export default async function PreviewPage({
                           {row.data.evaluations.filter(Boolean).length > 0 ? (
                             <ul className="list-none m-0 p-0 space-y-0.5">
                               {row.data.evaluations.filter(Boolean).map((t, j) => (
-                                <li key={j} className="leading-snug">• {t}</li>
+                                <li key={j} className="leading-snug whitespace-pre-wrap">• {t}</li>
                               ))}
                             </ul>
                           ) : <span className="text-gray-300">—</span>}

@@ -186,6 +186,15 @@ function simpleCell(text: string, widthPct: number, isShaded: boolean): TableCel
   });
 }
 
+/** Splits text on \n and emits TextRun + break pairs so Word preserves line breaks. */
+function textRuns(text: string, size: number, color: string): TextRun[] {
+  return text.split("\n").flatMap((seg, i) =>
+    i === 0
+      ? [new TextRun({ text: seg, size, font: FONT, color })]
+      : [new TextRun({ break: 1 }), new TextRun({ text: seg, size, font: FONT, color })]
+  );
+}
+
 function dcdCell(data: PumRowData, widthPct: number, isShaded: boolean): TableCell {
   const nonEmpty = data.dcdItems.filter((d) => d.text);
 
@@ -197,9 +206,7 @@ function dcdCell(data: PumRowData, widthPct: number, isShaded: boolean): TableCe
           .filter(Boolean) as typeof ALL_EJES[number][];
         const paragraphs: Paragraph[] = [
           new Paragraph({
-            children: [
-              new TextRun({ text: dcdItem.text, size: 24, font: FONT, color: COLOR_TEXT }),
-            ],
+            children: textRuns(dcdItem.text, 24, COLOR_TEXT),
             spacing: { before: idx > 0 ? 120 : 0, after: ejes.length > 0 ? 80 : 0 },
           }),
         ];
@@ -239,7 +246,7 @@ function listCell(items: string[], widthPct: number, isShaded: boolean): TableCe
           new Paragraph({
             children: [
               new TextRun({ text: "• ", size: 24, font: FONT, color: COLOR_MUTED }),
-              new TextRun({ text, size: 24, font: FONT, color: COLOR_TEXT }),
+              ...textRuns(text, 24, COLOR_TEXT),
             ],
             spacing: { after: idx < nonEmpty.length - 1 ? 60 : 0 },
           })
@@ -283,7 +290,7 @@ function methodologyCell(items: MethodologySubItem[], widthPct: number, isShaded
           children: [
             ...principleRuns,
             ...(principleRuns.length > 0 ? [new TextRun({ break: 1 })] : []),
-            new TextRun({ text: item.text, size: 24, font: FONT, color: COLOR_TEXT }),
+            ...textRuns(item.text, 24, COLOR_TEXT),
           ],
           spacing: { before: idx > 0 ? 80 : 0, after: 0 },
           border: idx > 0 ? {
