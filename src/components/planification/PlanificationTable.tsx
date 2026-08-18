@@ -762,6 +762,7 @@ export function PlanificationTable({
   // ── Guardar / Finalizar ───────────────────────────────────────────────────
 
   const handleSave = () => {
+    if (isPending) return; // ya hay un guardado en vuelo — ignorar
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;

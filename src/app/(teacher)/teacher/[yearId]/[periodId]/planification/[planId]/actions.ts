@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma/client";
+import { revalidatePath } from "next/cache";
 import { planificationService } from "@/modules/planification/planification.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
 import {
@@ -32,6 +33,7 @@ export async function saveRowsAction(
 
   try {
     await planificationService.saveRows(result.data, session.user.id);
+    revalidatePath("/teacher", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     const msg = e instanceof AppError ? e.message : "Error al guardar. Intenta de nuevo.";
@@ -55,6 +57,7 @@ export async function saveMetadataAction(
 
   try {
     await planificationService.saveMetadata(result.data, session.user.id);
+    revalidatePath("/teacher", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     const msg = e instanceof AppError ? e.message : "Error al guardar los datos de la unidad.";
@@ -93,6 +96,7 @@ export async function finalizeAction(planificationId: string): Promise<ActionRes
 
   try {
     await planificationService.finalize(result.data, session.user.id);
+    revalidatePath("/teacher", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     const msg = e instanceof AppError ? e.message : "Error al finalizar. Intenta de nuevo.";
