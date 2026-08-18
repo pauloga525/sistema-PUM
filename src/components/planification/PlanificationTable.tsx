@@ -853,7 +853,7 @@ export function PlanificationTable({
       autosaveTimerRef.current = setTimeout(() => {
         autosaveTimerRef.current = null;
         handleSaveRef.current();
-      }, 2500);
+      }, 30000);
     }
   };
 
