@@ -7,7 +7,7 @@ import type { PlanificationRow, EjeTransversalId, PrincipioIcon, DuaSelection, D
 import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 import type { ActionResult } from "@/types";
 import type { SavePlanificationRowsInput } from "@/modules/planification/planification.schema";
-import { EJES_TRANSVERSALES, ERE_SOCIAL, ERE_ODS, ALL_EJES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
+import { EJES_TRANSVERSALES, ERE_SOCIAL, ERE_ODS, PREPARATORIA_HABILIDADES, ALL_EJES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
 import type { SectionState } from "@/constants/review";
 
 // ── Tipos locales (solo UI) ───────────────────────────────────────────────────
@@ -172,7 +172,8 @@ function EjeTransversalSelector({
   disabled?: boolean;
   hasError?: boolean;
 }) {
-  const [ereOpen, setEreOpen] = useState(false);
+  const [ereOpen,  setEreOpen]  = useState(false);
+  const [prepOpen, setPrepOpen] = useState(false);
 
   const toggle = (id: EjeTransversalId) => {
     if (disabled) return;
@@ -183,6 +184,11 @@ function EjeTransversalSelector({
     value.includes(e.id as EjeTransversalId)
   );
   const ereCount = selectedEre.length;
+
+  const selectedPrep = PREPARATORIA_HABILIDADES.filter((e) =>
+    value.includes(e.id as EjeTransversalId)
+  );
+  const prepCount = selectedPrep.length;
 
   return (
     <div className={`mt-2 ${hasError ? "p-1.5 rounded-md border border-red-300 bg-red-50" : ""}`}>
@@ -227,15 +233,128 @@ function EjeTransversalSelector({
         </div>
       )}
 
-      {/* Botón +ERE */}
+      {/* Iconos Preparatória seleccionados — mostrar debajo */}
+      {selectedPrep.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap mt-1.5">
+          {selectedPrep.map((eje) => (
+            <button
+              key={eje.id}
+              type="button"
+              title={`${eje.label} — click para quitar`}
+              disabled={disabled}
+              onClick={() => toggle(eje.id as EjeTransversalId)}
+              className={`w-10 h-10 rounded-lg overflow-hidden transition-all border-2 border-pum-primary ring-2 ring-pum-primary/30 flex items-center justify-center ${
+                disabled ? "opacity-60 cursor-default" : "cursor-pointer"
+              }`}
+            >
+              <EjeIcon file={eje.file} abbr={eje.abbr} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Botones +ERE y +Preparatória */}
       {!disabled && (
-        <button
-          type="button"
-          onClick={() => setEreOpen(true)}
-          className="text-[0.7rem] text-pum-primary hover:underline underline-offset-2 text-left cursor-pointer self-start mt-1.5 transition-colors"
-        >
-          + ERE{ereCount > 0 ? ` (${ereCount})` : ""}
-        </button>
+        <div className="flex gap-3 mt-1.5">
+          <button
+            type="button"
+            onClick={() => setEreOpen(true)}
+            className="text-[0.7rem] text-pum-primary hover:underline underline-offset-2 text-left cursor-pointer transition-colors"
+          >
+            + ERE{ereCount > 0 ? ` (${ereCount})` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPrepOpen(true)}
+            className="text-[0.7rem] text-pum-primary hover:underline underline-offset-2 text-left cursor-pointer transition-colors"
+          >
+            + Preparatória{prepCount > 0 ? ` (${prepCount})` : ""}
+          </button>
+        </div>
+      )}
+
+      {/* Modal Preparatória */}
+      {prepOpen && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
+            onClick={() => setPrepOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setPrepOpen(false)}>
+            <div
+              className="bg-white rounded-2xl w-[480px] max-h-[85vh] overflow-y-auto flex flex-col"
+              style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.25)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 sticky top-0 bg-white z-10" style={{ borderBottom: "1px solid #f1f5f9" }}>
+                <div>
+                  <span className="text-sm font-bold text-pum-text">Preparatória</span>
+                  {prepCount > 0 && (
+                    <span className="ml-2 text-xs font-semibold text-pum-primary">{prepCount} seleccionado{prepCount !== 1 ? "s" : ""}</span>
+                  )}
+                </div>
+                <button type="button" onClick={() => setPrepOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer text-xl leading-none">×</button>
+              </div>
+
+              <div className="px-5 py-4 flex flex-col gap-5">
+                <div>
+                  <p className="text-[0.65rem] font-semibold text-pum-text-muted uppercase tracking-wide mb-2">Habilidades</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {PREPARATORIA_HABILIDADES.map((eje) => {
+                      const sel = value.includes(eje.id as EjeTransversalId);
+                      return (
+                        <button
+                          key={eje.id}
+                          type="button"
+                          title={eje.label}
+                          onClick={() => toggle(eje.id as EjeTransversalId)}
+                          className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all cursor-pointer ${
+                            sel ? "border-pum-primary ring-2 ring-pum-primary/20 bg-pum-bg" : "border-transparent hover:border-pum-border bg-slate-50"
+                          }`}
+                        >
+                          <div className="w-12 h-12 flex items-center justify-center">
+                            <EjeIcon file={eje.file} abbr={eje.abbr} size={48} />
+                          </div>
+                          <span className="text-[0.6rem] text-center leading-tight text-pum-text line-clamp-2" style={{ maxWidth: "72px" }}>{eje.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="sticky bottom-0 bg-white px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid #f1f5f9" }}>
+                {prepCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const prepIds = new Set<EjeTransversalId>(PREPARATORIA_HABILIDADES.map((e) => e.id as EjeTransversalId));
+                      onChange(value.filter((id) => !prepIds.has(id)));
+                    }}
+                    className="text-xs text-red-400 hover:text-red-600 cursor-pointer"
+                  >
+                    Quitar todos
+                  </button>
+                )}
+                <div className="ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setPrepOpen(false)}
+                    className="text-xs font-bold px-4 py-1.5 rounded-xl text-white cursor-pointer"
+                    style={{ backgroundColor: "#002753" }}
+                  >
+                    ✓ Listo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
       )}
 
       {/* Modal ERE */}
@@ -1009,7 +1128,18 @@ export function PlanificationTable({
     markRowEdited(rowId); markDirty();
   };
 
+  const [insertHoverIdx, setInsertHoverIdx] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   const addRow = () => { setRows((p) => [...p, emptyRow()]); markDirty(); };
+  const insertRow = (afterIndex: number) => {
+    setRows((p) => {
+      const next = [...p];
+      next.splice(afterIndex + 1, 0, emptyRow());
+      return next;
+    });
+    markDirty();
+  };
   const removeRow = (localId: string) => {
     setRows((p) => p.length > 1 ? p.filter((r) => r.localId !== localId) : p);
     markDirty();
@@ -1267,7 +1397,7 @@ export function PlanificationTable({
                   <td className="px-1 py-2 align-middle">
                     <button
                       type="button"
-                      onClick={() => removeRow(row.localId)}
+                      onClick={() => setConfirmDeleteId(row.localId)}
                       disabled={rows.length === 1}
                       title="Eliminar fila"
                       className="text-pum-text-disabled hover:text-pum-error disabled:opacity-30 transition-colors cursor-pointer text-lg leading-none"
@@ -1291,6 +1421,41 @@ export function PlanificationTable({
                         {fbComment}
                       </span>
                     </div>
+                  </td>
+                </tr>
+              )}
+
+              {/* ── Separador de inserción entre filas ── */}
+              {!isFinalized && i < rows.length - 1 && (
+                <tr
+                  onMouseEnter={() => setInsertHoverIdx(i)}
+                  onMouseLeave={() => setInsertHoverIdx(null)}
+                  style={{ height: insertHoverIdx === i ? 22 : 6, transition: "height 120ms" }}
+                >
+                  <td colSpan={colCount} style={{ padding: 0, position: "relative" }}>
+                    {insertHoverIdx === i && (
+                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", zIndex: 10 }}>
+                        <div style={{ flex: 1, height: 1, background: "rgba(0,39,83,0.25)" }} />
+                        <button
+                          type="button"
+                          onClick={() => insertRow(i)}
+                          title="Insertar fila aquí"
+                          onMouseEnter={() => setInsertHoverIdx(i)}
+                          style={{
+                            margin: "0 6px",
+                            width: 20, height: 20,
+                            borderRadius: "50%",
+                            background: "#002753",
+                            color: "#fff",
+                            fontSize: 16, lineHeight: 1,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            flexShrink: 0, border: "none", cursor: "pointer",
+                            boxShadow: "0 1px 4px rgba(0,39,83,0.30)",
+                          }}
+                        >+</button>
+                        <div style={{ flex: 1, height: 1, background: "rgba(0,39,83,0.25)" }} />
+                      </div>
+                    )}
                   </td>
                 </tr>
               )}
@@ -1321,6 +1486,86 @@ export function PlanificationTable({
           isPending={isPending}
           error={finalizeError}
         />
+      )}
+
+      {/* ── Modal confirmación eliminar fila ──────────────────────────────── */}
+      {confirmDeleteId !== null && typeof window !== "undefined" && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="del-row-title"
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.40)",
+            backdropFilter: "blur(2px)",
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmDeleteId(null); }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "1rem",
+              padding: "1.75rem 2rem",
+              maxWidth: 380,
+              width: "90vw",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+              display: "flex", flexDirection: "column", gap: "1rem",
+            }}
+          >
+            {/* Icono + título */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%",
+                background: "#fdecea", display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+              </div>
+              <h2 id="del-row-title" style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#191c1d" }}>
+                ¿Eliminar esta fila?
+              </h2>
+            </div>
+
+            <p style={{ margin: 0, fontSize: "0.875rem", color: "#434750", lineHeight: 1.5 }}>
+              Se eliminará toda la fila con su contenido (destrezas, indicadores, metodología, recursos y evaluaciones).
+              Esta acción no se puede deshacer.
+            </p>
+
+            {/* Botones */}
+            <div style={{ display: "flex", gap: "0.625rem", justifyContent: "flex-end", marginTop: "0.25rem" }}>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                style={{
+                  padding: "0.5rem 1.125rem", borderRadius: "0.625rem", fontSize: "0.875rem",
+                  fontWeight: 600, cursor: "pointer", border: "1px solid #c3c6d2",
+                  background: "#fff", color: "#434750",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeRow(confirmDeleteId);
+                  setConfirmDeleteId(null);
+                }}
+                style={{
+                  padding: "0.5rem 1.125rem", borderRadius: "0.625rem", fontSize: "0.875rem",
+                  fontWeight: 600, cursor: "pointer", border: "none",
+                  background: "#ba1a1a", color: "#fff",
+                  boxShadow: "0 2px 8px rgba(186,26,26,0.30)",
+                }}
+              >
+                Eliminar fila
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>

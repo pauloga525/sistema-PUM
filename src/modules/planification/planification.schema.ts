@@ -78,6 +78,7 @@ const EjeTransversalSchema = z.union([
   z.literal(26), z.literal(27), z.literal(28), z.literal(29),
   z.literal(30), z.literal(31), z.literal(32), z.literal(33),
   z.literal(34),
+  z.literal(35), z.literal(36), z.literal(37), z.literal(38),
 ]);
 
 const PrincipioIconSchema = z.preprocess(
@@ -151,7 +152,7 @@ const MethodologyItemSchema = z.preprocess(
 
 const DcdItemSchema = z.object({
   text: z.string().max(5000),
-  ejes: z.array(EjeTransversalSchema).max(34),
+  ejes: z.array(EjeTransversalSchema).max(38),
 });
 
 const PumRowDataSchema = z.preprocess(

@@ -104,8 +104,16 @@ export const ERE_ODS = [
   { id: 34 as const, label: "Alianzas para lograr objetivos",          file: "17. Alianzas para lograr objetivos.png",         abbr: "AP" },
 ] as const;
 
-/** Todos los ejes (principales + ERE) — usar para lookups por ID */
-export const ALL_EJES = [...EJES_TRANSVERSALES, ...ERE_SOCIAL, ...ERE_ODS] as const;
+/** Iconos Preparatória — Habilidades (4) */
+export const PREPARATORIA_HABILIDADES = [
+  { id: 35 as const, label: "Habilidades Comunicacionales",   file: "Habilidades-Comunicacionales.png",   abbr: "HC" },
+  { id: 36 as const, label: "Habilidades Digitales",          file: "Habilidades-Digitales.png",          abbr: "HD" },
+  { id: 37 as const, label: "Habilidades Lógico Matemáticas", file: "Habilidades-Logico-Matematicas.png", abbr: "HM" },
+  { id: 38 as const, label: "Habilidades Socioemocionales",   file: "Habilidades-Socioemocionales.png",   abbr: "HS" },
+] as const;
+
+/** Todos los ejes (principales + ERE + Preparatória) — usar para lookups por ID */
+export const ALL_EJES = [...EJES_TRANSVERSALES, ...ERE_SOCIAL, ...ERE_ODS, ...PREPARATORIA_HABILIDADES] as const;
 
 export const EJES_TRANSVERSALES_PATH = "/icons/ejes-transversales/";
 
