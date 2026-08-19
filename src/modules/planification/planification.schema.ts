@@ -41,7 +41,7 @@ export const PlanMetadataSchema = z.preprocess(
   },
   z.object({
     areaEstudio:       z.string().max(5000),
-    numUnidad:         z.string().max(10),
+    numUnidad:         z.string().max(20),
     titulo:            z.string().max(5000),
     objetivos:         z.array(z.string().max(5000)).max(30),
     criterios:         z.array(z.string().max(5000)).max(30),

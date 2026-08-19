@@ -632,6 +632,29 @@ export class PlanificationService {
 
     const isResubmission = plan.status === "FEEDBACK_RECEIVED";
 
+    // Sincroniza docentes co-asignados: agrega cualquier docente que haya sido
+    // asignado a la materia después de que el plan fue creado. skipDuplicates
+    // garantiza que no se sobreescriben los registros existentes (isEditor incluido).
+    const coAssigned = await prisma.teacherAssignment.findMany({
+      where: {
+        subjectId:      plan.subjectId,
+        levelId:        plan.levelId,
+        academicYearId: plan.academicYearId,
+        active:         true,
+      },
+      select: { teacherId: true },
+    });
+    if (coAssigned.length > 0) {
+      await prisma.planificationTeacher.createMany({
+        data: coAssigned.map((a) => ({
+          planificationId: input.planificationId,
+          teacherId:       a.teacherId,
+          isEditor:        a.teacherId === teacherId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.planification.update({
         where: { id: input.planificationId },

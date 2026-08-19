@@ -220,12 +220,14 @@ function TextInput({
   placeholder = "",
   disabled = false,
   error,
+  maxLength,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
   error?: string;
+  maxLength?: number;
 }) {
   const [focused, setFocused] = useState(false);
   const style: React.CSSProperties = {
@@ -245,6 +247,7 @@ function TextInput({
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
         disabled={disabled}
+        maxLength={maxLength}
         style={style}
       />
       {error && (
@@ -621,6 +624,7 @@ export function MetadataForm({ planId, initialMetadata, isFinalized, onSave, onC
                 <TextInput
                   value={form.numUnidad}
                   onChange={(v) => { set("numUnidad", v); clearFeedback("meta_unidad"); }}
+                  maxLength={20}
                   placeholder="Ej: 1"
                   disabled={disabled}
                   error={errors.numUnidad}
