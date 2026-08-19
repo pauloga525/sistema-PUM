@@ -193,7 +193,7 @@ export const coordinatorService = {
     // Plans visible to this coordinator: those whose subject+level+year have at least
     // one TeacherAssignment with coordinatorId = this coordinator.
     // Fall back to CoordinatorAssignment (teacher-based) for assignments without coordinatorId.
-    const [directAssignments, cas] = await Promise.all([
+    const [directAssignments, cas, subjectAssignments] = await Promise.all([
       prisma.teacherAssignment.findMany({
         where: { coordinatorId, active: true },
         select: { subjectId: true, levelId: true, academicYearId: true },
@@ -202,6 +202,10 @@ export const coordinatorService = {
       prisma.coordinatorAssignment.findMany({
         where: { coordinatorId },
         select: { teacherId: true },
+      }),
+      prisma.coordinatorSubjectAssignment.findMany({
+        where: { coordinatorId },
+        select: { subjectId: true },
       }),
     ]);
 
@@ -224,13 +228,18 @@ export const coordinatorService = {
       directPlans.forEach((p) => planIdSet.add(p.id));
     }
 
-    // Source 2: legacy CoordinatorAssignment (teacher-based) for assignments without coordinatorId
+    // Source 2: legacy CoordinatorAssignment (teacher-based).
+    // Only show plans whose subject the coordinator is allowed to manage.
+    // If CoordinatorSubjectAssignment has no rows for this coordinator, skip this source
+    // entirely to avoid leaking plans from unrelated subjects.
+    const allowedSubjectIds = subjectAssignments.map((s) => s.subjectId);
     const teacherIds = cas.map((c) => c.teacherId);
-    if (teacherIds.length > 0) {
+    if (teacherIds.length > 0 && allowedSubjectIds.length > 0) {
       const legacyLinks = await prisma.planificationTeacher.findMany({
         where: {
           teacherId: { in: teacherIds },
           planification: {
+            subjectId: { in: allowedSubjectIds },
             status: { in: ["FINALIZED", "FEEDBACK_RECEIVED", "APPROVED", "PENDING_SIGNATURE", "ADMIN_REJECTED", "SIGNED"] },
           },
         },
