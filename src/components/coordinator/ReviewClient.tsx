@@ -655,7 +655,7 @@ export function ReviewClient({
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                     <div>
                       {meta?.objetivos?.filter(Boolean).length ? (
-                        <ul className="list-none m-0 p-0 space-y-0.5">{meta.objetivos.filter(Boolean).map((o, i) => <li key={i}>• {o}</li>)}</ul>
+                        <ul className="list-none m-0 p-0 space-y-0.5">{meta.objetivos.filter(Boolean).map((o, i) => <li key={i} className="whitespace-pre-wrap">• {o}</li>)}</ul>
                       ) : <span className="text-gray-400">—</span>}
                     </div>
                     <SectionControl sectionKey="meta_objetivos" states={states} disabled={isLocked} onApprove={handleApprove} onSaveComment={handleSaveComment} />
@@ -668,7 +668,7 @@ export function ReviewClient({
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                     <div>
                       {meta?.criterios?.filter(Boolean).length ? (
-                        <ul className="list-none m-0 p-0 space-y-0.5">{meta.criterios.filter(Boolean).map((c, i) => <li key={i}>• {c}</li>)}</ul>
+                        <ul className="list-none m-0 p-0 space-y-0.5">{meta.criterios.filter(Boolean).map((c, i) => <li key={i} className="whitespace-pre-wrap">• {c}</li>)}</ul>
                       ) : <span className="text-gray-400">—</span>}
                     </div>
                     <SectionControl sectionKey="meta_criterios" states={states} disabled={isLocked} onApprove={handleApprove} onSaveComment={handleSaveComment} />
@@ -850,7 +850,7 @@ export function ReviewClient({
                         <td className="align-top">
                           {row.data.indicators.filter(Boolean).length > 0 ? (
                             <ul className="list-none m-0 p-0 space-y-0.5">
-                              {row.data.indicators.filter(Boolean).map((t, j) => <li key={j} className="leading-snug">• {t}</li>)}
+                              {row.data.indicators.filter(Boolean).map((t, j) => <li key={j} className="leading-snug whitespace-pre-wrap">• {t}</li>)}
                             </ul>
                           ) : <span className="text-gray-300">—</span>}
                         </td>
@@ -868,7 +868,7 @@ export function ReviewClient({
                                       ))}
                                     </span>
                                   )}
-                                  <span className="leading-snug">• {item.text}</span>
+                                  <span className="leading-snug whitespace-pre-wrap">• {item.text}</span>
                                 </li>
                               ))}
                             </ul>
@@ -888,7 +888,7 @@ export function ReviewClient({
                                       ))}
                                     </span>
                                   )}
-                                  <span className="leading-snug">• {item.text}</span>
+                                  <span className="leading-snug whitespace-pre-wrap">• {item.text}</span>
                                 </li>
                               ))}
                             </ul>
@@ -897,7 +897,7 @@ export function ReviewClient({
                         <td className="align-top">
                           {row.data.evaluations.filter(Boolean).length > 0 ? (
                             <ul className="list-none m-0 p-0 space-y-0.5">
-                              {row.data.evaluations.filter(Boolean).map((t, j) => <li key={j} className="leading-snug">• {t}</li>)}
+                              {row.data.evaluations.filter(Boolean).map((t, j) => <li key={j} className="leading-snug whitespace-pre-wrap">• {t}</li>)}
                             </ul>
                           ) : <span className="text-gray-300">—</span>}
                         </td>

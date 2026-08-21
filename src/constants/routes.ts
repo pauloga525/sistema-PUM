@@ -66,6 +66,7 @@ export const ROUTES = {
     ROLES:     "/superadmin/roles",
     PLANS:     "/superadmin/plans",
     plan:      (id: string) => `/superadmin/plans/${id}`,
+    pumPreview:(id: string) => `/plan-preview/${id}`,
     AUDIT:     "/superadmin/audit",
     ERRORS:    "/superadmin/errors",
     error:     (id: string) => `/superadmin/errors/${id}`,

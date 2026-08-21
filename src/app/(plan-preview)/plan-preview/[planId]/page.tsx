@@ -1,15 +1,11 @@
 import fs from "fs";
 import path from "path";
-import { auth } from "@/auth";
-import { redirect, notFound } from "next/navigation";
-import { hasMinRole } from "@/constants/levels";
-import type { UserRole } from "@/constants/levels";
+import { notFound } from "next/navigation";
 import { ROUTES } from "@/constants/routes";
 import { adminService } from "@/modules/admin/admin.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
 import { appConfig } from "@/config/app.config";
 import { ReviewClient } from "@/components/coordinator/ReviewClient";
-import { signPlanPreviewAction, rejectPlanPreviewAction } from "./actions";
 import { getAuditHistoryAction } from "@/app/(coordinator)/coordinator/[planId]/review/actions";
 import { auditService } from "@/modules/audit/audit.service";
 import Link from "next/link";
@@ -22,60 +18,45 @@ export async function generateMetadata({
 }) {
   const { planId } = await params;
   void planId;
-  return { title: "Vista previa PUM — Admin" };
+  return { title: "Vista previa PUM — Sistema" };
 }
 
-export default async function AdminPlanPreviewPage({
+export default async function PlanPreviewPage({
   params,
 }: {
   params: Promise<{ planId: string }>;
 }) {
   const { planId } = await params;
 
-  const session = await auth();
-  if (!session) redirect(ROUTES.LOGIN);
-  if (!hasMinRole(session.user.role as UserRole, "ADMIN")) redirect(ROUTES.LOGIN);
-
-  const isSuperAdmin = session.user.role === "SUPERADMIN";
-
+  // Auth is handled by the (plan-preview) layout — only ADMIN+ can reach this page.
+  // No status restriction: superadmin can inspect any plan regardless of workflow state.
   const [planData, review] = await Promise.all([
     adminService.getPlanForAdmin(planId),
     coordinatorService.getReviewForTeacher(planId),
   ]);
   if (!planData) notFound();
 
-  // ADMIN can only act on plans pending signature or already signed.
-  // SUPERADMIN can inspect any plan regardless of status.
-  if (!isSuperAdmin && planData.status !== "PENDING_SIGNATURE" && planData.status !== "SIGNED") notFound();
-
   const publicDir = path.join(process.cwd(), "public");
   const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
   const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-right.png"));
 
-  const isSigned    = planData.status === "SIGNED";
-  // Admin action controls (sign/reject) only make sense on plans awaiting signature
-  const canAdminAct = planData.status === "PENDING_SIGNATURE";
-
+  const isSigned = planData.status === "SIGNED";
   const signatureBlock = isSigned
     ? await auditService.getSignatureBlock(planId)
     : null;
 
-  // Bind planId into the server actions so they can be passed to the client component
-  const boundSign   = signPlanPreviewAction.bind(null, planId);
-  const boundReject = rejectPlanPreviewAction.bind(null, planId);
-
   return (
-    <div className="flex-1 flex flex-col bg-pum-bg">
-      {/* Nav bar */}
+    <div className="min-h-screen flex flex-col bg-pum-bg">
+      {/* Minimal sticky bar: breadcrumb + export buttons */}
       <div className="sticky top-0 z-30 bg-pum-surface border-b border-pum-border px-6 py-3 flex items-center gap-3 flex-wrap print:hidden">
         <Link
-          href={ROUTES.ADMIN.DASHBOARD}
+          href={ROUTES.SUPERADMIN.PLANS}
           className="text-sm text-pum-text-muted hover:text-pum-primary transition-colors flex items-center gap-1"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />
           </svg>
-          Dashboard
+          PUM del Sistema
         </Link>
         <span className="text-pum-text-disabled">·</span>
         <span className="text-sm font-medium text-pum-text truncate max-w-xs">
@@ -99,7 +80,7 @@ export default async function AdminPlanPreviewPage({
         </div>
       </div>
 
-      {/* ReviewClient in admin mode — review status is "APPROVED" so controls are auto-disabled */}
+      {/* Read-only preview — no sign/reject controls */}
       <ReviewClient
         planId={planId}
         reviewId=""
@@ -108,9 +89,9 @@ export default async function AdminPlanPreviewPage({
         plan={planData}
         appConfig={{ institutionName: appConfig.institutionName }}
         logos={{ left: hasLogoLeft, right: hasLogoRight }}
-        adminMode={canAdminAct}
-        onSignPlan={canAdminAct ? boundSign : undefined}
-        onRejectPlan={canAdminAct ? boundReject : undefined}
+        adminMode={false}
+        onSignPlan={undefined}
+        onRejectPlan={undefined}
         onGetAuditHistory={getAuditHistoryAction}
         signatureBlock={signatureBlock}
       />

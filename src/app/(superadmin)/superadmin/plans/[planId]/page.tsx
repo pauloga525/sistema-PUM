@@ -91,7 +91,7 @@ export default async function PlanDetailPage({
           )}
         </div>
         <Link
-          href={ROUTES.ADMIN.pumPreview(planId)}
+          href={ROUTES.SUPERADMIN.pumPreview(planId)}
           target="_blank"
           rel="noopener noreferrer"
           className="flex-shrink-0 inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-pum-border text-sm font-medium text-pum-text hover:shadow-sm transition-shadow"
