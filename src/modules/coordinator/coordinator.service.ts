@@ -613,14 +613,11 @@ export const coordinatorService = {
     });
     if (!plan) return null;
 
-    const allNames = plan.teachers.map((t) => t.teacher.name ?? "—");
-    const teacherNames = allNames.length <= 2
-      ? allNames.join(", ")
-      : `${allNames[0]} + ${allNames.length - 1} más`;
+    const teacherNames = plan.teachers.map((t) => t.teacher.name ?? "—").join(", ");
 
     return {
       status:       plan.status,
-      teacherName:  teacherNames,
+      teacherName:  teacherNames || null,
       subjectName:  plan.subject.name,
       levelName:    plan.level.name,
       levelCode:    plan.level.code,

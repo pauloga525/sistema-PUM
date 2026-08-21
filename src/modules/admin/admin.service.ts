@@ -901,7 +901,7 @@ export class AdminService {
       where: { id: planId },
       include: {
         rows:         { orderBy: { rowIndex: "asc" } },
-        teachers:     { where: { isEditor: true }, include: { teacher: true } },
+        teachers:     { include: { teacher: true } },
         subject:      true,
         level:        true,
         period:       true,
@@ -911,7 +911,7 @@ export class AdminService {
     if (!plan) return null;
     return {
       status:      plan.status,
-      teacherName: plan.teachers[0]?.teacher.name ?? null,
+      teacherName: plan.teachers.map((t) => t.teacher.name ?? t.teacher.email).join(", ") || null,
       subjectName: plan.subject.name,
       levelName:   plan.level.name,
       levelCode:   plan.level.code,
