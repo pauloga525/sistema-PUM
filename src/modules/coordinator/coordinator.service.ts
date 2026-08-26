@@ -17,9 +17,10 @@ function countProgress(
     s?.approved === true || !!(s?.comment?.trim());
 
   const fixedReviewed = ALL_FIXED_KEYS.filter((k) => isReviewed(states[k])).length;
-  const rowReviewed = Object.keys(states).filter(
-    (k) => /^row_\d+$/.test(k) && isReviewed((states as Record<string, { approved: boolean; comment: string | null }>)[k]),
-  ).length;
+  // Use the live rowCount (not blob keys) so numerator and denominator share the same source
+  const rowReviewed = Array.from({ length: rowCount }, (_, i) => `row_${i}` as const)
+    .filter((k) => isReviewed((states as Record<string, { approved: boolean; comment: string | null }>)[k]))
+    .length;
   return {
     approved: fixedReviewed + rowReviewed,
     total: ALL_FIXED_KEYS.length + rowCount,
@@ -456,15 +457,19 @@ export const coordinatorService = {
     const review = await prisma.planReview.findUnique({ where: { id: reviewId } });
     if (!review || review.coordinatorId !== coordinatorId) return false;
 
+    // Fetch live row count so we check the rows that currently exist, not a stale blob snapshot
+    const actualRowCount = await prisma.planificationRow.count({
+      where: { planificationId: review.planificationId },
+    });
+
     const states = normalizeStates(review.sectionStates);
 
     // All fixed sections (meta_*, plan_*, aportes_*, dua_*) must be approved
     const sectionsDone = ALL_FIXED_KEYS.every((k) => states[k]?.approved === true);
 
-    // All existing row_N keys must be approved
-    const rowKeys = Object.keys(states).filter((k) => /^row_\d+$/.test(k));
-    const rowsDone = rowKeys.length > 0 &&
-      rowKeys.every((k) => (states as Record<string, { approved: boolean }>)[k]?.approved === true);
+    // All CURRENT rows (row_0..row_{N-1}) must be approved — ignores stale blob keys
+    const rowsDone = Array.from({ length: actualRowCount }, (_, i) => `row_${i}`)
+      .every((k) => (states as Record<string, { approved: boolean }>)[k]?.approved === true);
 
     if (!sectionsDone || !rowsDone) return false;
 
