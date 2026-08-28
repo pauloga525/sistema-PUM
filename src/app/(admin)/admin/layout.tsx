@@ -13,6 +13,10 @@ export const metadata: Metadata = {
   title: "Admin — PUM Web",
 };
 
+const _publicDir   = path.join(process.cwd(), "public");
+const hasLogo      = fs.existsSync(path.join(_publicDir, "logos", "logo-left.png"));
+const hasLogoRight = fs.existsSync(path.join(_publicDir, "logos", "logo-header-right.png"));
+
 export default async function AdminLayout({
   children,
 }: {
@@ -20,10 +24,6 @@ export default async function AdminLayout({
 }) {
   const session = await auth();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect("/login");
-
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogo      = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-header-right.png"));
 
   const initial = session.user?.name?.[0]?.toUpperCase() ?? "A";
   const year    = new Date().getFullYear();

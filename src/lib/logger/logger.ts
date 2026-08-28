@@ -24,12 +24,23 @@ class PumLogger implements ILogger {
   private write(level: LogLevel, message: string, context?: LogContext): void {
     if (!this.shouldLog(level)) return;
 
+    // Serialize Error instances: their message/stack are non-enumerable and lost in JSON.stringify
+    const safeContext = context
+      ? Object.fromEntries(
+          Object.entries(context).map(([k, v]) =>
+            v instanceof Error
+              ? [k, { name: v.name, message: v.message, stack: v.stack }]
+              : [k, v]
+          )
+        )
+      : undefined;
+
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
       message,
       ...(this.module ? { module: this.module } : {}),
-      ...(context && Object.keys(context).length > 0 ? { context } : {}),
+      ...(safeContext && Object.keys(safeContext).length > 0 ? { context: safeContext } : {}),
     };
 
     const output = JSON.stringify(entry);

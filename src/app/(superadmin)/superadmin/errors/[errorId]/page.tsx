@@ -15,6 +15,7 @@ const LEVEL_BADGE: Record<string, { label: string; bg: string; color: string }> 
 
 function formatDT(iso: string) {
   return new Date(iso).toLocaleString("es-EC", {
+    timeZone: "America/Guayaquil",
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit", second: "2-digit",
   });

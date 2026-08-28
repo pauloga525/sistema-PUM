@@ -12,16 +12,10 @@ export interface PumNotification {
 
 export const notificationsService = {
   async getTeacherNotifications(teacherId: string): Promise<PumNotification[]> {
-    const links = await prisma.planificationTeacher.findMany({
-      where: { teacherId },
-      select: { planificationId: true },
-    });
-    if (links.length === 0) return [];
-
     const plans = await prisma.planification.findMany({
       where: {
-        id: { in: links.map((l) => l.planificationId) },
         status: { in: ["FEEDBACK_RECEIVED", "APPROVED", "PENDING_SIGNATURE", "SIGNED"] },
+        teachers: { some: { teacherId } },
       },
       select: {
         id: true,

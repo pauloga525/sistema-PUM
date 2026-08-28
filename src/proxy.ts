@@ -74,6 +74,24 @@ export default auth((req: NextRequest & { auth: { user: { id: string; role: stri
     return NextResponse.redirect(new URL("/login", base));
   }
 
+  // Solo COORDINATOR y SUPERADMIN pueden acceder a /coordinator/*
+  if (isLoggedIn && isCoordinatorPath && role !== "COORDINATOR" && role !== "SUPERADMIN") {
+    const dest =
+      role === "ADMIN" ? "/admin/dashboard" :
+      role === "TEACHER" ? "/teacher/year" :
+      "/login";
+    return NextResponse.redirect(new URL(dest, base));
+  }
+
+  // Solo TEACHER y SUPERADMIN pueden acceder a /teacher/*
+  if (isLoggedIn && isTeacherPath && role !== "TEACHER" && role !== "SUPERADMIN") {
+    const dest =
+      role === "ADMIN"       ? "/admin/dashboard"               :
+      role === "COORDINATOR" ? "/coordinator/retroalimentacion" :
+      "/login";
+    return NextResponse.redirect(new URL(dest, base));
+  }
+
   // Docentes con primer login deben cambiar su contraseña antes de continuar
   if (isLoggedIn && isTeacherPath && !isTeacherChangePassword && session?.user?.forcePasswordChange) {
     return NextResponse.redirect(new URL("/teacher/change-password", base));

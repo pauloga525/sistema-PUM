@@ -127,7 +127,11 @@ export class ExportService {
     const subjectMap = new Map(subjects.map(s => [s.id, s]));
     const levelMap   = new Map(levels.map(l => [l.id, l]));
 
-    // Genera un DOCX por planificación (secuencial para no saturar memoria)
+    // Batch-fetch all plans (teachers + rows) in a single query instead of N queries
+    const fullPlans = await planificationService.getManyByIdUnchecked(rawPlans.map(p => p.id));
+    const planMap = new Map(fullPlans.map(p => [p.id, p]));
+
+    // Generate DOCX sequentially to avoid memory pressure from concurrent buffer accumulation
     const entries: Array<{ name: string; data: Buffer }> = [];
 
     for (const raw of rawPlans) {
@@ -135,13 +139,13 @@ export class ExportService {
       const period  = periodMap.get(raw.periodId);
       const subject = subjectMap.get(raw.subjectId);
       const level   = levelMap.get(raw.levelId);
+      const plan    = planMap.get(raw.id);
 
-      if (!year || !period || !subject || !level) {
+      if (!year || !period || !subject || !level || !plan) {
         log.warn("buildZip: contexto académico incompleto, plan omitido", { planId: raw.id });
         continue;
       }
 
-      const plan = await planificationService.getByIdUnchecked(raw.id);
       const teacherNames = plan.teachers.map((t) => t.name ?? "Docente").join(", ");
 
       const ctx = {

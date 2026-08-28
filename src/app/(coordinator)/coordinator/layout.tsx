@@ -11,6 +11,10 @@ import { getCoordinatorNotificationsAction } from "./notifications/actions";
 import { ROUTES } from "@/constants/routes";
 import type { Metadata } from "next";
 
+const _publicDir   = path.join(process.cwd(), "public");
+const hasLogo      = fs.existsSync(path.join(_publicDir, "logos", "logo-left.png"));
+const hasLogoRight = fs.existsSync(path.join(_publicDir, "logos", "logo-header-right.png"));
+
 export const metadata: Metadata = {
   title: "Coordinador — PUM Web",
 };
@@ -23,10 +27,6 @@ export default async function CoordinatorLayout({
   const session = await auth();
   if (!session) redirect(ROUTES.LOGIN);
   if (session.user?.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
-
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogo      = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-header-right.png"));
 
   const initial = session.user?.name?.[0]?.toUpperCase() ?? "C";
   const year    = new Date().getFullYear();

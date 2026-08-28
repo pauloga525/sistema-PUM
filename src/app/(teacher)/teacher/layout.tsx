@@ -10,6 +10,11 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { getTeacherNotificationsAction } from "./notifications/actions";
 import type { Metadata } from "next";
 
+// Evaluated once at module load — logos are static assets that don't change at runtime
+const _publicDir   = path.join(process.cwd(), "public");
+const hasLogo      = fs.existsSync(path.join(_publicDir, "logos", "logo-left.png"));
+const hasLogoRight = fs.existsSync(path.join(_publicDir, "logos", "logo-header-right.png"));
+
 export const metadata: Metadata = {
   title: "PUM Web",
 };
@@ -21,10 +26,6 @@ export default async function TeacherLayout({
 }) {
   const session = await auth();
   if (!session || session.user.role !== "TEACHER") redirect("/login");
-
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogo      = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-header-right.png"));
 
   const initial = session.user?.name?.[0]?.toUpperCase() ?? "U";
   const year = new Date().getFullYear();

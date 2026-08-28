@@ -6,11 +6,16 @@ import { signOut } from "@/auth";
 import { hasMinRole } from "@/constants/levels";
 import { appConfig } from "@/config/app.config";
 import { SuperAdminNav } from "@/components/superadmin/SuperAdminNav";
+import { ToastProvider } from "@/components/ui/Toast";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "SuperAdmin — PUM Web",
 };
+
+const _publicDir   = path.join(process.cwd(), "public");
+const hasLogo      = fs.existsSync(path.join(_publicDir, "logos", "logo-left.png"));
+const hasLogoRight = fs.existsSync(path.join(_publicDir, "logos", "logo-header-right.png"));
 
 export default async function SuperAdminLayout({
   children,
@@ -19,10 +24,6 @@ export default async function SuperAdminLayout({
 }) {
   const session = await auth();
   if (!session || !hasMinRole(session.user.role, "SUPERADMIN")) redirect("/login");
-
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogo      = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-header-right.png"));
 
   const initial = session.user?.name?.[0]?.toUpperCase() ?? "S";
   const year    = new Date().getFullYear();
@@ -130,7 +131,9 @@ export default async function SuperAdminLayout({
 
       {/* ── Contenido principal ─────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col">
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
       </main>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}

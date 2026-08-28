@@ -275,7 +275,7 @@ export class PlanificationService {
         select: { subjectId: true, levelId: true },
       }),
       prisma.planificationTeacher.findMany({
-        where: { teacherId },
+        where: { teacherId, planification: { academicYearId: yearId } },
         select: {
           planification: {
             select: { periodId: true, status: true, academicYearId: true },
@@ -324,7 +324,7 @@ export class PlanificationService {
         )
       ),
       prisma.planificationTeacher.findMany({
-        where: { teacherId },
+        where: { teacherId, planification: { academicYearId: yearId } },
         select: {
           isEditor: true,
           planification: {
@@ -338,7 +338,7 @@ export class PlanificationService {
 
     const myPlans = planLinks
       .map((l) => ({ ...l.planification, isEditor: l.isEditor }))
-      .filter((p) => p.academicYearId === yearId && p.periodId === periodId);
+      .filter((p) => p.periodId === periodId);
 
     return assignments.map((a) => {
       const plan = myPlans.find(
@@ -408,7 +408,7 @@ export class PlanificationService {
         orderBy: { number: "asc" },
       }),
       prisma.planificationTeacher.findMany({
-        where: { teacherId },
+        where: { teacherId, planification: { academicYearId: yearId } },
         select: {
           planification: {
             select: { id: true, periodId: true, subjectId: true, levelId: true, status: true, editDeadlineAt: true, finalizedAt: true, academicYearId: true },
@@ -419,9 +419,7 @@ export class PlanificationService {
 
     const now = new Date();
 
-    const myPlans = planLinks
-      .map((l) => l.planification)
-      .filter((p) => p.academicYearId === yearId);
+    const myPlans = planLinks.map((l) => l.planification);
 
     const computeStatus = (plan: typeof myPlans[number] | null): import("./planification.types").DisplayStatus => {
       if (!plan) return "NOT_STARTED";
@@ -518,13 +516,35 @@ export class PlanificationService {
     // PUM nuevo: quien lo crea es el editor (primer docente que accede).
     const editorId = teacherId;
 
-    const [created, teacher] = await Promise.all([
-      prisma.planification.create({
+    let created: { id: string };
+    const teacher = await prisma.user.findUnique({ where: { id: teacherId }, select: { name: true } });
+
+    try {
+      created = await prisma.planification.create({
         data: { academicYearId: yearId, periodId, subjectId, levelId, status: "DRAFT" },
         select: { id: true },
-      }),
-      prisma.user.findUnique({ where: { id: teacherId }, select: { name: true } }),
-    ]);
+      });
+    } catch (err) {
+      // P2002 = two teachers opened the PUM simultaneously — the second one links to the winner
+      if ((err as { code?: string }).code === "P2002") {
+        const conflict = await prisma.planification.findUnique({
+          where: { academicYearId_periodId_subjectId_levelId: { academicYearId: yearId, periodId, subjectId, levelId } },
+          select: { id: true },
+        });
+        if (!conflict) throw err;
+        await Promise.all(
+          allTeacherIds.map((tid) =>
+            prisma.planificationTeacher.upsert({
+              where:  { planificationId_teacherId: { planificationId: conflict.id, teacherId: tid } },
+              create: { planificationId: conflict.id, teacherId: tid, isEditor: false },
+              update: {},
+            })
+          )
+        );
+        return { planId: conflict.id, isNewPlan: false };
+      }
+      throw err;
+    }
 
     await prisma.planificationTeacher.createMany({
       data: allTeacherIds.map((tid) => ({
@@ -590,9 +610,21 @@ export class PlanificationService {
       throw new AppError(ErrorCode.PLAN_NOT_FOUND, "Planificación no encontrada");
     }
 
-    // Use the editor as the "requesting user" so isEditor = true for unchecked reads
     const editorTeacherId = plan.teachers.find((t) => t.isEditor)?.teacherId ?? "";
     return buildPlanFromDb(plan, editorTeacherId);
+  }
+
+  /** Batch version of getByIdUnchecked — one query for N plans instead of N queries. */
+  async getManyByIdUnchecked(planIds: string[]): Promise<Planification[]> {
+    if (!planIds.length) return [];
+    const plans = await prisma.planification.findMany({
+      where: { id: { in: planIds } },
+      include: PLAN_INCLUDE,
+    });
+    return plans.map((plan) => {
+      const editorTeacherId = plan.teachers.find((t) => t.isEditor)?.teacherId ?? "";
+      return buildPlanFromDb(plan, editorTeacherId);
+    });
   }
 
   async saveRows(input: SavePlanificationRowsInput, teacherId: UserId): Promise<void> {
@@ -656,8 +688,9 @@ export class PlanificationService {
     }
 
     await prisma.$transaction(async (tx) => {
+      // Status guard prevents double-finalization if two requests race
       await tx.planification.update({
-        where: { id: input.planificationId },
+        where: { id: input.planificationId, status: { in: ["DRAFT", "FEEDBACK_RECEIVED"] } },
         data:  { status: "FINALIZED", finalizedAt: new Date() },
       });
       await tx.planReview.updateMany({

@@ -1,8 +1,20 @@
 import bcrypt from "bcryptjs";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 import { normalizePumRowData, normalizePlanMetadata } from "@/modules/planification/planification.service";
+
+export type TeacherSortOption = "name_asc" | "name_desc" | "created_asc" | "created_desc" | "assign_asc" | "assign_desc";
+
+export interface TeacherFilters {
+  search?:  string;
+  status?:  "all" | "active" | "pending";
+  sort?:    TeacherSortOption;
+  page?:    number;
+}
+
+const TEACHER_PAGE_SIZE = 30;
 
 export interface DashboardStats {
   totalTeachers: number;
@@ -361,20 +373,51 @@ export class AdminService {
 
   // ── Docentes ─────────────────────────────────────────────────────────────────
 
-  async getTeachers() {
-    return prisma.user.findMany({
-      where: { role: "TEACHER" },
-      select: {
-        id:                  true,
-        name:                true,
-        email:               true,
-        cedula:              true,
-        forcePasswordChange: true,
-        createdAt:           true,
-        _count: { select: { assignments: { where: { active: true } } } },
-      },
-      orderBy: { name: "asc" },
-    });
+  async getTeachers(filters: TeacherFilters = {}) {
+    const { search, status, sort = "name_asc", page = 1 } = filters;
+
+    const where: Prisma.UserWhereInput = {
+      role: "TEACHER",
+      ...(status === "active"  ? { forcePasswordChange: false } : {}),
+      ...(status === "pending" ? { forcePasswordChange: true  } : {}),
+      ...(search ? {
+        OR: [
+          { name:   { contains: search, mode: "insensitive" } },
+          { email:  { contains: search, mode: "insensitive" } },
+          { cedula: { contains: search, mode: "insensitive" } },
+        ],
+      } : {}),
+    };
+
+    let orderBy: Prisma.UserOrderByWithRelationInput = { name: "asc" };
+    if      (sort === "name_desc")    orderBy = { name: "desc" };
+    else if (sort === "created_asc")  orderBy = { createdAt: "asc" };
+    else if (sort === "created_desc") orderBy = { createdAt: "desc" };
+    else if (sort === "assign_asc")   orderBy = { assignments: { _count: "asc" } };
+    else if (sort === "assign_desc")  orderBy = { assignments: { _count: "desc" } };
+
+    const skip = (page - 1) * TEACHER_PAGE_SIZE;
+
+    const [items, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id:                  true,
+          name:                true,
+          email:               true,
+          cedula:              true,
+          forcePasswordChange: true,
+          createdAt:           true,
+          _count: { select: { assignments: { where: { active: true } } } },
+        },
+        orderBy,
+        skip,
+        take: TEACHER_PAGE_SIZE,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return { items, total, totalPages: Math.ceil(total / TEACHER_PAGE_SIZE) };
   }
 
   async getTeacherFormData() {
@@ -428,20 +471,18 @@ export class AdminService {
       });
 
       if (data.assignments.length > 0 && data.academicYearId) {
-        for (const a of data.assignments) {
-          await tx.teacherAssignment.create({
-            data: {
-              teacherId:      user.id,
-              subjectId:      a.subjectId,
-              levelId:        a.levelId,
-              academicYearId: data.academicYearId,
-              periodId:       a.periodId || null,
-              active:         true,
-            },
-          });
-        }
+        await tx.teacherAssignment.createMany({
+          data: data.assignments.map((a) => ({
+            teacherId:      user.id,
+            subjectId:      a.subjectId,
+            levelId:        a.levelId,
+            academicYearId: data.academicYearId!,
+            periodId:       a.periodId || null,
+            active:         true,
+          })),
+        });
 
-        // Actualiza areaEstudio en cada materia que lo tenga
+        // Update areaEstudio for subjects that have it (typically few rows)
         const updates = data.assignments.filter((a) => a.areaEstudio?.trim());
         for (const a of updates) {
           await tx.subject.update({
@@ -607,9 +648,12 @@ export class AdminService {
         },
       });
 
-      for (const teacherId of data.teacherIds) {
-        await tx.coordinatorAssignment.create({
-          data: { coordinatorId: user.id, teacherId },
+      if (data.teacherIds.length > 0) {
+        await tx.coordinatorAssignment.createMany({
+          data: data.teacherIds.map((teacherId) => ({
+            coordinatorId: user.id,
+            teacherId,
+          })),
         });
       }
 
@@ -633,14 +677,15 @@ export class AdminService {
           coordinatorArea: data.coordinatorArea.trim() || null,
         },
       });
-      for (const tid of data.teacherIds) {
-        if (tid !== data.teacherId) {
-          await tx.coordinatorAssignment.upsert({
-            where:  { coordinatorId_teacherId: { coordinatorId: user.id, teacherId: tid } },
-            create: { coordinatorId: user.id, teacherId: tid },
-            update: {},
-          });
-        }
+      const teacherIdsToLink = data.teacherIds.filter((tid) => tid !== data.teacherId);
+      if (teacherIdsToLink.length > 0) {
+        await tx.coordinatorAssignment.createMany({
+          data: teacherIdsToLink.map((teacherId) => ({
+            coordinatorId: user.id,
+            teacherId,
+          })),
+          skipDuplicates: true,
+        });
       }
       return user;
     });

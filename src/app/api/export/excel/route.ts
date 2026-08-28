@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma/client";
+import { rateLimitService } from "@/modules/security/rate-limit.service";
 import ExcelJS from "exceljs";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -41,6 +42,14 @@ export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session)                      return new NextResponse("No autenticado",   { status: 401 });
   if (session.user.role !== "ADMIN") return new NextResponse("Acceso denegado",  { status: 403 });
+
+  const rl = await rateLimitService.check(`export:excel:${session.user.id}`, 5, 5 * 60_000);
+  if (!rl.allowed) {
+    return new NextResponse("Demasiadas exportaciones Excel. Intenta en unos minutos.", {
+      status: 429,
+      headers: { "Retry-After": String(Math.ceil((rl.resetAt.getTime() - Date.now()) / 1000)) },
+    });
+  }
 
   const { searchParams } = request.nextUrl;
   const rawYearId = searchParams.get("yearId"); // optional filter

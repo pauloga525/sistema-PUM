@@ -316,65 +316,72 @@ export const coordinatorService = {
   // ── Revisión de un PUM ────────────────────────────────────────────────────────
 
   async getOrCreateReview(coordinatorId: string, planificationId: string) {
-    const existing = await prisma.planReview.findUnique({
-      where: { planificationId },
-    });
-    if (existing) {
-      let record = existing;
+    // Attempt create first; if two requests race, one gets P2002 and falls back to read
+    let record: Awaited<ReturnType<typeof prisma.planReview.findUniqueOrThrow>> | null = null;
+    let wasCreated = false;
 
-      // If coordinator was reassigned, update the review's owner so actions succeed
-      if (existing.coordinatorId !== coordinatorId) {
-        record = await prisma.planReview.update({
-          where: { id: existing.id },
-          data:  { coordinatorId },
-        });
+    try {
+      record = await prisma.planReview.create({
+        data: { planificationId, coordinatorId, sectionStates: {} },
+      });
+      wasCreated = true;
+    } catch (err) {
+      if ((err as { code?: string }).code === "P2002") {
+        record = await prisma.planReview.findUnique({ where: { planificationId } });
+      } else {
+        throw err;
       }
-
-      // If plan was admin-rejected but review still shows APPROVED, reset it so coordinator can re-review
-      if (record.status === "APPROVED") {
-        const plan = await prisma.planification.findUnique({
-          where: { id: planificationId },
-          select: { status: true },
-        });
-        if (plan?.status === "ADMIN_REJECTED") {
-          await prisma.planReview.update({
-            where: { id: record.id },
-            data:  { status: "IN_REVIEW", approvedAt: null },
-          });
-          return {
-            ...record,
-            sectionStates: normalizeStates(record.sectionStates),
-            status: "IN_REVIEW" as ReviewStatus,
-          };
-        }
-      }
-      return {
-        ...record,
-        sectionStates: normalizeStates(record.sectionStates),
-        status: record.status as ReviewStatus,
-      };
     }
 
-    const [created, coordinator] = await Promise.all([
-      prisma.planReview.create({
-        data: { planificationId, coordinatorId, sectionStates: {} },
-      }),
-      prisma.user.findUnique({
+    if (!record) throw new Error("getOrCreateReview: registro no encontrado tras P2002");
+
+    if (wasCreated) {
+      const coordinator = await prisma.user.findUnique({
         where: { id: coordinatorId },
         select: { name: true },
-      }),
-    ]);
+      });
+      await auditService.log({
+        planificationId,
+        actorId:   coordinatorId,
+        actorName: coordinator?.name ?? null,
+        actorRole: "COORDINATOR",
+        eventType: "REVIEW_STARTED",
+      });
+      return { ...record, sectionStates: {} as SectionStates, status: "IN_REVIEW" as ReviewStatus };
+    }
 
-    // Log audit event for review start
-    await auditService.log({
-      planificationId,
-      actorId:   coordinatorId,
-      actorName: coordinator?.name ?? null,
-      actorRole: "COORDINATOR",
-      eventType: "REVIEW_STARTED",
-    });
+    // Update coordinator if reassigned
+    if (record.coordinatorId !== coordinatorId) {
+      record = await prisma.planReview.update({
+        where: { id: record.id },
+        data:  { coordinatorId },
+      });
+    }
 
-    return { ...created, sectionStates: {} as SectionStates, status: "IN_REVIEW" as ReviewStatus };
+    // If plan was admin-rejected but review still shows APPROVED, reset so coordinator can re-review
+    if (record.status === "APPROVED") {
+      const plan = await prisma.planification.findUnique({
+        where: { id: planificationId },
+        select: { status: true },
+      });
+      if (plan?.status === "ADMIN_REJECTED") {
+        await prisma.planReview.update({
+          where: { id: record.id },
+          data:  { status: "IN_REVIEW", approvedAt: null },
+        });
+        return {
+          ...record,
+          sectionStates: normalizeStates(record.sectionStates),
+          status: "IN_REVIEW" as ReviewStatus,
+        };
+      }
+    }
+
+    return {
+      ...record,
+      sectionStates: normalizeStates(record.sectionStates),
+      status: record.status as ReviewStatus,
+    };
   },
 
   async updateSectionState(
@@ -384,20 +391,35 @@ export const coordinatorService = {
     approved: boolean,
     comment: string | null,
   ): Promise<void> {
-    const review = await prisma.planReview.findUnique({ where: { id: reviewId } });
-    if (!review || review.coordinatorId !== coordinatorId) return;
+    // Use SELECT FOR UPDATE inside a transaction to prevent concurrent lost-update on sectionStates JSONB
+    const result = await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{
+        id: string;
+        coordinator_id: string;
+        section_states: unknown;
+        planification_id: string;
+      }>>`
+        SELECT id, coordinator_id, section_states, planification_id
+        FROM plan_reviews WHERE id = ${reviewId}::uuid FOR UPDATE
+      `;
+      const locked = rows[0];
+      if (!locked || locked.coordinator_id !== coordinatorId) return null;
 
-    const states = normalizeStates(review.sectionStates);
-    const prev = (states as Record<string, { approved: boolean; comment: string | null }>)[sectionKey];
+      const states = normalizeStates(locked.section_states);
+      const prev = (states as Record<string, { approved: boolean; comment: string | null }>)[sectionKey];
+      (states as Record<string, { approved: boolean; comment: string | null }>)[sectionKey] = { approved, comment };
 
-    (states as Record<string, { approved: boolean; comment: string | null }>)[sectionKey] = { approved, comment };
+      await tx.planReview.update({
+        where: { id: reviewId },
+        data:  { sectionStates: states as object },
+      });
 
-    await prisma.planReview.update({
-      where: { id: reviewId },
-      data:  { sectionStates: states as object },
+      return { planificationId: locked.planification_id, prev };
     });
 
-    // Determine audit event type based on what changed
+    if (!result) return;
+    const { planificationId, prev } = result;
+
     let eventType: "SECTION_APPROVED" | "SECTION_APPROVAL_REMOVED" | "SECTION_COMMENTED" | null = null;
     if (approved && !prev?.approved) {
       eventType = "SECTION_APPROVED";
@@ -413,87 +435,99 @@ export const coordinatorService = {
         select: { name: true },
       });
       await auditService.log({
-        planificationId: review.planificationId,
-        actorId:         coordinatorId,
-        actorName:       coordinator?.name ?? null,
-        actorRole:       "COORDINATOR",
+        planificationId,
+        actorId:   coordinatorId,
+        actorName: coordinator?.name ?? null,
+        actorRole: "COORDINATOR",
         eventType,
         sectionKey,
-        comment:         eventType === "SECTION_COMMENTED" ? (comment ?? null) : null,
+        comment:   eventType === "SECTION_COMMENTED" ? (comment ?? null) : null,
       });
     }
   },
 
   async sendFeedback(reviewId: string, coordinatorId: string): Promise<boolean> {
-    const review = await prisma.planReview.findUnique({ where: { id: reviewId } });
-    if (!review || review.coordinatorId !== coordinatorId) return false;
+    const planificationId = await prisma.$transaction(async (tx) => {
+      const review = await tx.planReview.findUnique({ where: { id: reviewId } });
+      if (!review || review.coordinatorId !== coordinatorId) return null;
+      if (review.status !== "IN_REVIEW") return null;
 
-    await prisma.$transaction(async (tx) => {
+      // Status guard in WHERE prevents a concurrent call from double-sending
       await tx.planReview.update({
-        where: { id: reviewId },
+        where: { id: reviewId, status: "IN_REVIEW" },
         data:  { status: "FEEDBACK_SENT" },
       });
       await tx.planification.update({
         where: { id: review.planificationId },
         data:  { status: "FEEDBACK_RECEIVED" },
       });
+      return review.planificationId;
     });
+
+    if (!planificationId) return false;
 
     const coordinator = await prisma.user.findUnique({
       where: { id: coordinatorId },
       select: { name: true },
     });
     await auditService.log({
-      planificationId: review.planificationId,
-      actorId:         coordinatorId,
-      actorName:       coordinator?.name ?? null,
-      actorRole:       "COORDINATOR",
-      eventType:       "FEEDBACK_SENT",
+      planificationId,
+      actorId:   coordinatorId,
+      actorName: coordinator?.name ?? null,
+      actorRole: "COORDINATOR",
+      eventType: "FEEDBACK_SENT",
     });
     return true;
   },
 
   async approvePlan(reviewId: string, coordinatorId: string): Promise<boolean> {
-    const review = await prisma.planReview.findUnique({ where: { id: reviewId } });
-    if (!review || review.coordinatorId !== coordinatorId) return false;
+    const planificationId = await prisma.$transaction(async (tx) => {
+      const review = await tx.planReview.findUnique({ where: { id: reviewId } });
+      if (!review || review.coordinatorId !== coordinatorId) return null;
+      if (review.status !== "IN_REVIEW") return null;
 
-    // Fetch live row count so we check the rows that currently exist, not a stale blob snapshot
-    const actualRowCount = await prisma.planificationRow.count({
-      where: { planificationId: review.planificationId },
-    });
+      // Plan must still be in FINALIZED state — prevents approving after a status change
+      const plan = await tx.planification.findUnique({
+        where: { id: review.planificationId },
+        select: { status: true },
+      });
+      if (!plan || plan.status !== "FINALIZED") return null;
 
-    const states = normalizeStates(review.sectionStates);
+      const actualRowCount = await tx.planificationRow.count({
+        where: { planificationId: review.planificationId },
+      });
 
-    // All fixed sections (meta_*, plan_*, aportes_*, dua_*) must be approved
-    const sectionsDone = ALL_FIXED_KEYS.every((k) => states[k]?.approved === true);
+      const states = normalizeStates(review.sectionStates);
+      const sectionsDone = ALL_FIXED_KEYS.every((k) => states[k]?.approved === true);
+      const rowsDone = Array.from({ length: actualRowCount }, (_, i) => `row_${i}`)
+        .every((k) => (states as Record<string, { approved: boolean }>)[k]?.approved === true);
 
-    // All CURRENT rows (row_0..row_{N-1}) must be approved — ignores stale blob keys
-    const rowsDone = Array.from({ length: actualRowCount }, (_, i) => `row_${i}`)
-      .every((k) => (states as Record<string, { approved: boolean }>)[k]?.approved === true);
+      if (!sectionsDone || !rowsDone) return null;
 
-    if (!sectionsDone || !rowsDone) return false;
-
-    await prisma.$transaction(async (tx) => {
+      // Status guards in WHERE prevent a double-approval race from corrupting state
       await tx.planReview.update({
-        where: { id: reviewId },
+        where: { id: reviewId, status: "IN_REVIEW" },
         data:  { status: "APPROVED", approvedAt: new Date() },
       });
       await tx.planification.update({
-        where: { id: review.planificationId },
+        where: { id: review.planificationId, status: "FINALIZED" },
         data:  { status: "APPROVED" },
       });
+      return review.planificationId;
     });
+
+    if (!planificationId) return false;
 
     const coordinator = await prisma.user.findUnique({
       where: { id: coordinatorId },
       select: { name: true },
     });
     await auditService.log({
-      planificationId: review.planificationId,
-      actorId:         coordinatorId,
-      actorName:       coordinator?.name ?? null,
-      actorRole:       "COORDINATOR",
-      eventType:       "PLAN_APPROVED",
+      planificationId,
+      actorId:   coordinatorId,
+      actorName: coordinator?.name ?? null,
+      actorRole: "COORDINATOR",
+      eventType: "PLAN_APPROVED",
     });
     return true;
   },
@@ -502,26 +536,32 @@ export const coordinatorService = {
     const canAccess = await this._coordinatorCanAccessPlan(coordinatorId, planificationId);
     if (!canAccess) return;
 
-    const plan = await prisma.planification.findUnique({
-      where: { id: planificationId },
-      select: { status: true, metadata: true },
-    });
-    if (!plan || (plan.status !== "APPROVED" && plan.status !== "ADMIN_REJECTED")) return;
+    const sent = await prisma.$transaction(async (tx) => {
+      const plan = await tx.planification.findUnique({
+        where: { id: planificationId },
+        select: { status: true, metadata: true },
+      });
+      if (!plan || (plan.status !== "APPROVED" && plan.status !== "ADMIN_REJECTED")) return false;
 
-    const rawMeta = (plan.metadata && typeof plan.metadata === "object" && !Array.isArray(plan.metadata))
-      ? (plan.metadata as Record<string, unknown>)
-      : {};
-    const cleanMeta: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(rawMeta)) {
-      if (k !== "adminRejectionComment" && k !== "adminRejectedAt") {
-        cleanMeta[k] = v;
+      const rawMeta = (plan.metadata && typeof plan.metadata === "object" && !Array.isArray(plan.metadata))
+        ? (plan.metadata as Record<string, unknown>)
+        : {};
+      const cleanMeta: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(rawMeta)) {
+        if (k !== "adminRejectionComment" && k !== "adminRejectedAt") {
+          cleanMeta[k] = v;
+        }
       }
-    }
 
-    await prisma.planification.update({
-      where: { id: planificationId },
-      data:  { status: "PENDING_SIGNATURE", metadata: cleanMeta as object },
+      // Status guard in WHERE prevents a concurrent double-send
+      await tx.planification.update({
+        where: { id: planificationId, status: { in: ["APPROVED", "ADMIN_REJECTED"] } },
+        data:  { status: "PENDING_SIGNATURE", metadata: cleanMeta as object },
+      });
+      return true;
     });
+
+    if (!sent) return;
 
     const coordinator = await prisma.user.findUnique({
       where: { id: coordinatorId },
@@ -643,15 +683,27 @@ export const coordinatorService = {
 
   async clearSectionFeedback(planificationId: string, keys: string[]): Promise<void> {
     if (!keys.length) return;
-    const review = await prisma.planReview.findUnique({ where: { planificationId } });
-    if (!review) return;
-    const states = normalizeStates(review.sectionStates);
-    for (const key of keys) {
-      delete (states as Record<string, unknown>)[key];
-    }
-    await prisma.planReview.update({
-      where: { id: review.id },
-      data:  { sectionStates: states as object },
+
+    // Use SELECT FOR UPDATE to prevent concurrent lost-update on sectionStates JSONB
+    await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{
+        id: string;
+        section_states: unknown;
+      }>>`
+        SELECT id, section_states FROM plan_reviews
+        WHERE planification_id = ${planificationId}::uuid FOR UPDATE
+      `;
+      const locked = rows[0];
+      if (!locked) return;
+
+      const states = normalizeStates(locked.section_states);
+      for (const key of keys) {
+        delete (states as Record<string, unknown>)[key];
+      }
+      await tx.planReview.update({
+        where: { id: locked.id },
+        data:  { sectionStates: states as object },
+      });
     });
   },
 

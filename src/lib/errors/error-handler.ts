@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { AppError, ValidationError } from "./app-error";
 import { ErrorCode } from "./error-codes";
 import { logger } from "@/lib/logger/logger";
+import { errorMonitorService } from "@/modules/monitoring/error-monitor.service";
 
 /**
  * Convierte un error capturado en una NextResponse JSON estandarizada.
@@ -29,6 +30,15 @@ export function handleApiError(error: unknown): NextResponse {
       code: error.code,
       context: error.context,
     });
+    if (error.httpStatus >= 500) {
+      void errorMonitorService.logError({
+        level: "ERROR",
+        source: "API",
+        message: `[${error.code}] ${error.message}`,
+        stack: error.stack,
+        metadata: error.context as Record<string, unknown> | undefined,
+      });
+    }
     return NextResponse.json(error.toClientResponse(), { status: error.httpStatus });
   }
 
@@ -44,7 +54,13 @@ export function handleApiError(error: unknown): NextResponse {
   }
 
   // Error inesperado: logueamos el detalle completo pero solo devolvemos mensaje genérico
-  logger.error("Unhandled error in API route", { error: String(error) });
+  const errMsg   = error instanceof Error ? error.message : String(error);
+  const errStack = error instanceof Error ? error.stack   : undefined;
+  logger.error("Unhandled error in API route", { error: errMsg });
+  void errorMonitorService.logError({
+    level: "ERROR", source: "API",
+    message: errMsg, stack: errStack,
+  });
   return NextResponse.json(
     { error: "Error interno del servidor", code: ErrorCode.INTERNAL_ERROR },
     { status: 500 }
@@ -66,7 +82,13 @@ export async function withErrorHandling<T>(
     if (err instanceof AppError) {
       return { data: null, error: { message: err.message, code: err.code } };
     }
-    logger.error("Unhandled error in Server Action", { error: String(err) });
+    const errMsg   = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack   : undefined;
+    logger.error("Unhandled error in Server Action", { error: errMsg });
+    void errorMonitorService.logError({
+      level: "ERROR", source: "ServerAction",
+      message: errMsg, stack: errStack,
+    });
     return {
       data: null,
       error: { message: "Error interno del servidor", code: ErrorCode.INTERNAL_ERROR },

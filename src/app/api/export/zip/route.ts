@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { exportService } from "@/modules/export/export.service";
+import { rateLimitService } from "@/modules/security/rate-limit.service";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/logger/logger";
 
@@ -14,6 +15,15 @@ export async function GET(request: NextRequest) {
   }
   if (session.user.role !== "ADMIN") {
     return new NextResponse("Acceso denegado", { status: 403 });
+  }
+
+  // ZIP exports are expensive — 3 per 5 minutes per admin
+  const rl = await rateLimitService.check(`export:zip:${session.user.id}`, 3, 5 * 60_000);
+  if (!rl.allowed) {
+    return new NextResponse("Demasiadas exportaciones ZIP. Intenta en unos minutos.", {
+      status: 429,
+      headers: { "Retry-After": String(Math.ceil((rl.resetAt.getTime() - Date.now()) / 1000)) },
+    });
   }
 
   const { searchParams } = request.nextUrl;
@@ -42,7 +52,7 @@ export async function GET(request: NextRequest) {
       log.warn("zip export AppError", { code: e.code, message: e.message });
       return new NextResponse(e.message, { status: e.httpStatus });
     }
-    log.error("zip export unexpected error", { error: String(e) });
+    log.error("zip export unexpected error", { error: String(e), stack: e instanceof Error ? e.stack : undefined });
     return new NextResponse("Error interno al generar el ZIP", { status: 500 });
   }
 }

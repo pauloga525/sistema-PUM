@@ -1,15 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-
-/**
- * Cliente Prisma singleton para PUM Web.
- *
- * Prisma 7 requiere un driver adapter para conectarse a la BD.
- * Usamos @prisma/adapter-pg (driver oficial de PostgreSQL).
- *
- * El singleton en globalThis evita múltiples conexiones durante
- * el hot-reload de Next.js en desarrollo.
- */
+import { Pool } from "pg";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -17,15 +8,19 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaPg({
+  const pool = new Pool({
     connectionString: process.env.DATABASE_URL!,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
   });
+  const adapter = new PrismaPg(pool);
 
   return new PrismaClient({
     adapter,
     log:
       process.env.NODE_ENV === "development"
-        ? ["warn", "error"]
+        ? ["query", "info", "warn", "error"]
         : ["warn", "error"],
   });
 }
@@ -33,6 +28,5 @@ function createPrismaClient(): PrismaClient {
 export const prisma: PrismaClient =
   globalThis.__prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__prisma = prisma;
-}
+// Persist singleton on globalThis to survive hot-reloads in all environments
+globalThis.__prisma = prisma;

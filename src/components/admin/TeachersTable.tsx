@@ -14,11 +14,19 @@ interface Teacher {
   email:               string;
   cedula:              string | null;
   forcePasswordChange: boolean;
+  createdAt:           string | Date;
   _count:              { assignments: number };
 }
 
 interface Props {
   teachers: Teacher[];
+}
+
+function fmtDate(d: string | Date): string {
+  return new Date(d).toLocaleDateString("es-EC", {
+    timeZone: "America/Guayaquil",
+    day: "2-digit", month: "2-digit", year: "numeric",
+  });
 }
 
 type ModalKind = "reset" | "delete";
@@ -58,7 +66,7 @@ export function TeachersTable({ teachers }: Props) {
           style={{ background: "rgba(0,39,83,0.03)" }}
         >
           <p className="text-sm font-semibold text-pum-text">
-            {teachers.length} {teachers.length === 1 ? "docente registrado" : "docentes registrados"}
+            {teachers.length} {teachers.length === 1 ? "docente en esta página" : "docentes en esta página"}
           </p>
         </div>
 
@@ -66,7 +74,7 @@ export function TeachersTable({ teachers }: Props) {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(0,39,83,0.08)" }}>
-                {["Docente", "Cédula", "Asignaciones", "Estado", "Acciones"].map((col) => (
+                {["Docente", "Cédula", "Asignaciones", "Registrado", "Estado", "Acciones"].map((col) => (
                   <th
                     key={col}
                     className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-pum-text-muted"
@@ -106,6 +114,11 @@ export function TeachersTable({ teachers }: Props) {
                     >
                       {teacher._count.assignments}
                     </span>
+                  </td>
+
+                  {/* Registrado */}
+                  <td className="px-5 py-3 text-xs text-pum-text-muted font-mono whitespace-nowrap">
+                    {fmtDate(teacher.createdAt)}
                   </td>
 
                   {/* Estado */}
