@@ -400,7 +400,7 @@ export const coordinatorService = {
         planificationId: string;
       }>>`
         SELECT id, "coordinatorId", "sectionStates", "planificationId"
-        FROM plan_reviews WHERE id = ${reviewId}::uuid FOR UPDATE
+        FROM plan_reviews WHERE id = ${reviewId} FOR UPDATE
       `;
       const locked = rows[0];
       if (!locked || locked.coordinatorId !== coordinatorId) return null;
@@ -691,7 +691,7 @@ export const coordinatorService = {
         sectionStates: unknown;
       }>>`
         SELECT id, "sectionStates" FROM plan_reviews
-        WHERE "planificationId" = ${planificationId}::uuid FOR UPDATE
+        WHERE "planificationId" = ${planificationId} FOR UPDATE
       `;
       const locked = rows[0];
       if (!locked) return;
