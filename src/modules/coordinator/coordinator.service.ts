@@ -395,17 +395,17 @@ export const coordinatorService = {
     const result = await prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<Array<{
         id: string;
-        coordinator_id: string;
-        section_states: unknown;
-        planification_id: string;
+        coordinatorId: string;
+        sectionStates: unknown;
+        planificationId: string;
       }>>`
-        SELECT id, coordinator_id, section_states, planification_id
+        SELECT id, "coordinatorId", "sectionStates", "planificationId"
         FROM plan_reviews WHERE id = ${reviewId}::uuid FOR UPDATE
       `;
       const locked = rows[0];
-      if (!locked || locked.coordinator_id !== coordinatorId) return null;
+      if (!locked || locked.coordinatorId !== coordinatorId) return null;
 
-      const states = normalizeStates(locked.section_states);
+      const states = normalizeStates(locked.sectionStates);
       const prev = (states as Record<string, { approved: boolean; comment: string | null }>)[sectionKey];
       (states as Record<string, { approved: boolean; comment: string | null }>)[sectionKey] = { approved, comment };
 
@@ -414,7 +414,7 @@ export const coordinatorService = {
         data:  { sectionStates: states as object },
       });
 
-      return { planificationId: locked.planification_id, prev };
+      return { planificationId: locked.planificationId, prev };
     });
 
     if (!result) return;
@@ -688,15 +688,15 @@ export const coordinatorService = {
     await prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<Array<{
         id: string;
-        section_states: unknown;
+        sectionStates: unknown;
       }>>`
-        SELECT id, section_states FROM plan_reviews
-        WHERE planification_id = ${planificationId}::uuid FOR UPDATE
+        SELECT id, "sectionStates" FROM plan_reviews
+        WHERE "planificationId" = ${planificationId}::uuid FOR UPDATE
       `;
       const locked = rows[0];
       if (!locked) return;
 
-      const states = normalizeStates(locked.section_states);
+      const states = normalizeStates(locked.sectionStates);
       for (const key of keys) {
         delete (states as Record<string, unknown>)[key];
       }
