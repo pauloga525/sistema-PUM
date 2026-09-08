@@ -340,10 +340,35 @@ export class PlanificationService {
       .map((l) => ({ ...l.planification, isEditor: l.isEditor }))
       .filter((p) => p.periodId === periodId);
 
-    return assignments.map((a) => {
-      const plan = myPlans.find(
+    return Promise.all(assignments.map(async (a) => {
+      let plan = myPlans.find(
         (p) => p.subjectId === a.subjectId && p.levelId === a.levelId
       ) ?? null;
+
+      // Auto-reparación: puede existir un PUM creado por otro docente co-asignado
+      // cuyo vínculo (PlanificationTeacher) para este docente nunca se sincronizó
+      // (p. ej. la asignación se creó antes de que existiera la sincronización
+      // automática al momento de asignar). Se busca por la clave natural y, si
+      // existe, se crea el vínculo faltante como espectador — jamás se sobrescribe
+      // un vínculo/editor ya existente (upsert con update: {}).
+      if (!plan) {
+        const orphan = await prisma.planification.findUnique({
+          where: {
+            academicYearId_periodId_subjectId_levelId: {
+              academicYearId: yearId, periodId, subjectId: a.subjectId, levelId: a.levelId,
+            },
+          },
+          select: { id: true, status: true, editDeadlineAt: true, finalizedAt: true, subjectId: true, levelId: true, periodId: true, academicYearId: true },
+        });
+        if (orphan) {
+          await prisma.planificationTeacher.upsert({
+            where: { planificationId_teacherId: { planificationId: orphan.id, teacherId } },
+            create: { planificationId: orphan.id, teacherId, isEditor: false },
+            update: {},
+          });
+          plan = { ...orphan, isEditor: false };
+        }
+      }
 
       let displayStatus: DisplayStatus;
       if (!plan) {
@@ -380,7 +405,7 @@ export class PlanificationService {
           : null,
         displayStatus,
       };
-    });
+    }));
   }
 
   async getSubjectsForYear(
@@ -434,10 +459,33 @@ export class PlanificationService {
     for (const a of assignments) {
       const key = `${a.subjectId}-${a.levelId}`;
       if (!map.has(key)) {
-        const periodStatuses = periods.map((p) => {
-          const plan = myPlans.find(
+        const periodStatuses = await Promise.all(periods.map(async (p) => {
+          let plan = myPlans.find(
             (pl) => pl.subjectId === a.subjectId && pl.levelId === a.levelId && pl.periodId === p.id
           ) ?? null;
+
+          // Auto-reparación: mismo mecanismo que en getSubjectsWithStatus —
+          // vincula al docente a un PUM ya existente cuyo vínculo nunca se
+          // sincronizó, sin sobrescribir vínculos/editores existentes.
+          if (!plan) {
+            const orphan = await prisma.planification.findUnique({
+              where: {
+                academicYearId_periodId_subjectId_levelId: {
+                  academicYearId: yearId, periodId: p.id, subjectId: a.subjectId, levelId: a.levelId,
+                },
+              },
+              select: { id: true, periodId: true, subjectId: true, levelId: true, status: true, editDeadlineAt: true, finalizedAt: true, academicYearId: true },
+            });
+            if (orphan) {
+              await prisma.planificationTeacher.upsert({
+                where: { planificationId_teacherId: { planificationId: orphan.id, teacherId } },
+                create: { planificationId: orphan.id, teacherId, isEditor: false },
+                update: {},
+              });
+              plan = orphan;
+            }
+          }
+
           return {
             periodId:       p.id,
             periodName:     p.name,
@@ -447,7 +495,7 @@ export class PlanificationService {
             editDeadlineAt: plan?.editDeadlineAt ?? null,
             displayStatus:  computeStatus(plan),
           };
-        });
+        }));
         map.set(key, {
           subjectId:       a.subjectId,
           subjectName:     a.subject.name,
