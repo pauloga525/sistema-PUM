@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import type { Prisma } from "@prisma/client";
 import { AppError, ValidationError } from "./app-error";
 import { ErrorCode } from "./error-codes";
 import { logger } from "@/lib/logger/logger";
@@ -36,7 +37,7 @@ export function handleApiError(error: unknown): NextResponse {
         source: "API",
         message: `[${error.code}] ${error.message}`,
         stack: error.stack,
-        metadata: error.context as Record<string, unknown> | undefined,
+        metadata: error.context as unknown as Prisma.InputJsonValue | undefined,
       });
     }
     return NextResponse.json(error.toClientResponse(), { status: error.httpStatus });

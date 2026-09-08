@@ -44,6 +44,28 @@ export async function createTeacherAssignmentAction(
       update: { active: true },
     });
 
+    // Si ya existen PUMs para esta materia+nivel+año (creados por otro docente
+    // co-asignado), vincular al nuevo docente como espectador (isEditor: false)
+    // en cada uno. Sin esto, el docente no ve el PUM existente hasta que ocurra
+    // otro evento (finalizar, reenviar, o cambio de editor) que sincronice el vínculo.
+    // upsert con update:{} => nunca sobrescribe un vínculo/editor ya existente.
+    const existingPlans = await prisma.planification.findMany({
+      where: { academicYearId, subjectId, levelId },
+      select: { id: true },
+    });
+
+    if (existingPlans.length > 0) {
+      await Promise.all(
+        existingPlans.map((p) =>
+          prisma.planificationTeacher.upsert({
+            where: { planificationId_teacherId: { planificationId: p.id, teacherId } },
+            create: { planificationId: p.id, teacherId, isEditor: false },
+            update: {},
+          })
+        )
+      );
+    }
+
     revalidatePath(ROUTES.COORDINATOR.DOCENTES);
     return { ok: true };
   } catch (e: unknown) {
