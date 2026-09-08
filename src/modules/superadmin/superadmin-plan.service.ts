@@ -31,6 +31,7 @@ export interface PlanDetail {
   coordinatorEmail: string | null;
   coordinatorId:    string | null;
   reviewId:         string | null;
+  editDeadlineAt:   string | null;
   createdAt:        string;
   updatedAt:        string;
 }
@@ -138,6 +139,7 @@ export const superAdminPlanService = {
       coordinatorEmail: p.review?.coordinator.email ?? null,
       coordinatorId:    p.review?.coordinatorId ?? null,
       reviewId:         p.review?.id ?? null,
+      editDeadlineAt:   p.editDeadlineAt?.toISOString() ?? null,
       createdAt:        p.createdAt.toISOString(),
       updatedAt:        p.updatedAt.toISOString(),
     };
@@ -167,6 +169,35 @@ export const superAdminPlanService = {
       actorRole: "SUPERADMIN",
       eventType: "STATE_CORRECTED",
       comment:   `De "${plan.status}" → "${input.newStatus}". Motivo: ${input.reason}`,
+    });
+  },
+
+  async clearDeadline(
+    actorId: string,
+    actorName: string,
+    planId: string,
+  ): Promise<void> {
+    const plan = await prisma.planification.findUnique({
+      where: { id: planId },
+      select: { editDeadlineAt: true },
+    });
+    if (!plan) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
+    if (!plan.editDeadlineAt) {
+      throw new AppError(ErrorCode.VAL_INVALID_INPUT, "Este PUM no tiene una fecha límite asignada");
+    }
+
+    await prisma.planification.update({
+      where: { id: planId },
+      data:  { editDeadlineAt: null },
+    });
+
+    await auditService.log({
+      planificationId: planId,
+      actorId,
+      actorName,
+      actorRole: "SUPERADMIN",
+      eventType: "DEADLINE_CLEARED",
+      comment:   `Fecha límite (${plan.editDeadlineAt.toLocaleDateString("es-EC")}) retirada para habilitar edición del docente encargado`,
     });
   },
 

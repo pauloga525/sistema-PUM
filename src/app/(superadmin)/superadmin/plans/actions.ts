@@ -39,6 +39,20 @@ export async function correctPlanStatusAction(
   }
 }
 
+export async function clearPlanDeadlineAction(planId: string): Promise<ActionResult> {
+  try {
+    const session = await getSuperAdminSession();
+    await superAdminPlanService.clearDeadline(
+      session.user.id,
+      session.user.name ?? session.user.email ?? "SuperAdmin",
+      planId,
+    );
+    return { success: true, data: undefined };
+  } catch (e) {
+    return { success: false, error: e instanceof AppError ? e.message : "Error al quitar la restricción de fecha" };
+  }
+}
+
 export async function reassignCoordinatorAction(
   planId: string,
   data: ReassignCoordinatorInput,

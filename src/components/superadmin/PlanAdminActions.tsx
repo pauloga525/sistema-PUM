@@ -2,7 +2,7 @@
 
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { correctPlanStatusAction, reassignCoordinatorAction } from "@/app/(superadmin)/superadmin/plans/actions";
+import { correctPlanStatusAction, reassignCoordinatorAction, clearPlanDeadlineAction } from "@/app/(superadmin)/superadmin/plans/actions";
 import { PLAN_STATUSES } from "@/modules/superadmin/superadmin.schema";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -27,6 +27,8 @@ interface PlanAdminActionsProps {
   currentStatus:    string;
   coordinators:     Coordinator[];
   currentCoordinatorId: string | null;
+  editDeadlineAt?:  string | null;
+  teacherLabel?:    string;
 }
 
 export function PlanAdminActions({
@@ -34,6 +36,8 @@ export function PlanAdminActions({
   currentStatus,
   coordinators,
   currentCoordinatorId,
+  editDeadlineAt,
+  teacherLabel,
 }: PlanAdminActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -44,6 +48,21 @@ export function PlanAdminActions({
 
   const [statusMsg,  setStatusMsg]  = useState<{ ok: boolean; text: string } | null>(null);
   const [coordMsg,   setCoordMsg]   = useState<{ ok: boolean; text: string } | null>(null);
+  const [deadlineMsg, setDeadlineMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [confirmingDeadline, setConfirmingDeadline] = useState(false);
+
+  function handleClearDeadline() {
+    startTransition(async () => {
+      const res = await clearPlanDeadlineAction(planId);
+      if (res.success) {
+        setDeadlineMsg({ ok: true, text: "Restricción retirada. El docente ya puede editar este PUM." });
+        setConfirmingDeadline(false);
+        router.refresh();
+      } else {
+        setDeadlineMsg({ ok: false, text: res.error ?? "Error al quitar la restricción" });
+      }
+    });
+  }
 
   function handleCorrectStatus() {
     if (!reason.trim()) { setStatusMsg({ ok: false, text: "El motivo es obligatorio" }); return; }
@@ -74,6 +93,60 @@ export function PlanAdminActions({
 
   return (
     <div className="space-y-5">
+      {/* Restricción de fecha límite */}
+      {editDeadlineAt && (
+        <div className="rounded-xl border border-pum-border bg-white p-5">
+          <h3 className="text-sm font-semibold text-pum-text mb-2">Restricción de fecha límite</h3>
+          <p className="text-xs text-pum-text-muted mb-4">
+            Plazo asignado:{" "}
+            <span className="font-medium text-pum-text">
+              {new Date(editDeadlineAt).toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric" })}
+            </span>
+            {teacherLabel && <> · Docente: <span className="font-medium text-pum-text">{teacherLabel}</span></>}
+          </p>
+
+          {deadlineMsg && (
+            <p className="text-xs font-medium mb-3" style={{ color: deadlineMsg.ok ? "#166534" : "#991b1b" }}>
+              {deadlineMsg.text}
+            </p>
+          )}
+
+          {!confirmingDeadline ? (
+            <button
+              onClick={() => setConfirmingDeadline(true)}
+              disabled={isPending}
+              className="w-full py-2 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-40"
+              style={{ background: "#b45309" }}
+            >
+              Quitar restricción de fecha
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-pum-text-muted">
+                Esto permitirá al docente encargado editar este PUM específico aunque el plazo ya venció. ¿Confirmar?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleClearDeadline}
+                  disabled={isPending}
+                  className="flex-1 py-2 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-40"
+                  style={{ background: "#b45309" }}
+                >
+                  {isPending ? "Aplicando…" : "Sí, quitar restricción"}
+                </button>
+                <button
+                  onClick={() => setConfirmingDeadline(false)}
+                  disabled={isPending}
+                  className="flex-1 py-2 rounded-lg text-sm font-medium text-pum-text border border-pum-border transition-opacity disabled:opacity-40"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Corrección de estado */}
       <div className="rounded-xl border border-pum-border bg-white p-5">
         <h3 className="text-sm font-semibold text-pum-text mb-4">Corregir estado del PUM</h3>

@@ -32,6 +32,7 @@ const EVENT_ICON: Record<string, string> = {
   ADMIN_REJECTED:         "❌",
   STATE_CORRECTED:        "🛠️",
   COORDINATOR_REASSIGNED: "🔀",
+  DEADLINE_CLEARED:       "🔓",
 };
 
 export default async function PlanDetailPage({
@@ -109,6 +110,8 @@ export default async function PlanDetailPage({
             currentStatus={plan.status}
             coordinators={coordinators}
             currentCoordinatorId={plan.coordinatorId}
+            editDeadlineAt={plan.editDeadlineAt}
+            teacherLabel={plan.teacherName ?? plan.teacherEmail}
           />
         </div>
 

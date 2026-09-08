@@ -17,7 +17,12 @@ export function assertCanEdit(plan: Planification): void {
     );
   }
 
-  if (plan.editDeadlineAt && plan.editDeadlineAt < new Date()) {
+  // El plazo solo rige la entrega inicial (Borrador). Una vez que el docente
+  // finalizó a tiempo y el PUM entra al ciclo de revisión/corrección
+  // (FEEDBACK_RECEIVED), el plazo original ya cumplió su propósito: el
+  // reenvío para corrección lo dispara el coordinador/vicerrector, no el
+  // docente, así que no depende de él seguir respetando esa fecha.
+  if (plan.status === "DRAFT" && plan.editDeadlineAt && plan.editDeadlineAt < new Date()) {
     throw new AppError(
       ErrorCode.PLAN_DEADLINE_PASSED,
       `El plazo de edición venció el ${plan.editDeadlineAt.toLocaleDateString("es-EC")}`

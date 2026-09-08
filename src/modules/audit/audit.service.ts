@@ -17,7 +17,8 @@ export type AuditEventType =
   | "SIGNED"
   | "ADMIN_REJECTED"
   | "STATE_CORRECTED"
-  | "COORDINATOR_REASSIGNED";
+  | "COORDINATOR_REASSIGNED"
+  | "DEADLINE_CLEARED";
 
 export const AUDIT_EVENT_LABELS: Record<AuditEventType, string> = {
   PLAN_CREATED:             "PUM creado (primer acceso del docente)",
@@ -34,6 +35,7 @@ export const AUDIT_EVENT_LABELS: Record<AuditEventType, string> = {
   ADMIN_REJECTED:           "Rechazado por el administrador",
   STATE_CORRECTED:          "Estado corregido por SuperAdmin",
   COORDINATOR_REASSIGNED:   "Coordinador reasignado por SuperAdmin",
+  DEADLINE_CLEARED:         "Restricción de fecha límite retirada por SuperAdmin",
 };
 
 export const AUDIT_ACTOR_LABELS: Record<string, string> = {
