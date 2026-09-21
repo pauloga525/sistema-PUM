@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
-import { normalizePumRowData, normalizePlanMetadata } from "@/modules/planification/planification.service";
+import { normalizePumRowData, normalizePlanMetadata, planificationService } from "@/modules/planification/planification.service";
 
 export type TeacherSortOption = "name_asc" | "name_desc" | "created_asc" | "created_desc" | "assign_asc" | "assign_desc";
 
@@ -269,7 +269,7 @@ export class AdminService {
     academicYearId: string;
     periodId?: string | null;
   }) {
-    return prisma.teacherAssignment.upsert({
+    const assignment = await prisma.teacherAssignment.upsert({
       where: {
         teacherId_subjectId_levelId_academicYearId: {
           teacherId:      data.teacherId,
@@ -281,6 +281,27 @@ export class AdminService {
       create: { ...data, active: true },
       update: { active: true, periodId: data.periodId ?? null },
     });
+
+    // Igual que en la asignación desde el panel de Coordinador: si ya existen
+    // PUMs para esta materia+nivel+año, vincular al docente como espectador
+    // (upsert con update:{} — nunca sobrescribe un vínculo/editor existente).
+    const existingPlans = await prisma.planification.findMany({
+      where: { academicYearId: data.academicYearId, subjectId: data.subjectId, levelId: data.levelId },
+      select: { id: true },
+    });
+    if (existingPlans.length > 0) {
+      await Promise.all(
+        existingPlans.map((p) =>
+          prisma.planificationTeacher.upsert({
+            where: { planificationId_teacherId: { planificationId: p.id, teacherId: data.teacherId } },
+            create: { planificationId: p.id, teacherId: data.teacherId, isEditor: false },
+            update: {},
+          })
+        )
+      );
+    }
+
+    return assignment;
   }
 
   async updateAssignment(id: string, data: {
@@ -291,8 +312,11 @@ export class AdminService {
     return prisma.teacherAssignment.update({ where: { id }, data });
   }
 
-  async removeAssignment(id: string) {
-    return prisma.teacherAssignment.update({ where: { id }, data: { active: false } });
+  async removeAssignment(
+    id: string,
+    actor: { actorId: string; actorName: string | null; actorRole: string },
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return planificationService.unassignTeacherFromCombo({ assignmentId: id, ...actor });
   }
 
   // ── Plazos ───────────────────────────────────────────────────────────────────

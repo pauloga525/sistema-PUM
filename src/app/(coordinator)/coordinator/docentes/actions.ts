@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma/client";
 import { ROUTES } from "@/constants/routes";
+import { planificationService } from "@/modules/planification/planification.service";
 
 export type TeacherAssignmentActionState =
   | { ok: true }
@@ -90,10 +91,14 @@ export async function removeTeacherAssignmentAction(
   }
 
   try {
-    await prisma.teacherAssignment.update({
-      where: { id: assignmentId },
-      data:  { active: false },
+    const result = await planificationService.unassignTeacherFromCombo({
+      assignmentId,
+      actorId:   session.user.id,
+      actorName: session.user.name ?? session.user.email ?? "Coordinador",
+      actorRole: "COORDINATOR",
     });
+    if (!result.ok) return { ok: false, error: result.error };
+
     revalidatePath(ROUTES.COORDINATOR.DOCENTES);
     return { ok: true };
   } catch {

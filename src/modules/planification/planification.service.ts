@@ -776,6 +776,97 @@ export class PlanificationService {
     log.info("cloneFromPrevious", { sourcePlanId });
     throw new AppError(ErrorCode.NOT_IMPLEMENTED, "PlanificationService.cloneFromPrevious — Fase 3C");
   }
+
+  /**
+   * Desvincula a un docente de los PUMs de una materia+nivel+año cuando se
+   * remueve su asignación (TeacherAssignment). Sin esto, el docente removido
+   * seguía apareciendo como co-docente y — más grave — podía seguir abriendo
+   * el PUM directamente, porque el control de acceso (getById) solo revisa
+   * PlanificationTeacher, no si la asignación sigue activa.
+   *
+   * - No toca PUMs ya "SIGNED" (registro institucional permanente).
+   * - Si el docente removido era el editor de algún PUM en curso, se promueve
+   *   automáticamente a otro docente activo de la misma materia/nivel/año.
+   *   Si no hay ningún otro docente activo, se bloquea la remoción completa
+   *   (ni siquiera se desactiva la asignación) para no dejar el PUM sin editor.
+   *
+   * Se encarga también de desactivar la asignación — todo en una sola
+   * transacción, para no dejar estados a medias.
+   */
+  async unassignTeacherFromCombo(params: {
+    assignmentId: string;
+    actorId:      string;
+    actorName:    string | null;
+    actorRole:    string;
+  }): Promise<{ ok: true } | { ok: false; error: string }> {
+    const { assignmentId, actorId, actorName, actorRole } = params;
+
+    const assignment = await prisma.teacherAssignment.findUnique({ where: { id: assignmentId } });
+    if (!assignment) return { ok: false, error: "Asignación no encontrada" };
+
+    const { teacherId, subjectId, levelId, academicYearId } = assignment;
+
+    const [plans, otherActive] = await Promise.all([
+      prisma.planification.findMany({
+        where: { academicYearId, subjectId, levelId, status: { not: "SIGNED" } },
+        select: { id: true, teachers: { select: { teacherId: true, isEditor: true } } },
+      }),
+      prisma.teacherAssignment.findFirst({
+        where: { subjectId, levelId, academicYearId, active: true, teacherId: { not: teacherId } },
+        select: { teacherId: true },
+      }),
+    ]);
+
+    const affectedPlans = plans.filter((p) => p.teachers.some((t) => t.teacherId === teacherId));
+    const editorPlans    = affectedPlans.filter((p) => p.teachers.some((t) => t.teacherId === teacherId && t.isEditor));
+
+    if (editorPlans.length > 0 && !otherActive) {
+      return {
+        ok: false,
+        error: "No se puede quitar: este docente es el único editor de un PUM en curso para esta materia/nivel. Asigna primero a otro docente antes de removerlo.",
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.teacherAssignment.update({ where: { id: assignmentId }, data: { active: false } });
+
+      for (const plan of affectedPlans) {
+        const myLink = plan.teachers.find((t) => t.teacherId === teacherId);
+        if (myLink?.isEditor && otherActive) {
+          await tx.planificationTeacher.upsert({
+            where:  { planificationId_teacherId: { planificationId: plan.id, teacherId: otherActive.teacherId } },
+            create: { planificationId: plan.id, teacherId: otherActive.teacherId, isEditor: true },
+            update: { isEditor: true },
+          });
+        }
+        await tx.planificationTeacher.delete({
+          where: { planificationId_teacherId: { planificationId: plan.id, teacherId } },
+        });
+      }
+    });
+
+    if (affectedPlans.length > 0) {
+      const teacher = await prisma.user.findUnique({ where: { id: teacherId }, select: { name: true, email: true } });
+      const teacherLabel = teacher?.name ?? teacher?.email ?? teacherId;
+      await Promise.all(
+        affectedPlans.map((p) => {
+          const wasEditor = p.teachers.some((t) => t.teacherId === teacherId && t.isEditor);
+          return auditService.log({
+            planificationId: p.id,
+            actorId,
+            actorName,
+            actorRole,
+            eventType: "TEACHER_UNASSIGNED",
+            comment: wasEditor
+              ? `${teacherLabel} fue removido de esta materia/nivel (era editor; se promovió automáticamente a otro docente asignado)`
+              : `${teacherLabel} fue removido de esta materia/nivel`,
+          });
+        })
+      );
+    }
+
+    return { ok: true };
+  }
 }
 
 export const planificationService = new PlanificationService();

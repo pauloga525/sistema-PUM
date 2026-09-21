@@ -68,11 +68,16 @@ export async function removeAssignmentAction(
   _prev: AssignmentActionState,
   formData: FormData
 ): Promise<AssignmentActionState> {
-  await requireAdmin();
+  const session = await requireAdmin();
   const id = (formData.get("id") ?? "").toString().trim();
   if (!id) return { error: "ID de asignación requerido." };
   try {
-    await adminService.removeAssignment(id);
+    const result = await adminService.removeAssignment(id, {
+      actorId:   session.user.id,
+      actorName: session.user.name ?? session.user.email ?? "Admin",
+      actorRole: "ADMIN",
+    });
+    if (!result.ok) return { error: result.error };
     revalidatePath(ROUTES.ADMIN.ASSIGNMENTS);
     return { ok: true };
   } catch (e) {

@@ -176,7 +176,11 @@ function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; c
 
   const handleRemove = (assignmentId: string) => {
     start(async () => {
-      await removeTeacherAssignmentAction(assignmentId, teacher.id);
+      const res = await removeTeacherAssignmentAction(assignmentId, teacher.id);
+      if (!res.ok) {
+        setRoleMsg({ ok: false, text: res.error ?? "Error al quitar la asignación" });
+        setTimeout(() => setRoleMsg(null), 6000);
+      }
     });
   };
 
