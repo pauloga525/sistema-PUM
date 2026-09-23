@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma/client";
 import { REVIEW_SECTION_KEYS, BLOCKING_REVIEW_KEYS, type SectionStates, type ReviewStatus } from "@/constants/review";
-import { normalizePumRowData, normalizePlanMetadata } from "@/modules/planification/planification.service";
+import { normalizePumRowData, normalizePlanMetadata, filterActiveTeacherLinks } from "@/modules/planification/planification.service";
 import { auditService } from "@/modules/audit/audit.service";
 import type { AssignedTeacher, TeacherAssignmentEntry, FinalizedPlanEntry, PlanReviewSummary } from "./coordinator.types";
 
@@ -265,7 +265,23 @@ export const coordinatorService = {
       orderBy: [{ academicYear: { yearStart: "desc" } }, { finalizedAt: "desc" }],
     });
 
+    // Oculta vínculos huérfanos (docentes removidos cuya asignación ya no
+    // está activa) en un solo query batch — ver filterActiveTeacherLinks.
+    // Los PUM ya SIGNED nunca se filtran (registro histórico permanente).
+    const allTeacherIds = [...new Set(plans.flatMap((p) => p.teachers.map((t) => t.teacherId)))];
+    const activeAssignments = allTeacherIds.length > 0
+      ? await prisma.teacherAssignment.findMany({
+          where: { teacherId: { in: allTeacherIds }, active: true },
+          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
+        })
+      : [];
+    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
+    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
+
     return plans.map((p) => {
+      const teachers = p.status === "SIGNED"
+        ? p.teachers
+        : p.teachers.filter((t) => activeSet.has(activeKey(p.subjectId, p.levelId, p.academicYearId, t.teacherId)));
       const states  = normalizeStates(p.review?.sectionStates);
       const { approved, total } = countProgress(states, p._count.rows);
       const reviewStatus: ReviewStatus = p.status === "ADMIN_REJECTED"
@@ -289,8 +305,8 @@ export const coordinatorService = {
         ? meta.adminRejectionComment
         : null;
 
-      const editorLink = p.teachers.find((t) => t.isEditor);
-      const allNames   = p.teachers.map((t) => t.teacher.name ?? t.teacher.email);
+      const editorLink = teachers.find((t) => t.isEditor);
+      const allNames   = teachers.map((t) => t.teacher.name ?? t.teacher.email);
       const teacherNames = allNames.length <= 2
         ? allNames.join(", ")
         : `${allNames[0]} + ${allNames.length - 1} más`;
@@ -658,7 +674,8 @@ export const coordinatorService = {
     });
     if (!plan) return null;
 
-    const teacherNames = plan.teachers.map((t) => t.teacher.name ?? "—").join(", ");
+    const activeTeachers = await filterActiveTeacherLinks(plan, plan.teachers);
+    const teacherNames = activeTeachers.map((t) => t.teacher.name ?? "—").join(", ");
 
     return {
       status:       plan.status,

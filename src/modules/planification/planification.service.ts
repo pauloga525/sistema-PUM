@@ -166,6 +166,41 @@ function emptyPumRowData(): PumRowData {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Filtra vínculos PlanificationTeacher a solo los docentes que TODAVÍA tienen
+ * una TeacherAssignment activa para esa materia+nivel+año.
+ *
+ * Defensa en profundidad: antes de que existiera unassignTeacherFromCombo,
+ * remover una asignación no limpiaba PlanificationTeacher, dejando vínculos
+ * huérfanos en producción (docente removido que seguía apareciendo como
+ * co-docente y — más grave — podía seguir abriendo el PUM). Este filtro
+ * oculta esos vínculos huérfanos en cualquier lectura, sin necesidad de
+ * una limpieza manual en la base de datos.
+ *
+ * Excepción: los PUM ya "SIGNED" nunca se filtran — es el registro
+ * institucional permanente y debe mostrar siempre a quienes participaron,
+ * sin importar cambios de asignación posteriores (misma regla que
+ * unassignTeacherFromCombo usa para decidir qué limpiar).
+ */
+export async function filterActiveTeacherLinks<T extends { teacherId: string }>(
+  plan: { subjectId: string; levelId: string; academicYearId: string; status?: string },
+  links: T[],
+): Promise<T[]> {
+  if (links.length === 0 || plan.status === "SIGNED") return links;
+  const active = await prisma.teacherAssignment.findMany({
+    where: {
+      subjectId:      plan.subjectId,
+      levelId:        plan.levelId,
+      academicYearId: plan.academicYearId,
+      active:         true,
+      teacherId:      { in: links.map((l) => l.teacherId) },
+    },
+    select: { teacherId: true },
+  });
+  const activeIds = new Set(active.map((a) => a.teacherId));
+  return links.filter((l) => activeIds.has(l.teacherId));
+}
+
 function buildPlanFromDb(
   plan: {
     id: string;
@@ -637,6 +672,10 @@ export class PlanificationService {
       throw new AppError(ErrorCode.PLAN_NOT_FOUND, "Planificación no encontrada");
     }
 
+    // Filtra vínculos huérfanos (docentes removidos cuya asignación ya no
+    // está activa) antes de verificar acceso — ver filterActiveTeacherLinks.
+    plan.teachers = await filterActiveTeacherLinks(plan, plan.teachers);
+
     const isLinked = plan.teachers.some((t) => t.teacherId === teacherId);
     if (!isLinked) {
       throw new AppError(ErrorCode.PLAN_NOT_OWNED_BY_TEACHER, "No tienes permiso para acceder a esta planificación");
@@ -658,6 +697,8 @@ export class PlanificationService {
       throw new AppError(ErrorCode.PLAN_NOT_FOUND, "Planificación no encontrada");
     }
 
+    plan.teachers = await filterActiveTeacherLinks(plan, plan.teachers);
+
     const editorTeacherId = plan.teachers.find((t) => t.isEditor)?.teacherId ?? "";
     return buildPlanFromDb(plan, editorTeacherId);
   }
@@ -669,9 +710,29 @@ export class PlanificationService {
       where: { id: { in: planIds } },
       include: PLAN_INCLUDE,
     });
+
+    // Misma lógica que filterActiveTeacherLinks, pero en un solo query para
+    // todos los planes del batch (evita N+1 al filtrar vínculos huérfanos).
+    const allTeacherIds = [...new Set(plans.flatMap((p) => p.teachers.map((t) => t.teacherId)))];
+    const activeAssignments = allTeacherIds.length > 0
+      ? await prisma.teacherAssignment.findMany({
+          where: { teacherId: { in: allTeacherIds }, active: true },
+          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
+        })
+      : [];
+    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
+    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
+
     return plans.map((plan) => {
-      const editorTeacherId = plan.teachers.find((t) => t.isEditor)?.teacherId ?? "";
-      return buildPlanFromDb(plan, editorTeacherId);
+      // PUM ya SIGNED: registro histórico permanente, nunca se filtra (misma
+      // excepción que filterActiveTeacherLinks aplica en getById/Unchecked).
+      const filteredTeachers = plan.status === "SIGNED"
+        ? plan.teachers
+        : plan.teachers.filter((t) =>
+            activeSet.has(activeKey(plan.subjectId, plan.levelId, plan.academicYearId, t.teacherId))
+          );
+      const editorTeacherId = filteredTeachers.find((t) => t.isEditor)?.teacherId ?? "";
+      return buildPlanFromDb({ ...plan, teachers: filteredTeachers }, editorTeacherId);
     });
   }
 

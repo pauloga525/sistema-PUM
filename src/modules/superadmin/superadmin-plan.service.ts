@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma/client";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 import { auditService } from "@/modules/audit/audit.service";
+import { filterActiveTeacherLinks } from "@/modules/planification/planification.service";
 import type { CorrectPlanStatusInput, ReassignCoordinatorInput } from "./superadmin.schema";
 
 export interface PlanListItem {
@@ -74,7 +75,7 @@ export const superAdminPlanService = {
         take: pageSize,
         orderBy: { updatedAt: "desc" },
         include: {
-          teachers:     { where: { isEditor: true }, include: { teacher: { select: { name: true, email: true } } } },
+          teachers:     { include: { teacher: { select: { name: true, email: true } } } },
           subject:      { select: { name: true } },
           level:        { select: { name: true } },
           academicYear: { select: { label: true } },
@@ -84,11 +85,27 @@ export const superAdminPlanService = {
       }),
     ]);
 
+    // Oculta vínculos huérfanos (docentes removidos cuya asignación ya no
+    // está activa) en un solo query batch; los PUM ya SIGNED no se filtran
+    // (registro histórico permanente). Ver planification.service.ts.
+    const allTeacherIds = [...new Set(rows.flatMap((r) => r.teachers.map((t) => t.teacherId)))];
+    const activeAssignments = allTeacherIds.length > 0
+      ? await prisma.teacherAssignment.findMany({
+          where: { teacherId: { in: allTeacherIds }, active: true },
+          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
+        })
+      : [];
+    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
+    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
+
     return {
       total,
       pages: Math.ceil(total / pageSize),
       plans: rows.map((r) => {
-        const editor = r.teachers[0]?.teacher;
+        const visibleTeachers = r.status === "SIGNED"
+          ? r.teachers
+          : r.teachers.filter((t) => activeSet.has(activeKey(r.subjectId, r.levelId, r.academicYearId, t.teacherId)));
+        const editor = (visibleTeachers.find((t) => t.isEditor) ?? visibleTeachers[0])?.teacher;
         return {
           id:              r.id,
           status:          r.status,
@@ -110,7 +127,7 @@ export const superAdminPlanService = {
     const p = await prisma.planification.findUnique({
       where: { id: planId },
       include: {
-        teachers:     { where: { isEditor: true }, include: { teacher: { select: { name: true, email: true } } } },
+        teachers:     { include: { teacher: { select: { name: true, email: true } } } },
         subject:      { select: { name: true } },
         level:        { select: { name: true } },
         academicYear: { select: { label: true } },
@@ -125,7 +142,8 @@ export const superAdminPlanService = {
       },
     });
     if (!p) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
-    const editor = p.teachers[0]?.teacher;
+    const visibleTeachers = await filterActiveTeacherLinks(p, p.teachers);
+    const editor = (visibleTeachers.find((t) => t.isEditor) ?? visibleTeachers[0])?.teacher;
     return {
       id:               p.id,
       status:           p.status,
