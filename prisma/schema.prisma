@@ -380,6 +380,24 @@ model UserAuditLog {
 }
 
 // =============================================================
+// SUPERADMIN — Configuración global del sistema
+// =============================================================
+
+// Fila única (id fijo "singleton") con ajustes globales del sistema.
+// Hoy solo tiene el modo mantenimiento; futuros ajustes globales pueden
+// agregarse como columnas nuevas de esta misma fila.
+model SystemSetting {
+  id                     String    @id @default("singleton")
+  maintenanceModeEnabled Boolean   @default(false)
+  maintenanceMessage     String?
+  maintenanceEnabledAt   DateTime?
+  maintenanceEnabledBy   String?   // userId del SuperAdmin que activó/desactivó (sin FK, igual que UserAuditLog.actorId)
+  updatedAt              DateTime  @updatedAt
+
+  @@map("system_settings")
+}
+
+// =============================================================
 // SUPERADMIN — Monitoreo de errores del sistema
 // =============================================================
 

@@ -1,8 +1,11 @@
 /**
  * Proxy de Next.js 16 — Protección de rutas de PUM Web.
  *
- * Se ejecuta en Edge Runtime ANTES de que cualquier página o API route
+ * Se ejecuta en runtime de Node.js (desde Next.js 16 Proxy corre en Node.js
+ * por defecto, ya no en Edge) ANTES de que cualquier página o API route
  * procese el request. Es la primera línea de defensa de autorización.
+ * Al correr en Node.js puede leer Prisma directamente (ver chequeo de
+ * modo mantenimiento más abajo).
  *
  * Rutas protegidas:
  *   /teacher/*     → requiere login
@@ -11,6 +14,8 @@
  *
  * Redirecciones especiales:
  *   forcePasswordChange=true → /teacher/change-password o /coordinator/change-password
+ *   modo mantenimiento activo + rol TEACHER/COORDINATOR → /mantenimiento
+ *   (ADMIN y SUPERADMIN nunca se ven afectados por el modo mantenimiento)
  *
  * Nota: En Next.js 16, "Middleware" fue renombrado a "Proxy".
  * El archivo se llamaba middleware.ts — ahora es proxy.ts.
@@ -19,8 +24,9 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getMaintenanceMode } from "@/modules/system/system-settings.service";
 
-export default auth((req: NextRequest & { auth: { user: { id: string; role: string; forcePasswordChange?: boolean; name?: string | null; email?: string | null; image?: string | null } } | null }) => {
+export default auth(async (req: NextRequest & { auth: { user: { id: string; role: string; forcePasswordChange?: boolean; name?: string | null; email?: string | null; image?: string | null } } | null }) => {
   const { nextUrl } = req;
   const session = req.auth;
   const isLoggedIn = !!session?.user;
@@ -45,6 +51,14 @@ export default auth((req: NextRequest & { auth: { user: { id: string; role: stri
   const isAuthApi                   = nextUrl.pathname.startsWith("/api/auth");
   const role                        = session?.user?.role;
 
+  // Modo mantenimiento: solo puede importar para TEACHER/COORDINATOR en las
+  // rutas que les corresponden. Para ADMIN, SUPERADMIN o visitantes sin
+  // sesión no se consulta nada — cero impacto de rendimiento para ellos.
+  const maybeAffectedByMaintenance =
+    isLoggedIn &&
+    (role === "TEACHER" || role === "COORDINATOR") &&
+    (isLoginPage || isTeacherPath || isCoordinatorPath);
+
   if (isAuthApi) return NextResponse.next();
 
   // Rutas protegidas — requieren login
@@ -55,7 +69,11 @@ export default auth((req: NextRequest & { auth: { user: { id: string; role: stri
   }
 
   // Usuario ya autenticado que vuelve al login → redirigir a su dashboard
+  // (o al aviso de mantenimiento, si aplica)
   if (isLoggedIn && isLoginPage) {
+    if (maybeAffectedByMaintenance && (await getMaintenanceMode()).enabled) {
+      return NextResponse.redirect(new URL("/mantenimiento", base));
+    }
     const destination =
       role === "SUPERADMIN"  ? "/superadmin/dashboard"           :
       role === "ADMIN"       ? "/admin/dashboard"                :
@@ -90,6 +108,14 @@ export default auth((req: NextRequest & { auth: { user: { id: string; role: stri
       role === "COORDINATOR" ? "/coordinator/retroalimentacion" :
       "/login";
     return NextResponse.redirect(new URL(dest, base));
+  }
+
+  // Modo mantenimiento activo: Docentes y Coordinadores quedan bloqueados de
+  // sus rutas (aunque ya tuvieran sesión abierta). ADMIN y SUPERADMIN nunca
+  // llegan aquí con maybeAffectedByMaintenance en true, así que no se ven
+  // afectados en ningún caso.
+  if (maybeAffectedByMaintenance && (await getMaintenanceMode()).enabled) {
+    return NextResponse.redirect(new URL("/mantenimiento", base));
   }
 
   // Docentes con primer login deben cambiar su contraseña antes de continuar

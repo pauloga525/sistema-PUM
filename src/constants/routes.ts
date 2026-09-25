@@ -14,6 +14,9 @@ export const ROUTES = {
   // Auth
   LOGIN: "/login",
 
+  // Aviso público de mantenimiento (Docentes/Coordinadores bloqueados)
+  MAINTENANCE: "/mantenimiento",
+
   // Docente
   TEACHER: {
     ROOT: "/teacher",
@@ -64,6 +67,7 @@ export const ROUTES = {
     user:      (id: string) => `/superadmin/users/${id}`,
     userAccess:(id: string) => `/superadmin/users/${id}/access`,
     ROLES:     "/superadmin/roles",
+    SETTINGS:  "/superadmin/settings",
     PLANS:     "/superadmin/plans",
     plan:      (id: string) => `/superadmin/plans/${id}`,
     pumPreview:(id: string) => `/plan-preview/${id}`,
