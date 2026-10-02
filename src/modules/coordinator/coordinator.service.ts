@@ -262,7 +262,7 @@ export const coordinatorService = {
         review:       true,
         _count:       { select: { rows: true } },
       },
-      orderBy: [{ academicYear: { yearStart: "desc" } }, { finalizedAt: "desc" }],
+      orderBy: [{ academicYear: { yearStart: "desc" } }, { period: { number: "asc" } }, { finalizedAt: "desc" }],
     });
 
     // Oculta vínculos huérfanos (docentes removidos cuya asignación ya no
@@ -321,6 +321,7 @@ export const coordinatorService = {
         levelName:            p.level.name,
         levelCode:            p.level.code,
         periodName:           p.period.name,
+        periodNumber:         p.period.number,
         yearLabel:            p.academicYear.label,
         finalizedAt:          p.finalizedAt,
         review:               reviewSummary,

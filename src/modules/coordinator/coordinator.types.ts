@@ -43,6 +43,7 @@ export interface FinalizedPlanEntry {
   levelName: string;
   levelCode: string;
   periodName: string;
+  periodNumber: number;
   yearLabel: string;
   finalizedAt: Date | null;
   review: PlanReviewSummary;

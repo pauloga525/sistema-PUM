@@ -1,6 +1,8 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { superAdminPlanService } from "@/modules/superadmin/superadmin-plan.service";
 import { ROUTES } from "@/constants/routes";
+import type { PlanListItem } from "@/modules/superadmin/superadmin-plan.service";
 
 export const metadata = { title: "PUM del Sistema — SuperAdmin" };
 
@@ -14,24 +16,55 @@ export const STATUS_LABEL: Record<string, { label: string; bg: string; color: st
   ADMIN_REJECTED:     { label: "Rechazado",              bg: "#fee2e2", color: "#991b1b" },
 };
 
+interface PeriodGroup {
+  key:          string;
+  periodName:   string;
+  yearLabel:    string;
+  entries:      PlanListItem[];
+}
+
+function groupByPeriod(entries: PlanListItem[]): PeriodGroup[] {
+  const map = new Map<string, PeriodGroup>();
+  for (const e of entries) {
+    const key = `${e.yearLabel}|${e.periodNumber}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.entries.push(e);
+    } else {
+      map.set(key, { key, periodName: e.periodName, yearLabel: e.yearLabel, entries: [e] });
+    }
+  }
+  // La query ya viene ordenada (período asc, actualización desc) — Map
+  // conserva ese orden de inserción.
+  return Array.from(map.values());
+}
+
 export default async function PlansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; status?: string; yearId?: string; page?: string }>;
+  searchParams: Promise<{ search?: string; status?: string; yearId?: string; periodId?: string; page?: string }>;
 }) {
-  const sp      = await searchParams;
-  const search  = sp.search?.trim() ?? "";
-  const status  = sp.status ?? "";
-  const yearId  = sp.yearId ?? "";
-  const page    = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+  const sp        = await searchParams;
+  const search    = sp.search?.trim() ?? "";
+  const status    = sp.status ?? "";
+  const yearId    = sp.yearId ?? "";
+  const periodId  = sp.periodId ?? "";
+  const page      = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
-  const [{ plans, total, pages }, years] = await Promise.all([
-    superAdminPlanService.getAllPlans({ search: search || undefined, status: status || undefined, yearId: yearId || undefined, page }),
+  const [{ plans, total, pages }, years, periods] = await Promise.all([
+    superAdminPlanService.getAllPlans({
+      search: search || undefined,
+      status: status || undefined,
+      yearId: yearId || undefined,
+      periodId: periodId || undefined,
+      page,
+    }),
     superAdminPlanService.getYears(),
+    yearId ? superAdminPlanService.getPeriodsForYear(yearId) : Promise.resolve([]),
   ]);
 
   const filterUrl = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams({ search, status, yearId, page: String(page), ...overrides });
+    const params = new URLSearchParams({ search, status, yearId, periodId, page: String(page), ...overrides });
     // Remove empty params
     for (const [k, v] of [...params.entries()]) if (!v || v === "1") params.delete(k);
     const s = params.toString();
@@ -75,6 +108,17 @@ export default async function PlansPage({
             <option key={y.id} value={y.id}>{y.label}</option>
           ))}
         </select>
+        <select
+          name="periodId"
+          defaultValue={periodId}
+          disabled={!yearId}
+          className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <option value="">{yearId ? "Todos los trimestres" : "Elige un año primero"}</option>
+          {periods.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
         <button
           type="submit"
           className="px-4 py-2 rounded-lg text-sm font-medium text-white"
@@ -82,7 +126,7 @@ export default async function PlansPage({
         >
           Filtrar
         </button>
-        {(search || status || yearId) && (
+        {(search || status || yearId || periodId) && (
           <Link
             href={ROUTES.SUPERADMIN.PLANS}
             className="px-4 py-2 rounded-lg text-sm font-medium border border-pum-border text-pum-text hover:bg-pum-bg/50 transition-colors"
@@ -97,7 +141,7 @@ export default async function PlansPage({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr style={{ background: "#f5f0ff" }}>
-              {["Docente", "Materia / Nivel", "Año / Período", "Estado", "Coordinador", ""].map((h) => (
+              {["Docente", "Materia / Nivel", "Año", "Estado", "Coordinador", ""].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-pum-text-muted first:pl-5">{h}</th>
               ))}
             </tr>
@@ -110,44 +154,55 @@ export default async function PlansPage({
                 </td>
               </tr>
             )}
-            {plans.map((p) => {
-              const badge = STATUS_LABEL[p.status] ?? { label: p.status, bg: "#f3f4f6", color: "#374151" };
-              return (
-                <tr key={p.id} className="border-t border-pum-border hover:bg-pum-bg/30 transition-colors">
-                  <td className="px-4 pl-5 py-3">
-                    <p className="font-medium text-pum-text">{p.teacherName ?? "—"}</p>
-                    <p className="text-xs text-pum-text-muted">{p.teacherEmail}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-pum-text">{p.subjectName}</p>
-                    <p className="text-xs text-pum-text-muted">{p.levelName}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-pum-text">{p.yearLabel}</p>
-                    <p className="text-xs text-pum-text-muted">{p.periodName}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
-                      style={{ background: badge.bg, color: badge.color }}
-                    >
-                      {badge.label}
+            {groupByPeriod(plans).map((group) => (
+              <Fragment key={group.key}>
+                <tr>
+                  <td colSpan={6} className="px-5 pt-4 pb-2" style={{ background: "rgba(76,29,149,0.04)" }}>
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#4c1d95" }}>
+                      {group.periodName}
+                    </span>
+                    <span className="text-xs text-pum-text-muted ml-2">
+                      {group.yearLabel} · {group.entries.length} {group.entries.length === 1 ? "PUM" : "PUMs"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-pum-text-muted">
-                    {p.coordinatorName ?? <span className="italic">Sin asignar</span>}
-                  </td>
-                  <td className="px-4 pr-5 py-3 text-right">
-                    <Link
-                      href={ROUTES.SUPERADMIN.plan(p.id)}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-pum-border hover:shadow-sm transition-shadow text-pum-text"
-                    >
-                      Gestionar
-                    </Link>
-                  </td>
                 </tr>
-              );
-            })}
+                {group.entries.map((p) => {
+                  const badge = STATUS_LABEL[p.status] ?? { label: p.status, bg: "#f3f4f6", color: "#374151" };
+                  return (
+                    <tr key={p.id} className="border-t border-pum-border hover:bg-pum-bg/30 transition-colors">
+                      <td className="px-4 pl-5 py-3">
+                        <p className="font-medium text-pum-text">{p.teacherName ?? "—"}</p>
+                        <p className="text-xs text-pum-text-muted">{p.teacherEmail}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-pum-text">{p.subjectName}</p>
+                        <p className="text-xs text-pum-text-muted">{p.levelName}</p>
+                      </td>
+                      <td className="px-4 py-3 text-pum-text">{p.yearLabel}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
+                          style={{ background: badge.bg, color: badge.color }}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-pum-text-muted">
+                        {p.coordinatorName ?? <span className="italic">Sin asignar</span>}
+                      </td>
+                      <td className="px-4 pr-5 py-3 text-right">
+                        <Link
+                          href={ROUTES.SUPERADMIN.plan(p.id)}
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-pum-border hover:shadow-sm transition-shadow text-pum-text"
+                        >
+                          Gestionar
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            ))}
           </tbody>
         </table>
       </div>

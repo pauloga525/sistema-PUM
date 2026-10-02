@@ -35,6 +35,7 @@ export interface PendingSignaturePlan {
   levelCode: string;
   levelName: string;
   periodName: string;
+  periodNumber: number;
   yearLabel: string;
   finalizedAt: Date | null;
 }
@@ -851,7 +852,7 @@ export class AdminService {
         },
         subject:      { select: { name: true } },
         level:        { select: { name: true, code: true } },
-        period:       { select: { name: true } },
+        period:       { select: { name: true, number: true } },
         academicYear: { select: { label: true } },
       },
     });
@@ -900,6 +901,7 @@ export class AdminService {
             levelCode:    plan.level.code,
             levelName:    plan.level.name,
             periodName:   plan.period.name,
+            periodNumber: plan.period.number,
             yearLabel:    plan.academicYear.label,
             finalizedAt:  plan.finalizedAt,
           });

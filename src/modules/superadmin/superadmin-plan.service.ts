@@ -14,6 +14,7 @@ export interface PlanListItem {
   levelName:     string;
   yearLabel:     string;
   periodName:    string;
+  periodNumber:  number;
   coordinatorName: string | null;
   coordinatorId:   string | null;
   updatedAt:     string;
@@ -41,6 +42,7 @@ export interface PlanFilters {
   search?:   string;
   status?:   string;
   yearId?:   string;
+  periodId?: string;
   page?:     number;
   pageSize?: number;
 }
@@ -56,8 +58,9 @@ export const superAdminPlanService = {
     const skip     = (page - 1) * pageSize;
 
     const where: Record<string, unknown> = {};
-    if (filters.status) where.status        = filters.status;
-    if (filters.yearId) where.academicYearId = filters.yearId;
+    if (filters.status)   where.status        = filters.status;
+    if (filters.yearId)   where.academicYearId = filters.yearId;
+    if (filters.periodId) where.periodId       = filters.periodId;
     if (filters.search) {
       const s = filters.search.trim();
       where.OR = [
@@ -73,13 +76,13 @@ export const superAdminPlanService = {
         where,
         skip,
         take: pageSize,
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ period: { number: "asc" } }, { updatedAt: "desc" }],
         include: {
           teachers:     { include: { teacher: { select: { name: true, email: true } } } },
           subject:      { select: { name: true } },
           level:        { select: { name: true } },
           academicYear: { select: { label: true } },
-          period:       { select: { name: true } },
+          period:       { select: { name: true, number: true } },
           review:       { select: { coordinatorId: true, coordinator: { select: { name: true } } } },
         },
       }),
@@ -115,6 +118,7 @@ export const superAdminPlanService = {
           levelName:       r.level.name,
           yearLabel:       r.academicYear.label,
           periodName:      r.period.name,
+          periodNumber:    r.period.number,
           coordinatorName: r.review?.coordinator.name ?? null,
           coordinatorId:   r.review?.coordinatorId ?? null,
           updatedAt:       r.updatedAt.toISOString(),
@@ -297,6 +301,14 @@ export const superAdminPlanService = {
     return prisma.academicYear.findMany({
       orderBy: { yearStart: "desc" },
       select:  { id: true, label: true },
+    });
+  },
+
+  async getPeriodsForYear(yearId: string): Promise<Array<{ id: string; name: string; number: number }>> {
+    return prisma.period.findMany({
+      where:   { academicYearId: yearId },
+      orderBy: { number: "asc" },
+      select:  { id: true, name: true, number: true },
     });
   },
 };

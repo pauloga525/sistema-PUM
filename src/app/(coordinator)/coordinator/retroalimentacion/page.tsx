@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -83,7 +84,6 @@ function PlanRow({ entry, index }: { entry: FinalizedPlanEntry; index: number })
         <p className="text-sm text-pum-text">{entry.subjectName}</p>
         <p className="text-[11px] text-pum-text-disabled">{entry.levelCode}</p>
       </td>
-      <td className="px-4 py-3 text-sm text-pum-text-muted">{entry.periodName}</td>
       <td className="px-4 py-3 text-sm text-pum-text-muted">{entry.yearLabel}</td>
       <td className="px-4 py-3 min-w-[120px]">
         <ProgressBar done={entry.review.approvedSections} total={entry.review.totalSections} />
@@ -161,6 +161,38 @@ function PlanRow({ entry, index }: { entry: FinalizedPlanEntry; index: number })
       </td>
     </tr>
   );
+}
+
+// ── Agrupación por trimestre ─────────────────────────────────────────────────────
+
+interface PeriodGroup {
+  key: string;
+  periodNumber: number;
+  periodName: string;
+  yearLabel: string;
+  entries: FinalizedPlanEntry[];
+}
+
+function groupByPeriod(entries: FinalizedPlanEntry[]): PeriodGroup[] {
+  const map = new Map<string, PeriodGroup>();
+  for (const e of entries) {
+    const key = `${e.yearLabel}|${e.periodNumber}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.entries.push(e);
+    } else {
+      map.set(key, {
+        key,
+        periodNumber: e.periodNumber,
+        periodName:   e.periodName,
+        yearLabel:    e.yearLabel,
+        entries:      [e],
+      });
+    }
+  }
+  // El array de entrada ya viene ordenado (año desc, trimestre asc) desde
+  // coordinatorService.getFinalizedPlans — Map conserva ese orden de inserción.
+  return Array.from(map.values());
 }
 
 // ── Página ─────────────────────────────────────────────────────────────────────
@@ -307,7 +339,7 @@ export default async function RetroalimentacionPage({
             <table className="w-full border-collapse">
               <thead>
                 <tr style={{ background: "rgba(0,39,83,0.04)", borderBottom: "1px solid rgba(0,39,83,0.07)" }}>
-                  {["Docente", "Materia / Nivel", "Período", "Año lectivo", "Progreso revisión", "Retroalimentación", "Acciones"].map((h) => (
+                  {["Docente", "Materia / Nivel", "Año lectivo", "Progreso revisión", "Retroalimentación", "Acciones"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-pum-text-muted whitespace-nowrap">
                       {h}
                     </th>
@@ -317,13 +349,27 @@ export default async function RetroalimentacionPage({
               <tbody>
                 {displayPlans.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-pum-text-muted italic">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-pum-text-muted italic">
                       No hay PUMs para el filtro seleccionado.
                     </td>
                   </tr>
                 ) : (
-                  displayPlans.map((entry, i) => (
-                    <PlanRow key={entry.planificationId} entry={entry} index={i} />
+                  groupByPeriod(displayPlans).map((group) => (
+                    <Fragment key={group.key}>
+                      <tr>
+                        <td colSpan={6} className="px-4 pt-5 pb-2" style={{ background: "rgba(0,39,83,0.025)" }}>
+                          <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#002753" }}>
+                            {group.periodName}
+                          </span>
+                          <span className="text-xs text-pum-text-disabled ml-2">
+                            {group.yearLabel} · {group.entries.length} {group.entries.length === 1 ? "PUM" : "PUMs"}
+                          </span>
+                        </td>
+                      </tr>
+                      {group.entries.map((entry, i) => (
+                        <PlanRow key={entry.planificationId} entry={entry} index={i} />
+                      ))}
+                    </Fragment>
                   ))
                 )}
               </tbody>

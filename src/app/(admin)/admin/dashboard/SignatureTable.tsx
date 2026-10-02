@@ -208,7 +208,7 @@ function PlanItem({ plan }: { plan: PendingSignaturePlan }) {
             <span className="text-pum-text-disabled font-normal"> · {plan.levelCode}</span>
           </p>
           <p className="text-[11px] text-pum-text-muted">
-            {plan.periodName} · {plan.teacherName ?? plan.teacherEmail}
+            {plan.teacherName ?? plan.teacherEmail}
           </p>
         </div>
 
@@ -257,6 +257,29 @@ function PlanItem({ plan }: { plan: PendingSignaturePlan }) {
   );
 }
 
+// ── Agrupación por trimestre (dentro de cada coordinador) ──────────────────────
+
+interface PeriodGroup {
+  key:        string;
+  periodName: string;
+  yearLabel:  string;
+  plans:      PendingSignaturePlan[];
+}
+
+function groupPlansByPeriod(plans: PendingSignaturePlan[]): PeriodGroup[] {
+  const map = new Map<string, PeriodGroup>();
+  for (const p of plans) {
+    const key = `${p.yearLabel}|${p.periodNumber}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.plans.push(p);
+    } else {
+      map.set(key, { key, periodName: p.periodName, yearLabel: p.yearLabel, plans: [p] });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.plans[0].periodNumber - b.plans[0].periodNumber);
+}
+
 // ── Coordinator row (expandable) ───────────────────────────────────────────────
 
 function CoordinatorRow({ group }: { group: CoordinatorSignatureGroup }) {
@@ -294,17 +317,32 @@ function CoordinatorRow({ group }: { group: CoordinatorSignatureGroup }) {
         </span>
       </button>
 
-      {/* Expanded plans */}
+      {/* Expanded plans — sub-agrupados por trimestre */}
       {open && (
         <div
-          className="border-t divide-y"
+          className="border-t"
           style={{
             borderColor: "rgba(0,39,83,0.07)",
             background: "rgba(0,39,83,0.015)",
           }}
         >
-          {group.plans.map((plan) => (
-            <PlanItem key={plan.planId} plan={plan} />
+          {groupPlansByPeriod(group.plans).map((periodGroup) => (
+            <div key={periodGroup.key}>
+              <p
+                className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider"
+                style={{ color: "#002753" }}
+              >
+                {periodGroup.periodName}
+                <span className="text-pum-text-disabled font-normal normal-case ml-1.5">
+                  ({periodGroup.yearLabel})
+                </span>
+              </p>
+              <div className="divide-y" style={{ borderColor: "rgba(0,39,83,0.07)" }}>
+                {periodGroup.plans.map((plan) => (
+                  <PlanItem key={plan.planId} plan={plan} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
