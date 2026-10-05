@@ -857,20 +857,46 @@ export class AdminService {
       },
     });
 
+    // Vínculos huérfanos (docentes removidos cuya asignación ya no está
+    // activa) — mismo patrón que superadmin-plan.service.ts/coordinator.service.ts,
+    // ver filterActiveTeacherLinks en planification.service.ts. Dos usos distintos:
+    //  - "activeLinks": SIEMPRE filtrado (incluso en PUM ya SIGNED). Se usa solo
+    //    para decidir a qué coordinador(es) pertenece este PUM en el panel — es
+    //    enrutamiento operativo del Admin, no parte del registro histórico.
+    //  - "displayLinks": filtrado solo si el PUM NO está firmado. En un PUM ya
+    //    SIGNED se muestra el nombre tal como quedó al firmarse (registro
+    //    institucional permanente) — una corrección puntual ahí requiere acción
+    //    manual explícita de SuperAdmin, nunca automática.
+    const allTeacherIds = [...new Set(plans.flatMap((p) => p.teachers.map((t) => t.teacherId)))];
+    const activeAssignments = allTeacherIds.length > 0
+      ? await prisma.teacherAssignment.findMany({
+          where: { teacherId: { in: allTeacherIds }, active: true },
+          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
+        })
+      : [];
+    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
+    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
+
     const groups = new Map<string, CoordinatorSignatureGroup>();
 
     for (const plan of plans) {
-      const allTeacherNames = plan.teachers.map((t) => t.teacher.name ?? t.teacher.email);
+      const activeLinks = plan.teachers.filter((t) =>
+        activeSet.has(activeKey(plan.subjectId, plan.levelId, plan.academicYearId, t.teacherId))
+      );
+      const displayLinks = plan.status === "SIGNED" ? plan.teachers : activeLinks;
+
+      const allTeacherNames = displayLinks.map((t) => t.teacher.name ?? t.teacher.email);
       const teacherDisplay  = allTeacherNames.length <= 2
         ? allTeacherNames.join(", ")
         : `${allTeacherNames[0]} + ${allTeacherNames.length - 1} más`;
 
-      const editorLink = plan.teachers.find((t) => t.isEditor) ?? plan.teachers[0];
+      const editorLink = displayLinks.find((t) => t.isEditor) ?? displayLinks[0];
       const editorEmail = editorLink?.teacher.email ?? "";
 
-      // Determine coordinator(s) for this plan
+      // Determine coordinator(s) for this plan — siempre con activeLinks,
+      // incluso si el PUM ya está firmado (ver comentario arriba).
       const coordinatorSet = new Map<string, { id: string; name: string | null; email: string }>();
-      for (const link of plan.teachers) {
+      for (const link of activeLinks) {
         for (const ca of link.teacher.coordinatorAssignmentsAsTeacher) {
           coordinatorSet.set(ca.coordinatorId, {
             id:    ca.coordinator.id,

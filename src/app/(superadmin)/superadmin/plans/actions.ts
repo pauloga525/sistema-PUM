@@ -53,6 +53,38 @@ export async function clearPlanDeadlineAction(planId: string): Promise<ActionRes
   }
 }
 
+export async function removeTeacherLinkAction(
+  planId: string,
+  teacherId: string,
+): Promise<ActionResult> {
+  try {
+    const session = await getSuperAdminSession();
+    await superAdminPlanService.removeTeacherLink(planId, teacherId, {
+      actorId:   session.user.id,
+      actorName: session.user.name ?? session.user.email ?? "SuperAdmin",
+    });
+    return { success: true, data: undefined };
+  } catch (e) {
+    return { success: false, error: e instanceof AppError ? e.message : "Error al quitar el vínculo del docente" };
+  }
+}
+
+export async function setPlanEditorAction(
+  planId: string,
+  teacherId: string,
+): Promise<ActionResult> {
+  try {
+    const session = await getSuperAdminSession();
+    await superAdminPlanService.setEditor(planId, teacherId, {
+      actorId:   session.user.id,
+      actorName: session.user.name ?? session.user.email ?? "SuperAdmin",
+    });
+    return { success: true, data: undefined };
+  } catch (e) {
+    return { success: false, error: e instanceof AppError ? e.message : "Error al designar al editor" };
+  }
+}
+
 export async function reassignCoordinatorAction(
   planId: string,
   data: ReassignCoordinatorInput,

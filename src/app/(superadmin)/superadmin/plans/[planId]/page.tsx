@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { superAdminPlanService } from "@/modules/superadmin/superadmin-plan.service";
 import { auditService } from "@/modules/audit/audit.service";
 import { PlanAdminActions } from "@/components/superadmin/PlanAdminActions";
+import { PlanLinkedPeople } from "@/components/superadmin/PlanLinkedPeople";
 import { ROUTES } from "@/constants/routes";
 
 export const metadata = { title: "Gestión de PUM — SuperAdmin" };
@@ -33,6 +34,8 @@ const EVENT_ICON: Record<string, string> = {
   STATE_CORRECTED:        "🛠️",
   COORDINATOR_REASSIGNED: "🔀",
   DEADLINE_CLEARED:       "🔓",
+  TEACHER_LINK_REMOVED_MANUAL: "✂️",
+  EDITOR_REASSIGNED_MANUAL:    "🖊️",
 };
 
 export default async function PlanDetailPage({
@@ -49,9 +52,10 @@ export default async function PlanDetailPage({
     notFound();
   }
 
-  const [history, coordinators] = await Promise.all([
+  const [history, coordinators, linkedPeople] = await Promise.all([
     auditService.getHistory(planId),
     superAdminPlanService.getAvailableCoordinators(),
+    superAdminPlanService.getLinkedPeople(planId),
   ]);
 
   const badge = STATUS_BADGE[plan.status] ?? { label: plan.status, bg: "#f3f4f6", color: "#374151" };
@@ -103,16 +107,20 @@ export default async function PlanDetailPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Acciones administrativas */}
-        <div>
-          <h2 className="text-sm font-semibold text-pum-text mb-4">Acciones administrativas</h2>
-          <PlanAdminActions
-            planId={planId}
-            currentStatus={plan.status}
-            coordinators={coordinators}
-            currentCoordinatorId={plan.coordinatorId}
-            editDeadlineAt={plan.editDeadlineAt}
-            teacherLabel={plan.teacherName ?? plan.teacherEmail}
-          />
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-sm font-semibold text-pum-text mb-4">Acciones administrativas</h2>
+            <PlanAdminActions
+              planId={planId}
+              currentStatus={plan.status}
+              coordinators={coordinators}
+              currentCoordinatorId={plan.coordinatorId}
+              editDeadlineAt={plan.editDeadlineAt}
+              teacherLabel={plan.teacherName ?? plan.teacherEmail}
+            />
+          </div>
+
+          <PlanLinkedPeople planId={planId} people={linkedPeople} />
         </div>
 
         {/* Historial de auditoría */}

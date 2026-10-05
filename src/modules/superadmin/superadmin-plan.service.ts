@@ -38,6 +38,21 @@ export interface PlanDetail {
   updatedAt:        string;
 }
 
+export type LinkedPersonRole = "EDITOR" | "VISUALIZA" | "COORDINADOR_ASIGNADO";
+
+export interface LinkedPerson {
+  userId:              string;
+  name:                string | null;
+  email:               string;
+  roles:               LinkedPersonRole[];
+  // false = su TeacherAssignment para esta materia/nivel/año ya no está activa
+  // (vínculo huérfano — candidato a corrección). No aplica al coordinador.
+  hasActiveAssignment: boolean;
+  // false para el coordinador asignado: su remoción usa la herramienta de
+  // "Reasignar coordinador" que ya existe, no este botón.
+  removable:           boolean;
+}
+
 export interface PlanFilters {
   search?:   string;
   status?:   string;
@@ -309,6 +324,160 @@ export const superAdminPlanService = {
       where:   { academicYearId: yearId },
       orderBy: { number: "asc" },
       select:  { id: true, name: true, number: true },
+    });
+  },
+
+  /**
+   * Todas las personas vinculadas a un PUM, sin filtrar vínculos huérfanos —
+   * a diferencia del resto del sistema, esta vista es exactamente para que
+   * el SuperAdmin pueda VER y corregir esos vínculos, incluidos los inválidos.
+   */
+  async getLinkedPeople(planId: string): Promise<LinkedPerson[]> {
+    const plan = await prisma.planification.findUnique({
+      where:  { id: planId },
+      select: {
+        subjectId: true, levelId: true, academicYearId: true,
+        teachers: {
+          select: {
+            teacherId: true,
+            isEditor:  true,
+            teacher:   { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    });
+    if (!plan) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
+
+    const review = await prisma.planReview.findUnique({
+      where:  { planificationId: planId },
+      select: { coordinatorId: true, coordinator: { select: { id: true, name: true, email: true } } },
+    });
+
+    const teacherIds = plan.teachers.map((t) => t.teacherId);
+    const activeAssignments = teacherIds.length > 0
+      ? await prisma.teacherAssignment.findMany({
+          where: {
+            teacherId:      { in: teacherIds },
+            subjectId:      plan.subjectId,
+            levelId:        plan.levelId,
+            academicYearId: plan.academicYearId,
+            active:         true,
+          },
+          select: { teacherId: true },
+        })
+      : [];
+    const activeIds = new Set(activeAssignments.map((a) => a.teacherId));
+
+    const people = new Map<string, LinkedPerson>();
+
+    for (const t of plan.teachers) {
+      people.set(t.teacherId, {
+        userId:              t.teacherId,
+        name:                t.teacher.name,
+        email:               t.teacher.email,
+        roles:               [t.isEditor ? "EDITOR" : "VISUALIZA"],
+        hasActiveAssignment: activeIds.has(t.teacherId),
+        removable:           true,
+      });
+    }
+
+    if (review?.coordinator) {
+      const existing = people.get(review.coordinatorId);
+      if (existing) {
+        existing.roles.push("COORDINADOR_ASIGNADO");
+      } else {
+        people.set(review.coordinatorId, {
+          userId:              review.coordinatorId,
+          name:                review.coordinator.name,
+          email:               review.coordinator.email,
+          roles:               ["COORDINADOR_ASIGNADO"],
+          hasActiveAssignment: true,
+          removable:           false,
+        });
+      }
+    }
+
+    return Array.from(people.values());
+  },
+
+  /**
+   * Quita manualmente el vínculo de un docente con un PUM (borra la fila
+   * PlanificationTeacher). A diferencia de unassignTeacherFromCombo, esta
+   * acción SÍ puede aplicarse a PUM ya SIGNED — es la herramienta explícita
+   * para corregir errores de datos puntuales en el registro histórico,
+   * nunca automática.
+   */
+  async removeTeacherLink(
+    planId: string,
+    teacherId: string,
+    actor: { actorId: string; actorName: string | null },
+  ): Promise<void> {
+    const [plan, link] = await Promise.all([
+      prisma.planification.findUnique({ where: { id: planId }, select: { status: true } }),
+      prisma.planificationTeacher.findUnique({
+        where:  { planificationId_teacherId: { planificationId: planId, teacherId } },
+        select: { isEditor: true, teacher: { select: { name: true, email: true } } },
+      }),
+    ]);
+    if (!plan) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
+    if (!link) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Este docente no está vinculado a este PUM");
+
+    await prisma.planificationTeacher.delete({
+      where: { planificationId_teacherId: { planificationId: planId, teacherId } },
+    });
+
+    const teacherLabel = link.teacher.name ?? link.teacher.email;
+    await auditService.log({
+      planificationId: planId,
+      actorId:   actor.actorId,
+      actorName: actor.actorName,
+      actorRole: "SUPERADMIN",
+      eventType: "TEACHER_LINK_REMOVED_MANUAL",
+      comment:   `${teacherLabel} (${link.isEditor ? "editor" : "visualiza"}) desvinculado manualmente del PUM${plan.status === "SIGNED" ? " ya firmado" : ""}`,
+    });
+  },
+
+  /**
+   * Designa manualmente al docente editor de un PUM puntual (y pone a los
+   * demás docentes vinculados como "Visualiza"). Pensado para que el
+   * SuperAdmin pueda corregir el Rol PUM sin necesidad de entrar a la
+   * cuenta del coordinador cuando este no usa bien la herramienta.
+   */
+  async setEditor(
+    planId: string,
+    teacherId: string,
+    actor: { actorId: string; actorName: string | null },
+  ): Promise<void> {
+    const [plan, link] = await Promise.all([
+      prisma.planification.findUnique({ where: { id: planId }, select: { id: true } }),
+      prisma.planificationTeacher.findUnique({
+        where:  { planificationId_teacherId: { planificationId: planId, teacherId } },
+        select: { isEditor: true, teacher: { select: { name: true, email: true } } },
+      }),
+    ]);
+    if (!plan) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
+    if (!link) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Este docente no está vinculado a este PUM");
+    if (link.isEditor) return; // ya es editor, nada que hacer
+
+    await prisma.$transaction([
+      prisma.planificationTeacher.updateMany({
+        where: { planificationId: planId, teacherId: { not: teacherId } },
+        data:  { isEditor: false },
+      }),
+      prisma.planificationTeacher.update({
+        where: { planificationId_teacherId: { planificationId: planId, teacherId } },
+        data:  { isEditor: true },
+      }),
+    ]);
+
+    const teacherLabel = link.teacher.name ?? link.teacher.email;
+    await auditService.log({
+      planificationId: planId,
+      actorId:   actor.actorId,
+      actorName: actor.actorName,
+      actorRole: "SUPERADMIN",
+      eventType: "EDITOR_REASSIGNED_MANUAL",
+      comment:   `${teacherLabel} designado editor manualmente por SuperAdmin`,
     });
   },
 };
