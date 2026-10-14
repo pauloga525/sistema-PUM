@@ -117,7 +117,7 @@ export function CoordinatorReviewBar({
       const result = await onApprovePlan(reviewId, planId);
       if (result.success) {
         setDialog(null);
-        router.push(ROUTES.COORDINATOR.RETROALIMENTACION);
+        router.push(ROUTES.COORDINATOR.FEEDBACK);
       } else {
         setError("No se pudo aprobar el PUM. Intenta nuevamente.");
       }

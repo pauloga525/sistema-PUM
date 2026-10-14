@@ -103,7 +103,7 @@ test.describe("Datos de la unidad (paso 1)", () => {
     await principio1.getByRole("checkbox", { name: DUA_PRINCIPIOS[0].pautas[0].subPautas[0].label }).check();
 
     await page.getByRole("button", { name: "Guardar y Continuar →" }).click();
-    await expect(page).toHaveURL(new RegExp(`/planification/${planId}/tabla$`));
+    await expect(page).toHaveURL(new RegExp(`/planification/${planId}/table$`));
 
     const meta = await savedMetadata(planId);
     expect(meta).toMatchObject({

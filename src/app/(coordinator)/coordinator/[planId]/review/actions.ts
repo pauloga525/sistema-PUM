@@ -25,7 +25,7 @@ export async function updateSectionAction(
     input.reviewId, session.user.id, input.sectionKey, input.approved, input.comment || null,
   );
   if (!ok) return { success: false };
-  revalidatePath(ROUTES.COORDINATOR.RETROALIMENTACION);
+  revalidatePath(ROUTES.COORDINATOR.FEEDBACK);
   return { success: true };
 }
 
@@ -40,7 +40,7 @@ export async function sendFeedbackAction(
   try {
     const ok = await coordinatorService.sendFeedback(reviewId, session.user.id);
     if (!ok) return { success: false };
-    revalidatePath(ROUTES.COORDINATOR.RETROALIMENTACION);
+    revalidatePath(ROUTES.COORDINATOR.FEEDBACK);
     revalidatePath(ROUTES.COORDINATOR.review(planId));
     return { success: true };
   } catch {
@@ -59,7 +59,7 @@ export async function approvePlanAction(
   try {
     const ok = await coordinatorService.approvePlan(reviewId, session.user.id);
     if (!ok) return { success: false };
-    revalidatePath(ROUTES.COORDINATOR.RETROALIMENTACION);
+    revalidatePath(ROUTES.COORDINATOR.FEEDBACK);
     revalidatePath(ROUTES.COORDINATOR.review(planId));
     return { success: true };
   } catch {

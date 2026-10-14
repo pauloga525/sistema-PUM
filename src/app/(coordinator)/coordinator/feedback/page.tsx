@@ -265,7 +265,7 @@ export default async function RetroalimentacionPage({
             { label: "Aprobados",                   value: approvedPlans,     color: "#166534", bg: "#dcfce7",            filterVal: "approved" },
           ] as const).map((s) => {
             const isActive = filter === s.filterVal || (s.filterVal === undefined && filter === undefined);
-            const href = s.filterVal ? `?filter=${s.filterVal}#plans-table` : "/coordinator/retroalimentacion#plans-table";
+            const href = s.filterVal ? `?filter=${s.filterVal}#plans-table` : `${ROUTES.COORDINATOR.FEEDBACK}#plans-table`;
             return (
               <Link
                 key={s.label}
@@ -299,7 +299,7 @@ export default async function RetroalimentacionPage({
           >
             {filter === "in-review" ? "Pendientes de revisión" : filter === "feedback-sent" ? "Retroalimentación enviada" : "Aprobados"}
           </span>
-          <Link href={ROUTES.COORDINATOR.RETROALIMENTACION} className="text-xs text-pum-text-muted underline underline-offset-2 hover:text-pum-text">
+          <Link href={ROUTES.COORDINATOR.FEEDBACK} className="text-xs text-pum-text-muted underline underline-offset-2 hover:text-pum-text">
             Ver todos
           </Link>
         </div>

@@ -6,7 +6,7 @@ import {
   removeTeacherAssignmentAction,
   setPrimaryEditorAction,
   type TeacherAssignmentActionState,
-} from "@/app/(coordinator)/coordinator/docentes/actions";
+} from "@/app/(coordinator)/coordinator/teachers/actions";
 import type { AssignedTeacher } from "@/modules/coordinator/coordinator.types";
 import { Dialog } from "@/components/ui/Dialog";
 

@@ -14,7 +14,7 @@ export async function sendForSignatureAction(
   if (!session || session.user.role !== USER_ROLE.COORDINATOR) redirect(ROUTES.LOGIN);
   try {
     const sent = await coordinatorService.sendForSignature(planId, session.user.id);
-    revalidatePath(ROUTES.COORDINATOR.RETROALIMENTACION);
+    revalidatePath(ROUTES.COORDINATOR.FEEDBACK);
     if (!sent) return { success: false, error: "El PUM ya no se puede enviar para firma. Recarga la página." };
     return { success: true };
   } catch {

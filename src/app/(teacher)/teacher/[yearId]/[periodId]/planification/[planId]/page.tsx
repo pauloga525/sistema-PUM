@@ -38,7 +38,7 @@ export default async function PlanMetadataPage({
   try {
     plan = await planificationService.getById(planId, session.user.id);
   } catch {
-    redirect(ROUTES.TEACHER.subjects(yearId, periodId));
+    redirect(ROUTES.TEACHER.subjectsYear(yearId));
   }
 
   const [year, period, subject, level] = await Promise.all([
@@ -49,7 +49,7 @@ export default async function PlanMetadataPage({
   ]);
 
   if (!year || !period || !subject || !level) {
-    redirect(ROUTES.TEACHER.subjects(yearId, periodId));
+    redirect(ROUTES.TEACHER.subjectsYear(yearId));
   }
 
   const isFeedbackReceived = plan!.status === PLANIFICATION_STATUS.FEEDBACK_RECEIVED;
@@ -60,7 +60,7 @@ export default async function PlanMetadataPage({
   // All post-submission states are read-only; only DRAFT and FEEDBACK_RECEIVED are editable
   const isFinalized = ["FINALIZED", "APPROVED", "PENDING_SIGNATURE", "SIGNED", "ADMIN_REJECTED"].includes(plan!.status);
   const statusConfig = STATUS_BADGE[plan!.status] ?? STATUS_BADGE.DRAFT;
-  const tablaPath    = ROUTES.TEACHER.tabla(yearId, periodId, plan!.id);
+  const tablaPath    = ROUTES.TEACHER.table(yearId, periodId, plan!.id);
 
   // Load coordinator review data if teacher received feedback or plan was reviewed
   const review = (isFeedbackReceived || isApproved || isPendingSignature || isSigned || isAdminRejected)
@@ -74,8 +74,8 @@ export default async function PlanMetadataPage({
         <BreadcrumbPUM
           items={[
             { label: "Años lectivos", href: ROUTES.TEACHER.YEAR },
-            { label: year.label, href: ROUTES.TEACHER.period(yearId) },
-            { label: period.name, href: ROUTES.TEACHER.subjects(yearId, periodId) },
+            { label: year.label, href: ROUTES.TEACHER.subjectsYear(yearId) },
+            { label: period.name, href: ROUTES.TEACHER.subjectsYear(yearId) },
             { label: subject.name },
           ]}
         />
@@ -99,7 +99,7 @@ export default async function PlanMetadataPage({
         </div>
 
         <Link
-          href={ROUTES.TEACHER.subjects(yearId, periodId)}
+          href={ROUTES.TEACHER.subjectsYear(yearId)}
           className="text-sm text-pum-text-muted hover:text-pum-text underline-offset-2 hover:underline transition-colors self-start"
         >
           ← Mis materias

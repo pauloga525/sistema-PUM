@@ -17,21 +17,19 @@ export const ROUTES = {
   LOGIN: "/login",
 
   // Aviso público de mantenimiento (Docentes/Coordinadores bloqueados)
-  MAINTENANCE: "/mantenimiento",
+  MAINTENANCE: "/maintenance",
 
   // Docente
   TEACHER: {
     ROOT: "/teacher",
     YEAR: "/teacher/year",
     CHANGE_PASSWORD: "/teacher/change-password",
-    period: (yearId: string) => `/teacher/${yearId}/subjects`,
+    /** Materias del año, con el estado de cada periodo. */
     subjectsYear: (yearId: string) => `/teacher/${yearId}/subjects`,
-    subjects: (yearId: string, periodId: string) =>
-      `/teacher/${yearId}/${periodId}/subjects`,
     planification: (yearId: string, periodId: string, planId: string) =>
       `/teacher/${yearId}/${periodId}/planification/${planId}`,
-    tabla: (yearId: string, periodId: string, planId: string) =>
-      `/teacher/${yearId}/${periodId}/planification/${planId}/tabla`,
+    table: (yearId: string, periodId: string, planId: string) =>
+      `/teacher/${yearId}/${periodId}/planification/${planId}/table`,
     preview: (yearId: string, periodId: string, planId: string) =>
       `/teacher/${yearId}/${periodId}/planification/${planId}/preview`,
   },
@@ -39,8 +37,8 @@ export const ROUTES = {
   // Coordinador de Área
   COORDINATOR: {
     ROOT: "/coordinator",
-    RETROALIMENTACION: "/coordinator/retroalimentacion",
-    DOCENTES: "/coordinator/docentes",
+    FEEDBACK: "/coordinator/feedback",
+    TEACHERS: "/coordinator/teachers",
     CHANGE_PASSWORD: "/coordinator/change-password",
     review: (planId: string) => `/coordinator/${planId}/review`,
   },
@@ -108,8 +106,8 @@ export const NAV_ITEMS: Record<UserRole, readonly NavItem[]> = {
     { href: ROUTES.TEACHER.YEAR, label: "Mis materias", icon: "bookOpen" },
   ],
   COORDINATOR: [
-    { href: ROUTES.COORDINATOR.RETROALIMENTACION, label: "Retroalimentación", icon: "message" },
-    { href: ROUTES.COORDINATOR.DOCENTES,          label: "Docentes",          icon: "user" },
+    { href: ROUTES.COORDINATOR.FEEDBACK, label: "Retroalimentación", icon: "message" },
+    { href: ROUTES.COORDINATOR.TEACHERS,          label: "Docentes",          icon: "user" },
   ],
   ADMIN: [
     { href: ROUTES.ADMIN.DASHBOARD,    label: "Dashboard",     icon: "grid" },

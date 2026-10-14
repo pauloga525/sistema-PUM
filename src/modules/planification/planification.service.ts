@@ -19,7 +19,6 @@ import type {
   EjeTransversalId,
   PlanMetadata,
   PlanificationSummary,
-  SubjectWithStatus,
   YearSummary,
   PeriodSummary,
 } from "./planification.types";
@@ -372,73 +371,6 @@ export class PlanificationService {
           ["FINALIZED", "FEEDBACK_RECEIVED", "APPROVED", "PENDING_SIGNATURE", "SIGNED", "ADMIN_REJECTED"].includes(pl.status)
         ).length,
         totalCount,
-      };
-    });
-  }
-
-  async getSubjectsWithStatus(
-    teacherId: UserId,
-    yearId: AcademicYearId,
-    periodId: PeriodId
-  ): Promise<SubjectWithStatus[]> {
-    log.info("getSubjectsWithStatus", { teacherId, yearId, periodId });
-
-    await syncTeacherPlanLinks(teacherId, yearId);
-
-    const [assignments, planLinks] = await Promise.all([
-      prisma.teacherAssignment.findMany({
-        where: { teacherId, academicYearId: yearId, active: true },
-        include: { subject: true, level: true },
-      }).then((rows) =>
-        rows.sort((a, b) =>
-          a.level.orderIndex !== b.level.orderIndex
-            ? a.level.orderIndex - b.level.orderIndex
-            : a.subject.name.localeCompare(b.subject.name, "es")
-        )
-      ),
-      prisma.planificationTeacher.findMany({
-        where: { teacherId, planification: { academicYearId: yearId } },
-        select: {
-          isEditor: true,
-          planification: {
-            select: { id: true, status: true, editDeadlineAt: true, finalizedAt: true, subjectId: true, levelId: true, periodId: true, academicYearId: true },
-          },
-        },
-      }),
-    ]);
-
-    const now = new Date();
-
-    const myPlans = planLinks
-      .map((l) => ({ ...l.planification, isEditor: l.isEditor }))
-      .filter((p) => p.periodId === periodId);
-
-    return assignments.map((a) => {
-      const plan = myPlans.find(
-        (p) => p.subjectId === a.subjectId && p.levelId === a.levelId
-      ) ?? null;
-
-      const displayStatus = computeDisplayStatus(plan, now);
-
-      return {
-        assignmentId: a.id,
-        subject: { id: a.subject.id, name: a.subject.name, code: a.subject.code },
-        level: {
-          id:         a.level.id,
-          name:       a.level.name,
-          code:       a.level.code,
-          track:      a.level.track,
-          orderIndex: a.level.orderIndex,
-        },
-        planification: plan
-          ? {
-              id:             plan.id,
-              status:         plan.status as "DRAFT" | "FINALIZED",
-              editDeadlineAt: plan.editDeadlineAt,
-              finalizedAt:    plan.finalizedAt,
-            }
-          : null,
-        displayStatus,
       };
     });
   }

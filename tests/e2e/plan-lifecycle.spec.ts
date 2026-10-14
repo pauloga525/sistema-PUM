@@ -56,7 +56,7 @@ test.describe("Ciclo de vida del PUM", () => {
     // Precondición por DB: datos de la unidad completos (paso 1, no bajo prueba)
     await prisma.planification.update({ where: { id: planId }, data: { metadata: COMPLETE_METADATA } });
 
-    await page.goto(`/teacher/${ctx.year.id}/${period.id}/planification/${planId}/tabla`);
+    await page.goto(`/teacher/${ctx.year.id}/${period.id}/planification/${planId}/table`);
     await expect(page.getByRole("columnheader", { name: /¿Qué van a aprender\?/ })).toBeVisible();
 
     await page.getByPlaceholder("Destreza con Criterio de Desempeño...").fill("Reconocer números enteros");
@@ -150,7 +150,7 @@ test.describe("Ciclo de vida del PUM", () => {
 
     await page.getByRole("button", { name: "Aprobar PUM completo" }).click();
     await page.getByRole("button", { name: "Confirmar aprobación" }).click();
-    await expect(page).toHaveURL(/\/coordinator\/retroalimentacion$/);
+    await expect(page).toHaveURL(/\/coordinator\/feedback$/);
     expect(await planState(planId)).toMatchObject({ plan: "APPROVED", review: "APPROVED" });
 
     const row = coordinatorRow(page, planId);

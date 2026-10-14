@@ -84,7 +84,7 @@ export async function createTeacherAssignmentAction(
       });
     }
 
-    revalidatePath(ROUTES.COORDINATOR.DOCENTES);
+    revalidatePath(ROUTES.COORDINATOR.TEACHERS);
     return { ok: true };
   } catch (e: unknown) {
     log.error("Error al crear la asignación", { error: String(e) });
@@ -124,7 +124,7 @@ export async function removeTeacherAssignmentAction(
     });
     if (!result.ok) return { ok: false, error: result.error };
 
-    revalidatePath(ROUTES.COORDINATOR.DOCENTES);
+    revalidatePath(ROUTES.COORDINATOR.TEACHERS);
     return { ok: true };
   } catch {
     return { ok: false, error: "Error al eliminar la asignación" };
@@ -237,7 +237,7 @@ export async function setPrimaryEditorAction(
       }
     });
 
-    revalidatePath(ROUTES.COORDINATOR.DOCENTES);
+    revalidatePath(ROUTES.COORDINATOR.TEACHERS);
     return { ok: true };
   } catch (e: unknown) {
     log.error("Error al actualizar el editor principal", { error: String(e) });

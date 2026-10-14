@@ -65,7 +65,7 @@ export default async function PlanTablaPage({
   try {
     plan = await planificationService.getById(planId, session.user.id);
   } catch {
-    redirect(ROUTES.TEACHER.subjects(yearId, periodId));
+    redirect(ROUTES.TEACHER.subjectsYear(yearId));
   }
 
   const [year, period, subject, level] = await Promise.all([
@@ -76,7 +76,7 @@ export default async function PlanTablaPage({
   ]);
 
   if (!year || !period || !subject || !level) {
-    redirect(ROUTES.TEACHER.subjects(yearId, periodId));
+    redirect(ROUTES.TEACHER.subjectsYear(yearId));
   }
 
   const isFeedbackReceived = plan!.status === PLANIFICATION_STATUS.FEEDBACK_RECEIVED;
@@ -118,8 +118,8 @@ export default async function PlanTablaPage({
         <BreadcrumbPUM
           items={[
             { label: "Años lectivos", href: ROUTES.TEACHER.YEAR },
-            { label: year.label, href: ROUTES.TEACHER.period(yearId) },
-            { label: period.name, href: ROUTES.TEACHER.subjects(yearId, periodId) },
+            { label: year.label, href: ROUTES.TEACHER.subjectsYear(yearId) },
+            { label: period.name, href: ROUTES.TEACHER.subjectsYear(yearId) },
             { label: subject.name },
           ]}
         />

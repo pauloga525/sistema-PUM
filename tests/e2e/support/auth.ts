@@ -4,7 +4,7 @@ import { PASSWORD, USERS, type RoleKey } from "./data";
 /** Página de inicio de cada rol tras el login. */
 export const HOME: Record<RoleKey, RegExp> = {
   teacher:     /\/teacher\/year$/,
-  coordinator: /\/coordinator\/retroalimentacion$/,
+  coordinator: /\/coordinator\/feedback$/,
   admin:       /\/admin\/dashboard$/,
 };
 

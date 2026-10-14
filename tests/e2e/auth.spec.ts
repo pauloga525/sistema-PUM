@@ -36,7 +36,21 @@ test.describe("Login por rol", () => {
   });
 
   test("sin sesión, una ruta protegida redirige al login", async ({ page }) => {
-    await page.goto("/coordinator/retroalimentacion");
-    await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fcoordinator%2Fretroalimentacion/);
+    await page.goto("/coordinator/feedback");
+    await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fcoordinator%2Ffeedback/);
+  });
+
+  test("las rutas antiguas en español redirigen a las nuevas", async ({ request }) => {
+    const legacy: Array<[string, string]> = [
+      ["/coordinator/retroalimentacion", "/coordinator/feedback"],
+      ["/coordinator/docentes", "/coordinator/teachers"],
+      ["/mantenimiento", "/maintenance"],
+      ["/teacher/y1/p1/planification/x1/tabla", "/teacher/y1/p1/planification/x1/table"],
+    ];
+    for (const [from, to] of legacy) {
+      const res = await request.get(from, { maxRedirects: 0 });
+      expect(res.status(), from).toBe(308);
+      expect(res.headers()["location"], from).toBe(to);
+    }
   });
 });

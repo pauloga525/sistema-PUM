@@ -17,7 +17,7 @@ import { ROUTES } from "@/constants/routes";
  *
  * Redirecciones especiales:
  *   forcePasswordChange=true → /teacher/change-password o /coordinator/change-password
- *   modo mantenimiento activo + rol TEACHER/COORDINATOR → /mantenimiento
+ *   modo mantenimiento activo + rol TEACHER/COORDINATOR → /maintenance
  *   (ADMIN y SUPERADMIN nunca se ven afectados por el modo mantenimiento)
  *
  * Content-Security-Policy: se genera aquí con un nonce por petición (Next.js
@@ -110,12 +110,12 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
   // (o al aviso de mantenimiento, si aplica)
   if (isLoggedIn && isLoginPage) {
     if (maybeAffectedByMaintenance && (await getMaintenanceMode()).enabled) {
-      return NextResponse.redirect(new URL("/mantenimiento", base));
+      return NextResponse.redirect(new URL(ROUTES.MAINTENANCE, base));
     }
     const destination =
       role === USER_ROLE.SUPERADMIN  ? ROUTES.SUPERADMIN.DASHBOARD           :
       role === USER_ROLE.ADMIN       ? ROUTES.ADMIN.DASHBOARD                :
-      role === USER_ROLE.COORDINATOR ? ROUTES.COORDINATOR.RETROALIMENTACION  :
+      role === USER_ROLE.COORDINATOR ? ROUTES.COORDINATOR.FEEDBACK  :
       ROUTES.TEACHER.YEAR;
     return NextResponse.redirect(new URL(destination, base));
   }
@@ -143,7 +143,7 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
   if (isLoggedIn && isTeacherPath && role !== USER_ROLE.TEACHER && role !== USER_ROLE.SUPERADMIN) {
     const dest =
       role === USER_ROLE.ADMIN       ? ROUTES.ADMIN.DASHBOARD               :
-      role === USER_ROLE.COORDINATOR ? ROUTES.COORDINATOR.RETROALIMENTACION :
+      role === USER_ROLE.COORDINATOR ? ROUTES.COORDINATOR.FEEDBACK :
       ROUTES.LOGIN;
     return NextResponse.redirect(new URL(dest, base));
   }
@@ -153,7 +153,7 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
   // llegan aquí con maybeAffectedByMaintenance en true, así que no se ven
   // afectados en ningún caso.
   if (maybeAffectedByMaintenance && (await getMaintenanceMode()).enabled) {
-    return NextResponse.redirect(new URL("/mantenimiento", base));
+    return NextResponse.redirect(new URL(ROUTES.MAINTENANCE, base));
   }
 
   // Docentes con primer login deben cambiar su contraseña antes de continuar

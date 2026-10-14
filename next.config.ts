@@ -48,6 +48,22 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
 
+  // Rutas renombradas al inglés (plan de desarrollo, fase 5): las direcciones
+  // antiguas siguen funcionando para enlaces y marcadores guardados.
+  async redirects() {
+    return [
+      { source: "/mantenimiento", destination: "/maintenance", permanent: true },
+      { source: "/coordinator/retroalimentacion", destination: "/coordinator/feedback", permanent: true },
+      { source: "/coordinator/docentes", destination: "/coordinator/teachers", permanent: true },
+      {
+        source: "/teacher/:yearId/:periodId/planification/:planId/tabla",
+        destination: "/teacher/:yearId/:periodId/planification/:planId/table",
+        permanent: true,
+      },
+      { source: "/teacher/:yearId/period", destination: "/teacher/:yearId/subjects", permanent: true },
+    ];
+  },
+
   async headers() {
     const isProd = process.env.NODE_ENV === "production";
     return [

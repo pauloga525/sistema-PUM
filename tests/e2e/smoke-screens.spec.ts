@@ -111,7 +111,7 @@ test.describe("Smoke de pantallas", () => {
     const { planId, base } = await seedDraftWithRows();
 
     await loginAs(page, "teacher");
-    await page.goto(`${base}/tabla`);
+    await page.goto(`${base}/table`);
     await expect(page.getByRole("columnheader", { name: /¿Qué van a aprender\?/ })).toBeVisible();
     const row1 = tableRow(page, 1);
     await expect(row1).toBeVisible();

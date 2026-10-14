@@ -35,7 +35,7 @@ export default async function PreviewPage({
   // Misma consulta (memoizada) que generateMetadata
   const plan = await loadPlanPreview(planId);
   if (!plan || !canTeacherView(plan, session.user.id)) {
-    redirect(ROUTES.TEACHER.subjects(yearId, periodId));
+    redirect(ROUTES.TEACHER.subjectsYear(yearId));
   }
   const { subject, level, year, period } = plan;
 
@@ -54,8 +54,8 @@ export default async function PreviewPage({
         <BreadcrumbPUM
           items={[
             { label: "Años lectivos", href: ROUTES.TEACHER.YEAR },
-            { label: year.label, href: ROUTES.TEACHER.period(yearId) },
-            { label: period.name, href: ROUTES.TEACHER.subjects(yearId, periodId) },
+            { label: year.label, href: ROUTES.TEACHER.subjectsYear(yearId) },
+            { label: period.name, href: ROUTES.TEACHER.subjectsYear(yearId) },
             { label: subject.name, href: ROUTES.TEACHER.planification(yearId, periodId, planId) },
             { label: "Vista previa" },
           ]}
@@ -97,7 +97,7 @@ export default async function PreviewPage({
       {/* ── Volver (no se imprime) ───────────────────────────────────── */}
       <div className="no-print flex justify-center pb-6">
         <Link
-          href={ROUTES.TEACHER.tabla(yearId, periodId, planId)}
+          href={ROUTES.TEACHER.table(yearId, periodId, planId)}
           className="text-sm text-pum-primary hover:underline underline-offset-2"
         >
           ← Volver al editor

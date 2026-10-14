@@ -199,8 +199,8 @@ describe.skipIf(!hasTestDb)("vínculos docente ↔ PUM", () => {
   it("un co-docente asignado después queda vinculado como espectador al listar", async () => {
     const planId = await newPlan(catalog);
     await assign(CO_TEACHER, catalog);
-    const subjects = await planificationService.getSubjectsWithStatus(CO_TEACHER, catalog.year.id, catalog.periods[0].id);
-    expect(subjects[0].planification?.id).toBe(planId);
+    const subjects = await planificationService.getSubjectsForYear(CO_TEACHER, catalog.year.id);
+    expect(subjects[0].periods[0].planId).toBe(planId);
     const link = await prisma.planificationTeacher.findUniqueOrThrow({
       where: { planificationId_teacherId: { planificationId: planId, teacherId: CO_TEACHER } },
     });
@@ -210,7 +210,7 @@ describe.skipIf(!hasTestDb)("vínculos docente ↔ PUM", () => {
   it("al quitar al editor se promueve al co-docente", async () => {
     const planId = await newPlan(catalog);
     await assign(CO_TEACHER, catalog);
-    await planificationService.getSubjectsWithStatus(CO_TEACHER, catalog.year.id, catalog.periods[0].id);
+    await planificationService.getSubjectsForYear(CO_TEACHER, catalog.year.id);
     const editorAssignment = await prisma.teacherAssignment.findFirstOrThrow({ where: { teacherId: TEACHER } });
 
     const result = await planificationService.unassignTeacherFromCombo({

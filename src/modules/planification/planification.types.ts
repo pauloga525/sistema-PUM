@@ -166,19 +166,6 @@ export interface PeriodSummary {
 /** Estado visual calculado en UI (OVERDUE no existe en BD). */
 export type DisplayStatus = "NOT_STARTED" | "DRAFT" | "FINALIZED" | "OVERDUE" | "FEEDBACK_RECEIVED" | "APPROVED";
 
-/** Asignación del docente con el estado de su planificación para un período. */
-export interface SubjectWithStatus {
-  assignmentId: string;
-  subject: { id: string; name: string; code: string };
-  level: { id: string; name: string; code: string; track: string; orderIndex: number };
-  planification: {
-    id: string;
-    status: PlanificationStatus;
-    editDeadlineAt: Date | null;
-    finalizedAt: Date | null;
-  } | null;
-  displayStatus: DisplayStatus;
-}
 
 /** Estado de planificación de una materia para un trimestre concreto. */
 export interface PeriodPlanStatus {

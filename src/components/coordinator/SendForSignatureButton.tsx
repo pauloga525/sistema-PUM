@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sendForSignatureAction } from "@/app/(coordinator)/coordinator/retroalimentacion/actions";
+import { sendForSignatureAction } from "@/app/(coordinator)/coordinator/feedback/actions";
 import { useToast } from "@/components/ui/Toast";
 import { Dialog } from "@/components/ui/Dialog";
 

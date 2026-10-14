@@ -21,7 +21,7 @@ export default async function RootPage() {
       case "SUPERADMIN":
         redirect(ROUTES.SUPERADMIN.DASHBOARD);
       case "COORDINATOR":
-        redirect(ROUTES.COORDINATOR.RETROALIMENTACION);
+        redirect(ROUTES.COORDINATOR.FEEDBACK);
       default:
         redirect(ROUTES.TEACHER.YEAR);
     }

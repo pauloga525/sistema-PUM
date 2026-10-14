@@ -48,7 +48,7 @@ export default async function ReviewPage({
       {/* Barra de navegación superior */}
       <div className="sticky top-0 z-30 bg-pum-surface border-b border-pum-border px-6 py-3 flex items-center gap-3 flex-wrap print:hidden">
         <Link
-          href={ROUTES.COORDINATOR.RETROALIMENTACION}
+          href={ROUTES.COORDINATOR.FEEDBACK}
           className="text-sm text-pum-text-muted hover:text-pum-primary transition-colors flex items-center gap-1"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
