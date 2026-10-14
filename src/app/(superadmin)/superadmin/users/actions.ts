@@ -20,7 +20,7 @@ async function getSuperAdminSession() {
   return session;
 }
 
-export async function createUserAction(data: CreateUserInput): Promise<ActionResult<{ id: string }>> {
+export async function createUserAction(data: CreateUserInput): Promise<ActionResult<{ id: string; tempPassword: string }>> {
   try {
     const session = await getSuperAdminSession();
     const rl = await rateLimitService.check(
@@ -31,8 +31,8 @@ export async function createUserAction(data: CreateUserInput): Promise<ActionRes
     if (!rl.allowed) return { success: false, error: "Demasiadas creaciones en poco tiempo. Intenta más tarde." };
     const parsed = CreateUserSchema.safeParse(data);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
-    const user = await superAdminService.createUser(session.user.id, parsed.data);
-    return { success: true, data: { id: user.id } };
+    const { user, tempPassword } = await superAdminService.createUser(session.user.id, parsed.data);
+    return { success: true, data: { id: user.id, tempPassword } };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al crear el usuario" };
   }

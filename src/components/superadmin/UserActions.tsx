@@ -9,6 +9,7 @@ import {
   resetPasswordAction,
   updateUserAction,
 } from "@/app/(superadmin)/superadmin/users/actions";
+import { TempPasswordNotice } from "@/components/shared/TempPasswordNotice";
 
 const ROLE_OPTIONS = [
   { value: "TEACHER",    label: "Docente" },
@@ -32,7 +33,7 @@ interface UserActionsProps {
   userId:      string;
   currentRole: string;
   isActive:    boolean;
-  hasCedula:   boolean;
+  hasCedula:   boolean; // Ya no condiciona el reset (la contraseña temporal es aleatoria)
   isSelf:      boolean;
   // Valores actuales para prellenar el formulario de edición
   currentName:   string | null;
@@ -43,13 +44,15 @@ interface UserActionsProps {
 interface Message { type: "success" | "error"; text: string }
 
 export function UserActions({
-  userId, currentRole, isActive, hasCedula, isSelf,
+  userId, currentRole, isActive, isSelf,
   currentName, currentEmail, currentCedula,
 }: UserActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedRole, setSelectedRole] = useState(currentRole);
   const [msg, setMsg] = useState<Message | null>(null);
+  // Contraseña temporal del último reset (se muestra hasta que el admin la cierra)
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   // Estado del formulario de edición
   const [editName,   setEditName]   = useState(currentName   ?? "");
@@ -97,7 +100,7 @@ export function UserActions({
   const handleResetPassword = () => {
     run(async () => {
       const r = await resetPasswordAction(userId);
-      if (r.success) flash("success", "Contraseña restablecida. La nueva contraseña es la cédula del usuario.");
+      if (r.success) setTempPassword(r.data.tempPassword);
       else flash("error", r.error);
     });
   };
@@ -232,13 +235,23 @@ export function UserActions({
       <div className="rounded-xl border border-pum-border p-4 bg-white">
         <p className="text-sm font-semibold text-pum-text mb-1">Restablecer contraseña</p>
         <p className="text-xs text-pum-text-muted mb-3">
-          {hasCedula
-            ? "La contraseña se restablecerá a la cédula del usuario y deberá cambiarla al iniciar sesión."
-            : "Este usuario no tiene cédula registrada. No es posible restablecer la contraseña."}
+          Se generará una contraseña temporal (válida 7 días) que el usuario deberá cambiar al iniciar sesión.
         </p>
+        {tempPassword && (
+          <div className="mb-3 flex flex-col gap-2">
+            <TempPasswordNotice password={tempPassword} title="Contraseña restablecida." />
+            <button
+              type="button"
+              onClick={() => setTempPassword(null)}
+              className="self-end text-xs font-medium text-pum-text-muted hover:text-pum-text cursor-pointer"
+            >
+              Cerrar
+            </button>
+          </div>
+        )}
         <button
           onClick={handleResetPassword}
-          disabled={isPending || !hasCedula}
+          disabled={isPending}
           className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40 transition-opacity cursor-pointer"
           style={{ background: "#b45309" }}
         >

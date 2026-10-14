@@ -191,7 +191,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {/* Primera vez hint */}
         <p className="text-xs text-pum-text-muted text-center leading-relaxed">
           <span className="font-medium text-pum-text">¿Primer acceso?</span>{" "}
-          Tu contraseña inicial es tu número de cédula.
+          Ingresa con la contraseña temporal que te entregó el administrador (válida 7 días;
+          si venció, solicita una nueva). Deberás cambiarla en tu primer ingreso.
         </p>
 
         {/* Nota de desarrollo — solo visible fuera de producción */}

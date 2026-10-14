@@ -194,18 +194,19 @@ export const superAdminPlanService = {
     });
     if (!plan) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
 
-    await prisma.planification.update({
-      where: { id: planId },
-      data:  { status: input.newStatus },
-    });
-
-    await auditService.log({
-      planificationId: planId,
-      actorId,
-      actorName,
-      actorRole: "SUPERADMIN",
-      eventType: "STATE_CORRECTED",
-      comment:   `De "${plan.status}" → "${input.newStatus}". Motivo: ${input.reason}`,
+    await prisma.$transaction(async (tx) => {
+      await tx.planification.update({
+        where: { id: planId },
+        data:  { status: input.newStatus },
+      });
+      await auditService.log({
+        planificationId: planId,
+        actorId,
+        actorName,
+        actorRole: "SUPERADMIN",
+        eventType: "STATE_CORRECTED",
+        comment:   `De "${plan.status}" → "${input.newStatus}". Motivo: ${input.reason}`,
+      }, tx);
     });
   },
 
@@ -223,18 +224,20 @@ export const superAdminPlanService = {
       throw new AppError(ErrorCode.VAL_INVALID_INPUT, "Este PUM no tiene una fecha límite asignada");
     }
 
-    await prisma.planification.update({
-      where: { id: planId },
-      data:  { editDeadlineAt: null },
-    });
-
-    await auditService.log({
-      planificationId: planId,
-      actorId,
-      actorName,
-      actorRole: "SUPERADMIN",
-      eventType: "DEADLINE_CLEARED",
-      comment:   `Fecha límite (${plan.editDeadlineAt.toLocaleDateString("es-EC")}) retirada para habilitar edición del docente encargado`,
+    const previousDeadline = plan.editDeadlineAt;
+    await prisma.$transaction(async (tx) => {
+      await tx.planification.update({
+        where: { id: planId },
+        data:  { editDeadlineAt: null },
+      });
+      await auditService.log({
+        planificationId: planId,
+        actorId,
+        actorName,
+        actorRole: "SUPERADMIN",
+        eventType: "DEADLINE_CLEARED",
+        comment:   `Fecha límite (${previousDeadline.toLocaleDateString("es-EC")}) retirada para habilitar edición del docente encargado`,
+      }, tx);
     });
   },
 

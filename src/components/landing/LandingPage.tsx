@@ -41,7 +41,7 @@ const INFO_ITEMS = [
   },
   {
     titulo: "Credenciales iniciales",
-    descripcion: "Tu contraseña inicial es tu número de cédula. Cámbiala en el primer ingreso.",
+    descripcion: "El administrador te entrega una contraseña temporal válida por 7 días. Cámbiala en el primer ingreso.",
   },
   {
     titulo: "Materia asignada",

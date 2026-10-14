@@ -1,0 +1,47 @@
+# Auditoría de dependencias y verificación de tipos.
+#
+# - Falla con vulnerabilidades críticas en dependencias de producción.
+# - Las altas se reportan sin bloquear: hoy quedan algunas sin parche
+#   compatible (CLI de prisma, exceljs -> uuid). Cuando se resuelvan, subir
+#   el umbral del primer paso a --audit-level=high.
+name: Seguridad
+
+on:
+  push:
+    branches: [main, security-update]
+  pull_request:
+  schedule:
+    - cron: "0 12 * * 1" # lunes 12:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: npm audit (críticas bloquean)
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: npm audit (altas, informativo)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+        env:
+          # generate no se conecta; prisma.config.ts solo necesita que exista
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: Verificar tipos
+        run: npx tsc --noEmit

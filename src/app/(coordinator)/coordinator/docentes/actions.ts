@@ -6,6 +6,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma/client";
 import { ROUTES } from "@/constants/routes";
 import { planificationService } from "@/modules/planification/planification.service";
+import { CreateTeacherAssignmentSchema } from "@/modules/coordinator/coordinator.schema";
+import { IdSchema } from "@/lib/validation/ids";
+import { logger } from "@/lib/logger/logger";
+
+const log = logger.child("CoordinatorDocentesActions");
 
 export type TeacherAssignmentActionState =
   | { ok: true }
@@ -31,14 +36,14 @@ export async function createTeacherAssignmentAction(
   const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
 
-  const teacherId      = formData.get("teacherId")      as string;
-  const subjectId      = formData.get("subjectId")      as string;
-  const levelId        = formData.get("levelId")        as string;
-  const academicYearId = formData.get("academicYearId") as string;
-
-  if (!teacherId || !subjectId || !levelId || !academicYearId) {
-    return { ok: false, error: "Faltan campos requeridos" };
-  }
+  const parsed = CreateTeacherAssignmentSchema.safeParse({
+    teacherId:      formData.get("teacherId"),
+    subjectId:      formData.get("subjectId"),
+    levelId:        formData.get("levelId"),
+    academicYearId: formData.get("academicYearId"),
+  });
+  if (!parsed.success) return { ok: false, error: "Faltan campos requeridos" };
+  const { teacherId, subjectId, levelId, academicYearId } = parsed.data;
 
   // Verificar acceso: el coordinador puede asignarse a sí mismo, pero siempre
   // limitado a sus materias (si no, se auto-asigna para controlar PUM ajenos)
@@ -86,8 +91,8 @@ export async function createTeacherAssignmentAction(
     revalidatePath(ROUTES.COORDINATOR.DOCENTES);
     return { ok: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Error al crear la asignación";
-    return { ok: false, error: msg };
+    log.error("Error al crear la asignación", { error: String(e) });
+    return { ok: false, error: "Error al crear la asignación" };
   }
 }
 
@@ -97,6 +102,7 @@ export async function removeTeacherAssignmentAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") return { ok: false };
+  if (!IdSchema.safeParse(assignmentId).success) return { ok: false, error: "Asignación no encontrada" };
 
   // teacherId viene del cliente: el acceso se valida contra el dueño real de la asignación
   void teacherId;
@@ -144,6 +150,7 @@ export async function setPrimaryEditorAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") return { ok: false };
+  if (!IdSchema.safeParse(assignmentId).success) return { ok: false, error: "Asignación no encontrada" };
 
   // teacherId se mantiene como parámetro para compatibilidad con el componente,
   // pero la verificación de acceso real se hace contra el dueño de la asignación (ver dentro del try).
@@ -231,7 +238,7 @@ export async function setPrimaryEditorAction(
     revalidatePath(ROUTES.COORDINATOR.DOCENTES);
     return { ok: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Error al actualizar el editor principal";
-    return { ok: false, error: msg };
+    log.error("Error al actualizar el editor principal", { error: String(e) });
+    return { ok: false, error: "Error al actualizar el editor principal" };
   }
 }

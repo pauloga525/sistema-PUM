@@ -22,7 +22,7 @@ function getStrength(pw: string): { level: 0 | 1 | 2 | 3 | 4; label: string; col
 
 /**
  * `requireCurrentPassword` es false solo en el cambio obligatorio del primer
- * login (la contraseña actual es la cédula y el usuario ya la acaba de usar).
+ * login (la contraseña actual es la temporal que el usuario acaba de usar).
  */
 export function ChangePasswordForm({ requireCurrentPassword }: { requireCurrentPassword: boolean }) {
   const [state, formAction, isPending] = useActionState<ChangePasswordState, FormData>(

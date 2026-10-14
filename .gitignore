@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Datos reales de usuarios (nunca versionar)
+/scripts/create-user.ts
+
+# Configuración local del editor
+/.vscode/

@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache";
 import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { ROUTES } from "@/constants/routes";
+import { IdSchema } from "@/lib/validation/ids";
+
+const MAX_REJECT_COMMENT = 2000;
 
 async function requireAdmin() {
   const session = await requireActiveSession();
@@ -15,6 +18,7 @@ async function requireAdmin() {
 
 export async function signPlanPreviewAction(planId: string): Promise<{ success: boolean }> {
   const session = await requireAdmin();
+  if (!IdSchema.safeParse(planId).success) return { success: false };
   try {
     await adminService.signPlan(planId, session.user.id, session.user.name ?? undefined);
     revalidatePath(ROUTES.ADMIN.DASHBOARD);
@@ -26,7 +30,10 @@ export async function signPlanPreviewAction(planId: string): Promise<{ success: 
 
 export async function rejectPlanPreviewAction(planId: string, comment: string): Promise<{ success: boolean }> {
   const session = await requireAdmin();
-  if (!comment.trim()) return { success: false };
+  if (!IdSchema.safeParse(planId).success) return { success: false };
+  if (typeof comment !== "string" || !comment.trim() || comment.trim().length > MAX_REJECT_COMMENT) {
+    return { success: false };
+  }
   try {
     await adminService.rejectPlan(planId, comment.trim(), session.user.id, session.user.name ?? undefined);
     revalidatePath(ROUTES.ADMIN.DASHBOARD);

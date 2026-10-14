@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma/client";
+import type { Prisma } from "@prisma/client";
+import { logger } from "@/lib/logger/logger";
 import { REVIEW_SECTION_LABELS, type ReviewSectionKey } from "@/constants/review";
 
 // ── Tipos de evento de auditoría ──────────────────────────────────────────────
@@ -78,9 +80,19 @@ export interface SignatureBlockData {
   signedAt: string | null;
 }
 
+const log = logger.child("AuditService");
+
 // ── Servicio ──────────────────────────────────────────────────────────────────
 
 export const auditService = {
+  /**
+   * Registra un evento de auditoría del PUM.
+   *
+   * Con `tx`, el evento se escribe en la misma transacción que el cambio de
+   * estado: si la auditoría falla, el cambio se revierte (no quedan cambios de
+   * estado sin rastro). Sin `tx` (eventos informativos), un fallo se registra
+   * en el log y no interrumpe el flujo.
+   */
   async log(data: {
     planificationId: string;
     actorId?:    string | null;
@@ -89,25 +101,36 @@ export const auditService = {
     eventType:   AuditEventType;
     sectionKey?: string | null;
     comment?:    string | null;
-  }): Promise<void> {
+  }, tx?: Prisma.TransactionClient): Promise<void> {
     const sectionLabel = data.sectionKey
       ? (REVIEW_SECTION_LABELS[data.sectionKey as ReviewSectionKey] ?? data.sectionKey)
       : null;
+    const event = {
+      data: {
+        planificationId: data.planificationId,
+        actorId:         data.actorId   ?? null,
+        actorName:       data.actorName ?? null,
+        actorRole:       data.actorRole ?? null,
+        eventType:       data.eventType,
+        sectionKey:      data.sectionKey   ?? null,
+        sectionLabel,
+        comment:         data.comment ?? null,
+      },
+    };
+
+    if (tx) {
+      await tx.planAuditEvent.create(event);
+      return;
+    }
+
     try {
-      await prisma.planAuditEvent.create({
-        data: {
-          planificationId: data.planificationId,
-          actorId:         data.actorId   ?? null,
-          actorName:       data.actorName ?? null,
-          actorRole:       data.actorRole ?? null,
-          eventType:       data.eventType,
-          sectionKey:      data.sectionKey   ?? null,
-          sectionLabel,
-          comment:         data.comment ?? null,
-        },
+      await prisma.planAuditEvent.create(event);
+    } catch (e) {
+      log.error("No se pudo registrar el evento de auditoría", {
+        planificationId: data.planificationId,
+        eventType:       data.eventType,
+        error:           String(e),
       });
-    } catch {
-      // Audit log failures must never break the main flow
     }
   },
 

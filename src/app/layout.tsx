@@ -13,6 +13,7 @@
  */
 
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -37,11 +38,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Renderizado dinámico en todas las páginas: la CSP del proxy usa un nonce
+  // por petición, que una página prerenderizada no tendría.
+  await connection();
+
   return (
     <html
       lang="es"

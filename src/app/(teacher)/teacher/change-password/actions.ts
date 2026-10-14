@@ -75,7 +75,7 @@ export async function changePasswordAction(
 
   await prisma.user.update({
     where: { id: user.id },
-    data:  { passwordHash, forcePasswordChange: false },
+    data:  { passwordHash, forcePasswordChange: false, tempPasswordExpiresAt: null },
   });
 
   // Forzar re-login: el JWT actual queda inválido porque cambió la huella de

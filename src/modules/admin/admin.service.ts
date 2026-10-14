@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma/client";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 import { userAuditService } from "@/modules/audit/user-audit.service";
+import { generateTempPassword, tempPasswordExpiresAt } from "@/modules/security/temp-password";
 import { normalizePumRowData, normalizePlanMetadata, planificationService } from "@/modules/planification/planification.service";
 
 export type TeacherSortOption = "name_asc" | "name_desc" | "created_asc" | "created_desc" | "assign_asc" | "assign_desc";
@@ -482,17 +483,20 @@ export class AdminService {
       throw new AppError(ErrorCode.VAL_MISSING_FIELD, "El nombre completo es obligatorio");
     }
 
-    const passwordHash = await bcrypt.hash(data.cedula, 10);
+    // Contraseña temporal aleatoria (ya no la cédula, que es previsible)
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    return prisma.$transaction(async (tx) => {
+    const user = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          name:                data.name.trim(),
-          email:               data.email.toLowerCase().trim(),
-          cedula:              data.cedula,
+          name:                  data.name.trim(),
+          email:                 data.email.toLowerCase().trim(),
+          cedula:                data.cedula,
           passwordHash,
-          role:                "TEACHER",
-          forcePasswordChange: true,
+          role:                  "TEACHER",
+          forcePasswordChange:   true,
+          tempPasswordExpiresAt: tempPasswordExpiresAt(),
         },
       });
 
@@ -520,12 +524,14 @@ export class AdminService {
 
       return user;
     });
+
+    return { user, tempPassword };
   }
 
   async resetTeacherPassword(teacherId: string, actorId: string) {
     const user = await prisma.user.findUnique({
       where:  { id: teacherId },
-      select: { cedula: true, name: true, email: true, role: true },
+      select: { name: true, email: true, role: true },
     });
     if (!user) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Docente no encontrado");
     // Solo docentes: sin esto un ADMIN podría resetear (y tomar) la cuenta de un SUPERADMIN
@@ -542,9 +548,12 @@ export class AdminService {
       });
       throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Solo se puede restablecer la contraseña de docentes");
     }
-    if (!user.cedula) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "El docente no tiene cédula registrada");
-    const passwordHash = await bcrypt.hash(user.cedula, 10);
-    await prisma.user.update({ where: { id: teacherId }, data: { passwordHash, forcePasswordChange: true } });
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    await prisma.user.update({
+      where: { id: teacherId },
+      data:  { passwordHash, forcePasswordChange: true, tempPasswordExpiresAt: tempPasswordExpiresAt() },
+    });
     await userAuditService.log({
       eventType:   "USER_PASSWORD_RESET",
       actorId,
@@ -553,6 +562,7 @@ export class AdminService {
       targetEmail: user.email,
       targetRole:  user.role,
     });
+    return { tempPassword };
   }
 
   async deleteTeacher(teacherId: string) {
@@ -684,18 +694,21 @@ export class AdminService {
       throw new AppError(ErrorCode.VAL_MISSING_FIELD, "El nombre completo es obligatorio");
     }
 
-    const passwordHash = await bcrypt.hash(data.cedula, 10);
+    // Contraseña temporal aleatoria (ya no la cédula, que es previsible)
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    return prisma.$transaction(async (tx) => {
+    const user = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          name:                data.name.trim(),
-          email:               data.email.toLowerCase().trim(),
-          cedula:              data.cedula,
+          name:                  data.name.trim(),
+          email:                 data.email.toLowerCase().trim(),
+          cedula:                data.cedula,
           passwordHash,
-          role:                "COORDINATOR",
-          coordinatorArea:     data.coordinatorArea.trim() || null,
-          forcePasswordChange: true,
+          role:                  "COORDINATOR",
+          coordinatorArea:       data.coordinatorArea.trim() || null,
+          forcePasswordChange:   true,
+          tempPasswordExpiresAt: tempPasswordExpiresAt(),
         },
       });
 
@@ -710,6 +723,8 @@ export class AdminService {
 
       return user;
     });
+
+    return { user, tempPassword };
   }
 
   async promoteTeacherToCoordinator(data: {
@@ -800,16 +815,17 @@ export class AdminService {
   async resetCoordinatorPassword(coordinatorId: string) {
     const user = await prisma.user.findUnique({
       where:  { id: coordinatorId },
-      select: { role: true, cedula: true },
+      select: { role: true },
     });
     if (!user) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Coordinador no encontrado");
     if (user.role !== "COORDINATOR") throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Solo se puede restablecer la contraseña de coordinadores");
-    if (!user.cedula) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "El coordinador no tiene cédula registrada. No es posible restablecer la contraseña");
-    const passwordHash = await bcrypt.hash(user.cedula, 10);
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
     await prisma.user.update({
       where: { id: coordinatorId },
-      data:  { passwordHash, forcePasswordChange: true },
+      data:  { passwordHash, forcePasswordChange: true, tempPasswordExpiresAt: tempPasswordExpiresAt() },
     });
+    return { tempPassword };
   }
 
   async setCoordinatorSubjects(coordinatorId: string, subjectIds: string[]) {
@@ -996,18 +1012,19 @@ export class AdminService {
   }
 
   async signPlan(planId: string, actorId?: string, actorName?: string): Promise<void> {
-    await prisma.planification.update({
-      where: { id: planId, status: "PENDING_SIGNATURE" },
-      data:  { status: "SIGNED" },
-    });
-
     const { auditService } = await import("@/modules/audit/audit.service");
-    await auditService.log({
-      planificationId: planId,
-      actorId:   actorId   ?? null,
-      actorName: actorName ?? null,
-      actorRole: "ADMIN",
-      eventType: "SIGNED",
+    await prisma.$transaction(async (tx) => {
+      await tx.planification.update({
+        where: { id: planId, status: "PENDING_SIGNATURE" },
+        data:  { status: "SIGNED" },
+      });
+      await auditService.log({
+        planificationId: planId,
+        actorId:   actorId   ?? null,
+        actorName: actorName ?? null,
+        actorRole: "ADMIN",
+        eventType: "SIGNED",
+      }, tx);
     });
   }
 
@@ -1022,6 +1039,7 @@ export class AdminService {
       ? (plan.metadata as Record<string, unknown>)
       : {};
 
+    const { auditService } = await import("@/modules/audit/audit.service");
     await prisma.$transaction(async (tx) => {
       await tx.planification.update({
         where: { id: planId },
@@ -1038,16 +1056,14 @@ export class AdminService {
         where: { planificationId: planId },
         data:  { status: "IN_REVIEW", approvedAt: null },
       });
-    });
-
-    const { auditService } = await import("@/modules/audit/audit.service");
-    await auditService.log({
-      planificationId: planId,
-      actorId:   actorId   ?? null,
-      actorName: actorName ?? null,
-      actorRole: "ADMIN",
-      eventType: "ADMIN_REJECTED",
-      comment,
+      await auditService.log({
+        planificationId: planId,
+        actorId:   actorId   ?? null,
+        actorName: actorName ?? null,
+        actorRole: "ADMIN",
+        eventType: "ADMIN_REJECTED",
+        comment,
+      }, tx);
     });
   }
 

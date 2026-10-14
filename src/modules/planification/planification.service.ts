@@ -796,6 +796,11 @@ export class PlanificationService {
       });
     }
 
+    const teacher = await prisma.user.findUnique({
+      where:  { id: teacherId },
+      select: { name: true },
+    });
+
     await prisma.$transaction(async (tx) => {
       // Status guard prevents double-finalization if two requests race
       await tx.planification.update({
@@ -806,18 +811,13 @@ export class PlanificationService {
         where: { planificationId: input.planificationId, status: "FEEDBACK_SENT" },
         data:  { status: "IN_REVIEW" },
       });
-    });
-
-    const teacher = await prisma.user.findUnique({
-      where:  { id: teacherId },
-      select: { name: true },
-    });
-    await auditService.log({
-      planificationId: input.planificationId,
-      actorId:   teacherId,
-      actorName: teacher?.name ?? null,
-      actorRole: "TEACHER",
-      eventType: isResubmission ? "TEACHER_RESUBMITTED" : "FINALIZED",
+      await auditService.log({
+        planificationId: input.planificationId,
+        actorId:   teacherId,
+        actorName: teacher?.name ?? null,
+        actorRole: "TEACHER",
+        eventType: isResubmission ? "TEACHER_RESUBMITTED" : "FINALIZED",
+      }, tx);
     });
   }
 

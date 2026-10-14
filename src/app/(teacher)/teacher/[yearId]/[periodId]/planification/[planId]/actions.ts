@@ -10,6 +10,7 @@ import {
   FinalizePlanificationSchema,
   SaveMetadataSchema,
 } from "@/modules/planification/planification.schema";
+import { ClearFeedbackSchema } from "@/modules/coordinator/coordinator.schema";
 import { AppError } from "@/lib/errors/app-error";
 import type { ActionResult } from "@/types";
 import type {
@@ -71,12 +72,20 @@ export async function clearCoordinatorFeedbackAction(
 ): Promise<void> {
   const session = await requireActiveSession();
   if (!session || session.user.role !== "TEACHER") return;
+
+  const parsed = ClearFeedbackSchema.safeParse({ planId, keys });
+  if (!parsed.success) return;
+
   const link = await prisma.planificationTeacher.findUnique({
-    where: { planificationId_teacherId: { planificationId: planId, teacherId: session.user.id } },
-    select: { isEditor: true },
+    where:  { planificationId_teacherId: { planificationId: parsed.data.planId, teacherId: session.user.id } },
+    select: { isEditor: true, planification: { select: { status: true } } },
   });
   if (!link?.isEditor) return;
-  await coordinatorService.clearSectionFeedback(planId, keys);
+  // Solo mientras el docente puede editar (mismos estados que assertCanEdit):
+  // en revisión o aprobado, la retroalimentación del coordinador no se toca.
+  if (!["DRAFT", "FEEDBACK_RECEIVED"].includes(link.planification.status)) return;
+
+  await coordinatorService.clearSectionFeedback(parsed.data.planId, parsed.data.keys);
 }
 
 export async function finalizeAction(planificationId: string): Promise<ActionResult> {

@@ -43,7 +43,7 @@ export default async function CoordinatorChangePasswordPage() {
               </h1>
               <p className="text-sm text-pum-text-muted mt-1 leading-snug">
                 Por seguridad, establece una nueva contraseña antes de continuar.
-                No puede ser tu número de cédula.
+                No puede contener tu número de cédula.
               </p>
             </div>
           </header>

@@ -7,6 +7,8 @@ import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { ROUTES } from "@/constants/routes";
 import { AppError } from "@/lib/errors/app-error";
+import { IdSchema } from "@/lib/validation/ids";
+import { z } from "zod";
 
 async function requireAdmin() {
   const session = await requireActiveSession();
@@ -16,6 +18,25 @@ async function requireAdmin() {
 
 export type CatalogActionState = { ok?: boolean; error?: string } | null;
 
+// ── Validación de FormData ───────────────────────────────────────────────────
+
+/** Campo de texto opcional: null/"" → undefined. */
+const optionalText = (max: number) =>
+  z.preprocess((v) => (v === null || v === "" ? undefined : v), z.string().trim().max(max).optional());
+
+/** Fecha opcional en formato YYYY-MM-DD: vacía → null. */
+const optionalDate = z.preprocess(
+  (v) => (v === null || v === "" ? null : v),
+  z.iso.date().nullable(),
+);
+
+const field = (formData: FormData, key: string) => formData.get(key) ?? undefined;
+
+/** Primer mensaje de error de zod, o el mensaje por defecto. */
+function firstIssue(error: z.ZodError, fallback: string): string {
+  return error.issues[0]?.message ?? fallback;
+}
+
 // ── Años lectivos ─────────────────────────────────────────────────────────────
 
 export async function createAcademicYearAction(
@@ -24,19 +45,27 @@ export async function createAcademicYearAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const label     = (formData.get("label") as string)?.trim();
-    const yearStart = parseInt(formData.get("yearStart") as string, 10);
-    const startRaw  = formData.get("startDate") as string;
-    const endRaw    = formData.get("endDate") as string;
-
-    if (!label) return { error: "La etiqueta del año lectivo es obligatoria." };
-    if (isNaN(yearStart)) return { error: "El año de inicio debe ser un número válido." };
+    const parsed = z.object({
+      label:     z.string("La etiqueta del año lectivo es obligatoria.").trim()
+                  .min(1, "La etiqueta del año lectivo es obligatoria.").max(50),
+      yearStart: z.coerce.number("El año de inicio debe ser un número válido.")
+                  .int("El año de inicio debe ser un número válido.").min(2000).max(2100),
+      startDate: optionalDate,
+      endDate:   optionalDate,
+    }).safeParse({
+      label:     field(formData, "label"),
+      yearStart: field(formData, "yearStart"),
+      startDate: formData.get("startDate"),
+      endDate:   formData.get("endDate"),
+    });
+    if (!parsed.success) return { error: firstIssue(parsed.error, "Datos del año lectivo inválidos.") };
+    const { label, yearStart, startDate, endDate } = parsed.data;
 
     await adminService.createAcademicYear({
       label,
       yearStart,
-      startDate: startRaw ? new Date(startRaw) : null,
-      endDate:   endRaw   ? new Date(endRaw)   : null,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate:   endDate   ? new Date(endDate)   : null,
       active:    false,
     });
 
@@ -54,9 +83,9 @@ export async function setActiveYearAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const id = formData.get("id") as string;
-    if (!id) return { error: "ID de año lectivo requerido." };
-    await adminService.setActiveYear(id);
+    const id = IdSchema.safeParse(formData.get("id"));
+    if (!id.success) return { error: "ID de año lectivo requerido." };
+    await adminService.setActiveYear(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -73,22 +102,30 @@ export async function createPeriodAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const academicYearId = formData.get("academicYearId") as string;
-    const name           = (formData.get("name") as string)?.trim();
-    const number         = parseInt(formData.get("number") as string, 10);
-    const startRaw       = formData.get("startDate") as string;
-    const endRaw         = formData.get("endDate") as string;
-
-    if (!academicYearId) return { error: "Selecciona un año lectivo." };
-    if (!name) return { error: "El nombre del periodo es obligatorio." };
-    if (isNaN(number) || number < 1) return { error: "El número de periodo debe ser mayor a 0." };
+    const input = z.object({
+      academicYearId: z.string("Selecciona un año lectivo.").pipe(IdSchema),
+      name:           z.string("El nombre del periodo es obligatorio.").trim()
+                       .min(1, "El nombre del periodo es obligatorio.").max(100),
+      number:         z.coerce.number("El número de periodo debe ser mayor a 0.")
+                       .int().min(1, "El número de periodo debe ser mayor a 0.").max(20),
+      startDate:      optionalDate,
+      endDate:        optionalDate,
+    }).safeParse({
+      academicYearId: field(formData, "academicYearId"),
+      name:           field(formData, "name"),
+      number:         field(formData, "number"),
+      startDate:      formData.get("startDate"),
+      endDate:        formData.get("endDate"),
+    });
+    if (!input.success) return { error: firstIssue(input.error, "Datos del periodo inválidos.") };
+    const { academicYearId, name, number, startDate, endDate } = input.data;
 
     await adminService.createPeriod({
       academicYearId,
       name,
       number,
-      startDate: startRaw ? new Date(startRaw) : null,
-      endDate:   endRaw   ? new Date(endRaw)   : null,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate:   endDate   ? new Date(endDate)   : null,
     });
 
     revalidatePath(ROUTES.ADMIN.CATALOG);
@@ -106,9 +143,9 @@ export async function deletePeriodAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const id = formData.get("id") as string;
-    if (!id) return { error: "ID de periodo requerido." };
-    await adminService.deletePeriod(id);
+    const id = IdSchema.safeParse(formData.get("id"));
+    if (!id.success) return { error: "ID de periodo requerido." };
+    await adminService.deletePeriod(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -125,12 +162,20 @@ export async function createSubjectAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const name        = (formData.get("name") as string)?.trim();
-    const code        = (formData.get("code") as string)?.trim().toUpperCase();
-    const areaEstudio = (formData.get("areaEstudio") as string)?.trim() || undefined;
-
-    if (!name) return { error: "El nombre de la materia es obligatorio." };
-    if (!code) return { error: "El código de la materia es obligatorio." };
+    const parsed = z.object({
+      name:        z.string("El nombre de la materia es obligatorio.").trim()
+                    .min(1, "El nombre de la materia es obligatorio.").max(150),
+      code:        z.string("El código de la materia es obligatorio.").trim()
+                    .min(1, "El código de la materia es obligatorio.").max(30).toUpperCase(),
+      areaEstudio: optionalText(150),
+    }).safeParse({
+      name:        field(formData, "name"),
+      code:        field(formData, "code"),
+      areaEstudio: formData.get("areaEstudio"),
+    });
+    if (!parsed.success) return { error: firstIssue(parsed.error, "Datos de la materia inválidos.") };
+    const { name, code } = parsed.data;
+    const areaEstudio = parsed.data.areaEstudio || undefined;
 
     await adminService.createSubject({ name, code, areaEstudio });
     revalidatePath(ROUTES.ADMIN.CATALOG);
@@ -148,9 +193,9 @@ export async function deleteSubjectAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const id = formData.get("id") as string;
-    if (!id) return { error: "ID de materia requerido." };
-    await adminService.deleteSubject(id);
+    const id = IdSchema.safeParse(formData.get("id"));
+    if (!id.success) return { error: "ID de materia requerido." };
+    await adminService.deleteSubject(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -165,10 +210,10 @@ export async function addSubjectToLevelAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const subjectId = formData.get("subjectId") as string;
-    const levelId   = formData.get("levelId") as string;
-    if (!subjectId || !levelId) return { error: "Materia y nivel son requeridos." };
-    await adminService.addSubjectToLevel(subjectId, levelId);
+    const subjectId = IdSchema.safeParse(formData.get("subjectId"));
+    const levelId   = IdSchema.safeParse(formData.get("levelId"));
+    if (!subjectId.success || !levelId.success) return { error: "Materia y nivel son requeridos." };
+    await adminService.addSubjectToLevel(subjectId.data, levelId.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -183,9 +228,9 @@ export async function removeSubjectFromLevelAction(
 ): Promise<CatalogActionState> {
   await requireAdmin();
   try {
-    const id = formData.get("id") as string;
-    if (!id) return { error: "ID de vínculo requerido." };
-    await adminService.removeSubjectFromLevel(id);
+    const id = IdSchema.safeParse(formData.get("id"));
+    if (!id.success) return { error: "ID de vínculo requerido." };
+    await adminService.removeSubjectFromLevel(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {

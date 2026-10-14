@@ -7,6 +7,7 @@ import {
   type ResetPasswordState,
   type DeleteTeacherState,
 } from "@/app/(admin)/admin/teachers/actions";
+import { TempPasswordNotice } from "@/components/shared/TempPasswordNotice";
 
 interface Teacher {
   id:                  string;
@@ -42,11 +43,17 @@ export function TeachersTable({ teachers }: Props) {
     deleteTeacherAction, null
   );
 
-  useEffect(() => { if (resetState?.ok)  setModal(null); }, [resetState]);
+  // Estado del reset al abrir el modal: solo se muestra un resultado posterior a esa apertura,
+  // así la contraseña temporal de un reset anterior no reaparece al abrir otro docente
+  const [resetBaseline, setResetBaseline] = useState<ResetPasswordState>(null);
+  const resetResult = resetState !== resetBaseline ? resetState : null;
+
   useEffect(() => { if (deleteState?.ok) setModal(null); }, [deleteState]);
 
-  const openModal = (kind: ModalKind, teacher: Teacher) =>
+  const openModal = (kind: ModalKind, teacher: Teacher) => {
+    setResetBaseline(resetState);
     setModal({ kind, id: teacher.id, name: teacher.name });
+  };
 
   return (
     <>
@@ -215,15 +222,28 @@ export function TeachersTable({ teachers }: Props) {
             <p className="text-sm text-pum-text-muted text-center mb-5">
               La contraseña de{" "}
               <span className="font-semibold text-pum-text">{modal.name ?? "este docente"}</span>{" "}
-              se restablecerá a su número de cédula. El docente deberá cambiarla al iniciar sesión.
+              se reemplazará por una contraseña temporal. El docente deberá cambiarla al iniciar sesión.
             </p>
 
-            {resetState?.error && (
+            {resetResult?.error && (
               <p className="text-xs font-medium rounded-lg px-3 py-2 mb-3 text-center" style={{ background: "#ffdad6", color: "#ba1a1a" }}>
-                {resetState.error}
+                {resetResult.error}
               </p>
             )}
 
+            {resetResult?.ok && resetResult.tempPassword ? (
+              <div className="flex flex-col gap-4">
+                <TempPasswordNotice password={resetResult.tempPassword} title="Contraseña restablecida." />
+                <button
+                  type="button"
+                  onClick={() => setModal(null)}
+                  className="text-sm font-semibold text-white rounded-xl py-2 cursor-pointer"
+                  style={{ background: "#002753" }}
+                >
+                  Listo
+                </button>
+              </div>
+            ) : (
             <form action={resetAction} className="flex gap-3">
               <input type="hidden" name="teacherId" value={modal.id} />
               <button
@@ -243,6 +263,7 @@ export function TeachersTable({ teachers }: Props) {
                 {isResetPending ? "Reseteando…" : "Confirmar"}
               </button>
             </form>
+            )}
           </div>
         </div>
       )}

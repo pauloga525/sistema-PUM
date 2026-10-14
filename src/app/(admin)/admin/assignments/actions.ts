@@ -7,6 +7,9 @@ import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { AppError } from "@/lib/errors/app-error";
 import { ROUTES } from "@/constants/routes";
+import { IdSchema } from "@/lib/validation/ids";
+
+const isId = (v: string) => IdSchema.safeParse(v).success;
 
 async function requireAdmin() {
   const session = await requireActiveSession();
@@ -26,7 +29,7 @@ export async function createAssignmentAction(
   const levelId        = (formData.get("levelId")        ?? "").toString().trim();
   const academicYearId = (formData.get("academicYearId") ?? "").toString().trim();
 
-  if (!teacherId || !subjectId || !levelId || !academicYearId) {
+  if (![teacherId, subjectId, levelId, academicYearId].every(isId)) {
     return { error: "Todos los campos obligatorios deben estar completos." };
   }
 
@@ -50,7 +53,7 @@ export async function updateAssignmentAction(
   const levelId   = (formData.get("levelId")   ?? "").toString().trim();
   const periodId  = (formData.get("periodId")  ?? "").toString().trim() || null;
 
-  if (!id || !subjectId || !levelId) {
+  if (![id, subjectId, levelId].every(isId) || (periodId !== null && !isId(periodId))) {
     return { error: "Datos incompletos para actualizar la asignación." };
   }
 
@@ -70,7 +73,7 @@ export async function removeAssignmentAction(
 ): Promise<AssignmentActionState> {
   const session = await requireAdmin();
   const id = (formData.get("id") ?? "").toString().trim();
-  if (!id) return { error: "ID de asignación requerido." };
+  if (!isId(id)) return { error: "ID de asignación requerido." };
   try {
     const result = await adminService.removeAssignment(id, {
       actorId:   session.user.id,

@@ -5,6 +5,7 @@ import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 import { requireNotSelf } from "@/modules/auth/auth.guards";
 import { userAuditService } from "@/modules/audit/user-audit.service";
+import { generateTempPassword, tempPasswordExpiresAt } from "@/modules/security/temp-password";
 import type { CreateUserInput, UpdateUserInput } from "./superadmin.schema";
 
 const USER_SELECT = {
@@ -75,7 +76,9 @@ class SuperAdminService {
     const existingEmail = await prisma.user.findUnique({ where: { email: data.email }, select: { id: true } });
     if (existingEmail) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "Ya existe un usuario con ese email");
 
-    const passwordHash = await bcrypt.hash(data.cedula, 12);
+    // Contraseña temporal aleatoria (ya no la cédula, que es previsible)
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
     const user = await prisma.user.create({
       data: {
         name: data.name,
@@ -85,6 +88,7 @@ class SuperAdminService {
         coordinatorArea: data.role === "COORDINATOR" ? (data.coordinatorArea ?? null) : null,
         passwordHash,
         forcePasswordChange: true,
+        tempPasswordExpiresAt: tempPasswordExpiresAt(),
         isActive: true,
       },
       select: USER_SELECT,
@@ -99,7 +103,7 @@ class SuperAdminService {
       metadata: { role: user.role } as Prisma.InputJsonValue,
     });
 
-    return user;
+    return { user, tempPassword };
   }
 
   async updateUser(actorId: string, userId: string, data: UpdateUserInput) {
@@ -191,16 +195,16 @@ class SuperAdminService {
 
   async resetPassword(actorId: string, userId: string) {
     const user = await this.getUserById(userId);
-    if (!user.cedula) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "El usuario no tiene cédula registrada");
 
-    const passwordHash = await bcrypt.hash(user.cedula, 12);
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash, forcePasswordChange: true },
+      data: { passwordHash, forcePasswordChange: true, tempPasswordExpiresAt: tempPasswordExpiresAt() },
     });
 
     await userAuditService.log({ eventType: "USER_PASSWORD_RESET", actorId, targetId: userId, targetEmail: user.email });
-    return { tempPassword: user.cedula };
+    return { tempPassword };
   }
 
   async getUserLoginHistory(userId: string, limit = 50) {

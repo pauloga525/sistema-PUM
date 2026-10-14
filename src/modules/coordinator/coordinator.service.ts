@@ -473,6 +473,11 @@ export const coordinatorService = {
   async sendFeedback(reviewId: string, coordinatorId: string): Promise<boolean> {
     if (!(await this._coordinatorCanAccessReview(coordinatorId, reviewId))) return false;
 
+    const coordinator = await prisma.user.findUnique({
+      where: { id: coordinatorId },
+      select: { name: true },
+    });
+
     const planificationId = await prisma.$transaction(async (tx) => {
       const review = await tx.planReview.findUnique({ where: { id: reviewId } });
       if (!review || review.coordinatorId !== coordinatorId) return null;
@@ -487,27 +492,26 @@ export const coordinatorService = {
         where: { id: review.planificationId },
         data:  { status: "FEEDBACK_RECEIVED" },
       });
+      await auditService.log({
+        planificationId: review.planificationId,
+        actorId:   coordinatorId,
+        actorName: coordinator?.name ?? null,
+        actorRole: "COORDINATOR",
+        eventType: "FEEDBACK_SENT",
+      }, tx);
       return review.planificationId;
     });
 
-    if (!planificationId) return false;
+    return !!planificationId;
+  },
+
+  async approvePlan(reviewId: string, coordinatorId: string): Promise<boolean> {
+    if (!(await this._coordinatorCanAccessReview(coordinatorId, reviewId))) return false;
 
     const coordinator = await prisma.user.findUnique({
       where: { id: coordinatorId },
       select: { name: true },
     });
-    await auditService.log({
-      planificationId,
-      actorId:   coordinatorId,
-      actorName: coordinator?.name ?? null,
-      actorRole: "COORDINATOR",
-      eventType: "FEEDBACK_SENT",
-    });
-    return true;
-  },
-
-  async approvePlan(reviewId: string, coordinatorId: string): Promise<boolean> {
-    if (!(await this._coordinatorCanAccessReview(coordinatorId, reviewId))) return false;
 
     const planificationId = await prisma.$transaction(async (tx) => {
       const review = await tx.planReview.findUnique({ where: { id: reviewId } });
@@ -541,30 +545,29 @@ export const coordinatorService = {
         where: { id: review.planificationId, status: "FINALIZED" },
         data:  { status: "APPROVED" },
       });
+      await auditService.log({
+        planificationId: review.planificationId,
+        actorId:   coordinatorId,
+        actorName: coordinator?.name ?? null,
+        actorRole: "COORDINATOR",
+        eventType: "PLAN_APPROVED",
+      }, tx);
       return review.planificationId;
     });
 
-    if (!planificationId) return false;
-
-    const coordinator = await prisma.user.findUnique({
-      where: { id: coordinatorId },
-      select: { name: true },
-    });
-    await auditService.log({
-      planificationId,
-      actorId:   coordinatorId,
-      actorName: coordinator?.name ?? null,
-      actorRole: "COORDINATOR",
-      eventType: "PLAN_APPROVED",
-    });
-    return true;
+    return !!planificationId;
   },
 
   async sendForSignature(planificationId: string, coordinatorId: string): Promise<void> {
     const canAccess = await this._coordinatorCanAccessPlan(coordinatorId, planificationId);
     if (!canAccess) return;
 
-    const sent = await prisma.$transaction(async (tx) => {
+    const coordinator = await prisma.user.findUnique({
+      where: { id: coordinatorId },
+      select: { name: true },
+    });
+
+    await prisma.$transaction(async (tx) => {
       const plan = await tx.planification.findUnique({
         where: { id: planificationId },
         select: { status: true, metadata: true },
@@ -586,21 +589,14 @@ export const coordinatorService = {
         where: { id: planificationId, status: { in: ["APPROVED", "ADMIN_REJECTED"] } },
         data:  { status: "PENDING_SIGNATURE", metadata: cleanMeta as object },
       });
+      await auditService.log({
+        planificationId,
+        actorId:   coordinatorId,
+        actorName: coordinator?.name ?? null,
+        actorRole: "COORDINATOR",
+        eventType: "SENT_FOR_SIGNATURE",
+      }, tx);
       return true;
-    });
-
-    if (!sent) return;
-
-    const coordinator = await prisma.user.findUnique({
-      where: { id: coordinatorId },
-      select: { name: true },
-    });
-    await auditService.log({
-      planificationId,
-      actorId:   coordinatorId,
-      actorName: coordinator?.name ?? null,
-      actorRole: "COORDINATOR",
-      eventType: "SENT_FOR_SIGNATURE",
     });
   },
 

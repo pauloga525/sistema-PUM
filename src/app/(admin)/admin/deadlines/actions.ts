@@ -6,6 +6,7 @@ import { requireActiveSession } from "@/lib/auth/session";
 import { hasMinRole } from "@/constants/levels";
 import { adminService } from "@/modules/admin/admin.service";
 import { ROUTES } from "@/constants/routes";
+import { IdSchema } from "@/lib/validation/ids";
 
 async function requireAdmin() {
   const session = await requireActiveSession();
@@ -25,7 +26,7 @@ export async function setDeadlineAction(formData: FormData) {
   await requireAdmin();
   const planId   = (formData.get("planId")   ?? "").toString().trim();
   const deadline = (formData.get("deadline") ?? "").toString();
-  if (!planId) return;
+  if (!IdSchema.safeParse(planId).success) return;
   await adminService.setDeadline(planId, parseDate(deadline));
   revalidatePath(ROUTES.ADMIN.DEADLINES);
 }
@@ -35,7 +36,7 @@ export async function setBulkDeadlineAction(formData: FormData) {
   const yearId   = (formData.get("yearId")   ?? "").toString().trim();
   const periodId = (formData.get("periodId") ?? "").toString().trim();
   const deadline = (formData.get("deadline") ?? "").toString();
-  if (!yearId || !periodId) return;
+  if (!IdSchema.safeParse(yearId).success || !IdSchema.safeParse(periodId).success) return;
   await adminService.setBulkDeadline(yearId, periodId, parseDate(deadline));
   revalidatePath(ROUTES.ADMIN.DEADLINES);
 }

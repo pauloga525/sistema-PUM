@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import {
   createTeacherAction,
   type TeacherActionState,
 } from "@/app/(admin)/admin/teachers/actions";
+import { TempPasswordNotice } from "@/components/shared/TempPasswordNotice";
 
 const INPUT_STYLE: React.CSSProperties = {
   background:   "rgba(243,244,245,0.90)",
@@ -23,12 +24,17 @@ export function CreateTeacherPanel() {
     null,
   );
 
-  useEffect(() => {
+  // Resultado exitoso ya cerrado por el admin: la contraseña temporal se muestra una sola vez
+  const [dismissed, setDismissed] = useState<TeacherActionState>(null);
+  const created = state?.ok && state.tempPassword && state !== dismissed ? state.tempPassword : null;
+
+  const close = () => {
     if (state?.ok) {
-      setIsOpen(false);
+      setDismissed(state);
       setFormKey((k) => k + 1);
     }
-  }, [state]);
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -50,7 +56,7 @@ export function CreateTeacherPanel() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setIsOpen(false); }}
+          onClick={(e) => { if (e.target === e.currentTarget) close(); }}
         >
           <div
             className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
@@ -65,12 +71,12 @@ export function CreateTeacherPanel() {
               <div>
                 <h2 className="text-base font-semibold text-pum-text">Nuevo docente</h2>
                 <p className="text-xs text-pum-text-muted mt-0.5">
-                  La contraseña inicial será el número de cédula.
+                  Se generará una contraseña temporal para entregar al docente.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={close}
                 className="text-pum-text-disabled hover:text-pum-text cursor-pointer"
                 aria-label="Cerrar"
               >
@@ -81,6 +87,20 @@ export function CreateTeacherPanel() {
               </button>
             </div>
 
+            {created ? (
+              <div className="flex flex-col gap-4">
+                <TempPasswordNotice password={created} title="Docente creado correctamente." />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={close}
+                    className="pum-navy-btn text-sm font-semibold text-white px-5 py-2 rounded-xl cursor-pointer"
+                  >
+                    Listo
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form key={formKey} action={formAction} className="flex flex-col gap-4">
               {/* Datos personales */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -100,7 +120,7 @@ export function CreateTeacherPanel() {
                     pattern="\d{10}" title="Debe tener exactamente 10 dígitos" maxLength={10}
                     style={INPUT_STYLE} className="px-3 py-2 text-sm outline-none"
                   />
-                  <p className="text-[11px] text-pum-text-disabled">10 dígitos — contraseña inicial</p>
+                  <p className="text-[11px] text-pum-text-disabled">10 dígitos</p>
                 </div>
               </div>
 
@@ -129,7 +149,7 @@ export function CreateTeacherPanel() {
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
+                  onClick={close}
                   className="text-sm text-pum-text-muted hover:text-pum-text cursor-pointer px-3 py-1.5"
                 >
                   Cancelar
@@ -143,6 +163,7 @@ export function CreateTeacherPanel() {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}

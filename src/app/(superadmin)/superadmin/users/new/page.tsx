@@ -19,7 +19,7 @@ export default function NewUserPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-pum-text">Nuevo usuario</h1>
         <p className="text-sm text-pum-text-muted mt-1">
-          El usuario recibirá su cédula como contraseña inicial y deberá cambiarla al primer ingreso.
+          Se generará una contraseña temporal (válida 7 días) para entregar al usuario; deberá cambiarla al primer ingreso.
         </p>
       </div>
 

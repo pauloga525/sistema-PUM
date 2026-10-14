@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/constants/routes";
 import { createUserAction } from "@/app/(superadmin)/superadmin/users/actions";
+import { TempPasswordNotice } from "@/components/shared/TempPasswordNotice";
 
 const ROLE_OPTIONS = [
   { value: "TEACHER",    label: "Docente" },
@@ -19,6 +20,8 @@ export function CreateUserForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Contraseña temporal del usuario recién creado (se muestra una sola vez)
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "", email: "", cedula: "", role: "TEACHER", coordinatorArea: "",
   });
@@ -37,13 +40,33 @@ export function CreateUserForm() {
         coordinatorArea: form.role === "COORDINATOR" ? (form.coordinatorArea || undefined) : undefined,
       });
       if (result.success) {
-        router.push(ROUTES.SUPERADMIN.USERS);
-        router.refresh();
+        setTempPassword(result.data.tempPassword);
       } else {
         setError(result.error);
       }
     });
   };
+
+  const goToList = () => {
+    router.push(ROUTES.SUPERADMIN.USERS);
+    router.refresh();
+  };
+
+  if (tempPassword) {
+    return (
+      <div className="space-y-5 max-w-lg">
+        <TempPasswordNotice password={tempPassword} title={`Usuario ${form.email} creado correctamente.`} />
+        <button
+          type="button"
+          onClick={goToList}
+          className="px-5 py-2 text-sm font-medium text-white rounded-lg transition-opacity cursor-pointer"
+          style={{ background: "#4c1d95" }}
+        >
+          Ir a la lista de usuarios
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 max-w-lg">
@@ -88,7 +111,7 @@ export function CreateUserForm() {
           placeholder="0000000000"
           className={INPUT_CLASS}
         />
-        <p className="text-xs text-pum-text-muted mt-1">10 dígitos. Se usará como contraseña inicial.</p>
+        <p className="text-xs text-pum-text-muted mt-1">10 dígitos.</p>
       </div>
 
       <div>

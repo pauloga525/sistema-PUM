@@ -29,6 +29,8 @@ model User {
   cedula              String? @unique
   passwordHash        String?
   forcePasswordChange Boolean @default(false)
+  // Vencimiento de la contraseña temporal (creación/restablecimiento); null = contraseña propia
+  tempPasswordExpiresAt DateTime?
   coordinatorArea     String?
   isActive            Boolean  @default(true)
   lastLoginAt         DateTime?

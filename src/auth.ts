@@ -185,6 +185,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        // Contraseña temporal (creación/reset) vencida: el admin debe emitir una nueva
+        if (dbUser.forcePasswordChange && dbUser.tempPasswordExpiresAt && dbUser.tempPasswordExpiresAt < new Date()) {
+          log.warn("Contraseña temporal vencida", { email });
+          await userAuditService.log({ eventType: "LOGIN_FAILED", result: "FAILURE", actorId: dbUser.id, actorEmail: email, actorRole: dbUser.role, metadata: { reason: "temp_password_expired" } });
+          return null;
+        }
+
         log.info("Login exitoso (db)", { email: dbUser.email, role: dbUser.role });
         await Promise.all([
           prisma.user.update({ where: { id: dbUser.id }, data: { lastLoginAt: new Date() } }),

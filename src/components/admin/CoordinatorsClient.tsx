@@ -12,6 +12,7 @@ import {
   resetCoordinatorPasswordAction,
   type CoordinatorActionState,
 } from "@/app/(admin)/admin/coordinators/actions";
+import { TempPasswordNotice } from "@/components/shared/TempPasswordNotice";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -427,7 +428,7 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
   const [expanded,      setExpanded]      = useState(false);
   const [isPending,     start]            = useTransition();
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [resetMsg,      setResetMsg]      = useState<{ ok: boolean; text: string } | null>(null);
+  const [resetMsg,      setResetMsg]      = useState<{ ok: boolean; text: string; tempPassword?: string } | null>(null);
 
   const handleRemove = (assignmentId: string) => {
     start(async () => { await removeCoordinatorAssignmentAction(assignmentId); });
@@ -443,12 +444,13 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
   const handleResetPassword = () => {
     start(async () => {
       const res = await resetCoordinatorPasswordAction(entry.id);
-      setResetMsg(
-        res.ok
-          ? { ok: true,  text: "Contraseña restablecida a la cédula del coordinador." }
-          : { ok: false, text: res.error ?? "Error al restablecer" }
-      );
-      setTimeout(() => setResetMsg(null), 5000);
+      if (res.ok) {
+        // Sin auto-ocultar: la contraseña temporal solo se muestra esta vez
+        setResetMsg({ ok: true, text: "Contraseña restablecida.", tempPassword: res.tempPassword });
+      } else {
+        setResetMsg({ ok: false, text: res.error ?? "Error al restablecer" });
+        setTimeout(() => setResetMsg(null), 5000);
+      }
     });
   };
 
@@ -537,8 +539,8 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
           <button
             type="button"
             onClick={handleResetPassword}
-            disabled={isPending || !entry.cedula}
-            title={entry.cedula ? "Restablecer contraseña a la cédula" : "Sin cédula — no se puede restablecer"}
+            disabled={isPending}
+            title="Generar una contraseña temporal nueva"
             className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg cursor-pointer transition-colors disabled:opacity-40"
             style={{ background: "rgba(180,83,9,0.08)", color: "#b45309" }}
           >
@@ -567,8 +569,22 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
         </div>
       </div>
 
+      {/* Contraseña temporal generada por el reset */}
+      {resetMsg?.ok && resetMsg.tempPassword && (
+        <div className="px-5 py-3 flex flex-col gap-2" style={{ borderBottom: "1px solid rgba(0,39,83,0.06)" }}>
+          <TempPasswordNotice password={resetMsg.tempPassword} title={resetMsg.text} />
+          <button
+            type="button"
+            onClick={() => setResetMsg(null)}
+            className="self-end text-xs font-medium text-pum-text-muted hover:text-pum-text cursor-pointer"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
       {/* Mensaje de feedback del reset */}
-      {resetMsg && (
+      {resetMsg && !resetMsg.tempPassword && (
         <div
           className="px-5 py-2 text-xs font-medium"
           style={{
@@ -688,18 +704,21 @@ function CreateCoordinatorPanel({ teachers }: { teachers: TeacherOption[] }) {
   const isPending  = mode === "new" ? isPendingNew  : isPendingPromote;
   const formAction = mode === "new" ? formActionNew : formActionPromote;
 
+  // Creación exitosa ya cerrada por el admin: la contraseña temporal se muestra una sola vez
+  const [dismissedNew, setDismissedNew] = useState<CoordinatorActionState>(null);
+  const createdPassword =
+    mode === "new" && stateNew?.ok && stateNew.tempPassword && stateNew !== dismissedNew
+      ? stateNew.tempPassword
+      : null;
+
   const closeAndReset = () => {
+    if (stateNew?.ok) setDismissedNew(stateNew);
     setIsOpen(false);
     setFormKey((k) => k + 1);
     setSelected(new Set());
     setPromoteTeacherId("");
     setTeacherSearch("");
   };
-
-  useEffect(() => {
-    if (stateNew?.ok && isOpen && mode === "new") closeAndReset();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateNew]);
 
   useEffect(() => {
     if (statePromote?.ok && isOpen && mode === "promote") closeAndReset();
@@ -794,6 +813,20 @@ function CreateCoordinatorPanel({ teachers }: { teachers: TeacherOption[] }) {
               </button>
             </div>
 
+            {createdPassword ? (
+              <div className="flex flex-col gap-4">
+                <TempPasswordNotice password={createdPassword} title="Coordinador creado correctamente." />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={closeAndReset}
+                    className="pum-navy-btn text-sm font-semibold text-white px-5 py-2 rounded-xl cursor-pointer"
+                  >
+                    Listo
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form key={`${formKey}-${mode}`} action={formAction} className="flex flex-col gap-4">
               {/* Hidden: teacher ids to assign */}
               <input type="hidden" name="teacherCount" value={selectedList.length} />
@@ -826,7 +859,7 @@ function CreateCoordinatorPanel({ teachers }: { teachers: TeacherOption[] }) {
                     ))}
                   </select>
                   <p className="text-[11px] text-pum-text-disabled">
-                    El docente mantendrá su cédula como contraseña y conserva su correo actual.
+                    El docente conserva su contraseña y su correo actuales.
                   </p>
                 </div>
               ) : (
@@ -847,7 +880,7 @@ function CreateCoordinatorPanel({ teachers }: { teachers: TeacherOption[] }) {
                         pattern="\d{10}" title="10 dígitos" maxLength={10}
                         style={INPUT} className="px-3 py-2 text-sm outline-none"
                       />
-                      <p className="text-[11px] text-pum-text-disabled">10 dígitos — contraseña inicial</p>
+                      <p className="text-[11px] text-pum-text-disabled">10 dígitos</p>
                     </div>
                   </div>
                   <div className="flex flex-col gap-1">
@@ -973,6 +1006,7 @@ function CreateCoordinatorPanel({ teachers }: { teachers: TeacherOption[] }) {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}
