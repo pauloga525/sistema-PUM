@@ -1,6 +1,6 @@
 # ADR 0005 — Usar Google OAuth con restricción de dominio institucional
 
-**Estado:** Aceptado  
+**Estado:** Reemplazada por ADR 0008  
 **Fecha:** 2026-06-15
 
 ## Contexto

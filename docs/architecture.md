@@ -1,116 +1,91 @@
 # Arquitectura — PUM Web
 
-**Última actualización:** 2026-06-15 (Fase 1)
+**Última actualización:** 2026-10-14
 
 ## Visión general
 
-PUM Web es una aplicación web institucional de única sede que permite a los docentes completar planificaciones unitarias de módulo (PUM) y exportarlas como Word/PDF idénticos a la plantilla oficial del colegio.
+Aplicación web institucional de una sola sede. Los docentes completan las
+planificaciones unitarias de módulo (PUM); el coordinador de área las revisa y
+la administración las firma. Los documentos Word/PDF se generan bajo demanda
+desde los datos.
 
-## Principios fundamentales
+## Principios
 
 | Principio | Implementación |
 |---|---|
-| Solo datos en BD | PostgreSQL almacena únicamente información estructurada, nunca archivos |
-| Export on-demand | Los documentos se generan en tiempo real desde la plantilla + datos actuales |
-| Autenticación institucional | Google OAuth restringido al dominio del colegio |
-| Jerarquía siempre visible | Año → Período → Materia + Nivel en toda la UI |
+| Solo datos en la BD | PostgreSQL guarda información estructurada, nunca archivos |
+| Exportación bajo demanda | DOCX/PDF/ZIP se generan al pedirlos (ADR 0003) |
+| Cuentas institucionales | Usuario y contraseña creados por Admin/SuperAdmin (ADR 0008) |
+| Estados explícitos | El ciclo del PUM es una máquina de estados con transiciones verificadas en la BD |
 
-## Stack tecnológico
+## Stack
 
-| Capa | Tecnología | Versión |
-|---|---|---|
-| Framework | Next.js (App Router) | 16.x |
-| Lenguaje | TypeScript strict | 5.x |
-| ORM | Prisma | 7.x |
-| Base de datos | PostgreSQL | 15+ |
-| Autenticación | Auth.js v5 | beta |
-| Validación | Zod | 4.x |
-| UI Components | shadcn/ui + Tailwind CSS | 4.x |
-| Export Word | (Implementar en Fase 3) | — |
-| Export PDF | (Implementar en Fase 3) | — |
-| FTP | basic-ftp | 6.x |
-| Jobs async | BullMQ + Redis | (Fase 4) |
+| Capa | Tecnología |
+|---|---|
+| Framework | Next.js 16 (App Router, Turbopack) |
+| Lenguaje | TypeScript estricto |
+| ORM | Prisma 7 con `@prisma/adapter-pg` |
+| Base de datos | PostgreSQL 15+ |
+| Autenticación | Auth.js v5 (credenciales, sesión JWT) |
+| Validación | Zod 4 |
+| UI | Tailwind CSS 4 |
+| Documentos | `docx` (Word), `@react-pdf/renderer` (PDF), `archiver` (ZIP), `exceljs` (Excel) |
+| Pruebas | Vitest (unitarias e integración), Playwright (E2E) |
 
-## Capas de la aplicación
+## Capas
 
 ```
-┌─────────────────────────────────────────────┐
-│  Capa de Presentación                        │
-│  src/app/         → Páginas y API routes     │
-│  src/components/  → Componentes React        │
-├─────────────────────────────────────────────┤
-│  Capa de Módulos (Feature Modules)           │
-│  src/modules/     → Servicios, DTOs, schemas │
-├─────────────────────────────────────────────┤
-│  Capa de Infraestructura                     │
-│  src/lib/         → Prisma, logger, errors   │
-│  src/config/      → Configuración env vars   │
-├─────────────────────────────────────────────┤
-│  Persistencia                                │
-│  PostgreSQL       → Solo datos estructurados │
-│  /assets/         → Plantilla Word + PNGs    │
-└─────────────────────────────────────────────┘
+src/app/         Páginas, server actions y route handlers (por rol: (teacher), (coordinator), (admin), (superadmin))
+src/components/  Componentes React; 'use client' solo en componentes hoja
+src/modules/     Lógica de negocio por módulo: *.service.ts, *.domain.ts, *.schema.ts, *.types.ts
+src/lib/         Infraestructura: cliente Prisma, errores, logger, sesión, validación
+src/constants/   Constantes de dominio (rutas, estados, secciones de revisión)
+src/proxy.ts     Proxy de Next.js: autenticación por ruta, CSP con nonce, redirecciones por rol
+prisma/          Esquema y migraciones
 ```
 
-## Estructura de carpetas
+Las acciones del servidor (`actions.ts`) validan la sesión con
+`requireActiveSession()`, validan la entrada con Zod y delegan en los
+servicios. Los servicios verifican de nuevo el acceso al recurso (por ejemplo,
+que el coordinador tenga asignado ese PUM).
+
+## Ciclo de vida del PUM
 
 ```
-pum-web/
-├── packages/design-tokens/     # CSS variables + Tailwind preset compartidos
-├── docs/                       # Documentación técnica
-│   ├── adr/                    # Architecture Decision Records
-│   └── mockups/                # Capturas de pantalla de referencia
-├── design-prototype/           # Prototipo HTML puro (Track D)
-├── prisma/                     # Schema y migraciones de base de datos
-├── scripts/                    # Scripts administrativos
-└── src/
-    ├── app/                    # Next.js App Router (rutas y pages)
-    ├── components/             # Componentes React reutilizables
-    │   ├── ui/                 # shadcn/ui
-    │   ├── layout/             # AppShell, Breadcrumb, Sidebar
-    │   ├── planification/      # Tabla PUM, Editor Metodología
-    │   └── shared/             # StatusBadge, DeadlineBanner
-    ├── modules/                # Feature modules
-    │   ├── auth/               # Autenticación y autorización
-    │   ├── planification/      # Gestión de PUM
-    │   ├── export/             # Generación de documentos
-    │   ├── ftp/                # Transferencia al NAS
-    │   └── admin/              # Panel de administración
-    ├── lib/                    # Infraestructura compartida
-    │   ├── prisma/             # Cliente singleton de Prisma
-    │   ├── errors/             # AppError, ErrorCode, errorHandler
-    │   └── logger/             # Logger estructurado
-    ├── config/                 # Configuración (env vars tipadas)
-    ├── constants/              # Constantes de dominio
-    └── types/                  # Tipos globales compartidos
+DRAFT ─▶ FINALIZED ─▶ APPROVED ─▶ PENDING_SIGNATURE ─▶ SIGNED
+           ▲   │                        ▲     │
+           │   ▼                        │     ▼
+     FEEDBACK_RECEIVED ◀────────── ADMIN_REJECTED
 ```
 
-## Patrones de diseño
+- El mapa de transiciones es `PLAN_TRANSITIONS` en
+  `modules/planification/planification.domain.ts`.
+- Todo cambio de estado pasa por `transitionPlan()`
+  (`planification.transitions.ts`): verifica el estado de origen en el mismo
+  `UPDATE` y registra la auditoría en la misma transacción.
+- El docente solo edita en `DRAFT` (dentro del plazo) o `FEEDBACK_RECEIVED`;
+  la condición se revalida dentro del `UPDATE` que guarda.
+- SuperAdmin puede corregir el estado fuera del mapa (`correctPlanStatus`),
+  con motivo obligatorio y auditoría.
 
-| Patrón | Ubicación | Propósito |
-|---|---|---|
-| Singleton | `lib/prisma/client.ts` | Una conexión a BD por proceso |
-| Service Layer | `modules/*/` `*.service.ts` | Lógica de negocio separada de rutas |
-| Domain Model | `modules/planification/planification.domain.ts` | Reglas puras sin I/O |
-| Builder | `modules/export/` (Fase 3) | Construcción de documentos por pasos |
-| Strategy | `ExportService` (Fase 3) | DOCX, PDF o ZIP según solicitud |
-| Guard/Middleware | `modules/auth/auth.guards.ts` | Autorización declarativa |
+## Módulos principales
 
-## Flujo de datos (guardar planificación)
-
-```
-Browser → Server Action → Zod.parse() → assertCanEdit() → PlanificationService.saveRows() → Prisma → PostgreSQL
-```
-
-## Flujo de exportación
-
-```
-Browser → GET /api/export/:planId → ExportService.build() → DocxBuilder → Buffer → Response stream
-```
+| Módulo | Responsabilidad |
+|---|---|
+| `planification` | PUM del docente: creación, guardado, finalización, vínculos docente↔PUM |
+| `coordinator` | Bandeja y revisión por secciones, retroalimentación, aprobación, envío a firma |
+| `admin` | `admin-catalog`, `admin-assignments`, `admin-users`, `admin-signature` |
+| `superadmin` | Usuarios, correcciones de PUM, panel del sistema |
+| `users` | Alta y restablecimiento de contraseñas compartidos (contraseñas temporales) |
+| `audit` | Historial de cada PUM y auditoría de usuarios |
+| `export` | DOCX, PDF y ZIP en streaming |
+| `security` | Límite de intentos (rate limiting en PostgreSQL), contraseñas temporales |
+| `system` | Modo mantenimiento y limpieza diaria de registros (`instrumentation.ts`) |
 
 ## Archivos relacionados
 
-- `docs/adr/` — Decisiones de arquitectura con justificación
-- `docs/database.md` — Modelo de datos detallado
-- `docs/authentication.md` — Flujo OAuth y guards
-- `docs/export-service.md` — Pipeline de exportación
+- `docs/database.md` — modelo de datos y migraciones
+- `docs/authentication.md` — login, sesión y roles
+- `docs/export-service.md` — exportación
+- `docs/deployment.md` — despliegue
+- `docs/adr/` — decisiones de arquitectura

@@ -1,6 +1,6 @@
 # Base de datos — PUM Web
 
-**Última actualización:** 2026-06-15 (Fase 1)
+**Última actualización:** 2026-10-14
 
 ## Motor y ORM
 
@@ -12,72 +12,37 @@
 
 La base de datos almacena **ÚNICAMENTE información estructurada**. Ningún archivo binario (Word, PDF, imagen) se almacena en PostgreSQL. Ver ADR 0004.
 
-## Modelo de datos (Fase 2 — pendiente de implementación)
+## Modelo de datos
 
-```
-┌─────────────┐       ┌────────────────┐       ┌──────────────┐
-│   users      │       │ academic_years  │       │   periods    │
-│─────────────│       │────────────────│       │──────────────│
-│ id (uuid)   │       │ id (uuid)      │       │ id (uuid)    │
-│ email       │       │ label          │       │ name         │
-│ name        │       │ year_start     │       │ number       │
-│ role        │       └────────────────┘       │ academic_    │
-│ image       │                                │ year_id (fk) │
-└──────┬──────┘                                └──────────────┘
-       │
-       │ has many
-       ▼
-┌─────────────────────┐     ┌─────────────┐     ┌─────────────┐
-│ teacher_assignments  │     │  subjects   │     │   levels    │
-│─────────────────────│     │─────────────│     │─────────────│
-│ id (uuid)           │────▶│ id (uuid)   │     │ id (uuid)   │
-│ teacher_id (fk)     │     │ name        │     │ name        │
-│ subject_id (fk)     │     │ code (uk)   │     │ code (uk)   │
-│ level_id (fk)       │◀────│             │     │ order_index │
-│ academic_year_id    │     └─────────────┘     │ track       │
-│ active              │                         └─────────────┘
-└─────────────────────┘
+`prisma/schema.prisma` es la referencia; aquí, el resumen.
 
-┌───────────────────────────────────────────────────────────┐
-│                      planifications                        │
-│───────────────────────────────────────────────────────────│
-│ id (uuid)                                                 │
-│ teacher_id (fk → users)                                   │
-│ academic_year_id (fk → academic_years)                    │
-│ period_id (fk → periods)                                  │
-│ subject_id (fk → subjects)                               │
-│ level_id (fk → levels)                                    │
-│ status (DRAFT | FINALIZED)                                │
-│ edit_deadline_at (timestamp nullable)                     │
-│ finalized_at (timestamp nullable)                         │
-│ cloned_from_id (fk → planifications, nullable)            │
-│                                                           │
-│ UNIQUE (teacher_id, academic_year_id, period_id,          │
-│         subject_id, level_id)                             │
-└───────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│         planification_rows          │
-│─────────────────────────────────────│
-│ id (uuid)                           │
-│ planification_id (fk)               │
-│ row_index (int)                     │
-│ data (jsonb) → { dcd, indicator,    │
-│                  methodology,        │
-│                  resources,          │
-│                  evaluation }        │
-│ methodology_icons (jsonb) → [...]   │
-└─────────────────────────────────────┘
-```
-
-## Índices importantes
-
-| Tabla | Índice | Propósito |
+| Grupo | Tablas | Notas |
 |---|---|---|
-| `planifications` | UNIQUE(teacher, year, period, subject, level) | Un PUM por combinación |
-| `planification_rows` | INDEX(planification_id, row_index) | Carga ordenada de filas |
-| `teacher_assignments` | INDEX(teacher_id, academic_year_id) | Lista de materias del docente |
-| `levels` | INDEX(order_index) | Orden en UI y FTP |
+| Usuarios | `users` | `role` (enum `Role`), `isActive` (desactivar en vez de borrar), contraseña temporal con vencimiento |
+| Catálogo | `academic_years`, `periods`, `subjects`, `levels`, `subject_levels` | `levels.track` (enum `LevelTrack`) |
+| Asignaciones | `teacher_assignments` | Una por docente+materia+nivel+año; `coordinatorId` da acceso al coordinador |
+| Coordinación | `coordinator_assignments`, `coordinator_subject_assignments` | Vínculo coordinador→docentes y materias habilitadas |
+| PUM | `planifications`, `planification_rows`, `planification_teachers` | Un PUM por año+periodo+materia+nivel; filas como JSON; un único editor por PUM |
+| Revisión | `plan_reviews` | `status` (enum `ReviewStatus`); `sectionStates` JSON por sección/fila |
+| Auditoría | `plan_audit_events`, `user_audit_logs` | El historial del PUM no se purga |
+| Sistema | `system_settings`, `system_error_logs`, `rate_limits` | Mantenimiento, errores, límite de intentos |
+
+### Estados del PUM (`planifications.status`, enum `PlanStatus`)
+
+`DRAFT`, `FINALIZED`, `FEEDBACK_RECEIVED`, `APPROVED`, `PENDING_SIGNATURE`,
+`SIGNED`, `ADMIN_REJECTED`. Transiciones válidas: `PLAN_TRANSITIONS` en
+`src/modules/planification/planification.domain.ts`. El último rechazo del
+admin queda en `adminRejectionComment` / `adminRejectedAt`.
+
+## Restricciones e índices relevantes
+
+| Tabla | Restricción / índice | Propósito |
+|---|---|---|
+| `planifications` | UNIQUE(academicYearId, periodId, subjectId, levelId) | Un PUM por combinación |
+| `planification_teachers` | UNIQUE parcial (planificationId) WHERE isEditor | Un solo editor por PUM |
+| `planification_rows` | UNIQUE(planificationId, rowIndex) | Filas ordenadas, sin duplicados |
+| `teacher_assignments` | UNIQUE(teacherId, subjectId, levelId, academicYearId) | Una asignación por combinación |
+| `planifications` | INDEX(academicYearId, status) | Tableros y bandejas por año |
 
 ## Qué NO hay en la base de datos
 
@@ -87,7 +52,7 @@ La base de datos almacena **ÚNICAMENTE información estructurada**. Ningún arc
 
 ## Conexión
 
-El cliente Prisma está en `src/lib/prisma/client.ts`. Es un singleton para evitar múltiples conexiones en desarrollo con hot-reload. En producción, la variable `DATABASE_URL` en `.env.local` configura la conexión.
+El cliente Prisma está en `src/lib/prisma/client.ts`. Es un singleton para evitar múltiples conexiones en desarrollo con hot-reload. La conexión se configura con `DATABASE_URL` (ver `.env.example` para el pool y los tiempos máximos).
 
 ## Scripts de base de datos
 
