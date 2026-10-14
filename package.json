@@ -7,6 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
     "db:seed": "npx tsx scripts/seed.ts",
     "db:check": "npx tsx scripts/check-db.ts",
     "db:migrate": "prisma migrate dev",
@@ -40,6 +45,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/archiver": "^8.0.0",
     "@types/node": "^20",
@@ -51,7 +57,8 @@
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "4.1.11"
   },
   "allowScripts": {
     "@prisma/engines@7.8.0": true,

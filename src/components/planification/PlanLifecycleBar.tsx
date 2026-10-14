@@ -7,8 +7,6 @@ const STAGES = [
   { key: "SIGNED",            label: "Completado",          short: "5" },
 ] as const;
 
-type StageKey = typeof STAGES[number]["key"];
-
 function planStatusToStage(status: string): number {
   switch (status) {
     case "DRAFT":
@@ -39,7 +37,6 @@ export function PlanLifecycleBar({ status }: Props) {
       {STAGES.map((stage, idx) => {
         const isDone    = idx < currentIdx;
         const isActive  = idx === currentIdx;
-        const isFuture  = idx > currentIdx;
 
         const dotBg = isDone
           ? "#16a34a"

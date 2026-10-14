@@ -83,7 +83,6 @@ export default async function AdminDeadlinesPage({
     ? await adminAssignmentsService.getPlanificationsForPeriod(yearId, periodId)
     : [];
 
-  const now = new Date();
   const draftCount = plans.filter((p) => p.status !== "FINALIZED").length;
 
   return (

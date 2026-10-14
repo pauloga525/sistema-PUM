@@ -3,7 +3,7 @@
 import { useState, useTransition, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { REVIEW_SECTION_KEYS, BLOCKING_REVIEW_KEYS, type ReviewSectionKey, type AnySectionKey, type SectionStates, type ReviewStatus } from "@/constants/review";
+import { REVIEW_SECTION_KEYS, type ReviewSectionKey, type AnySectionKey, type SectionStates, type ReviewStatus } from "@/constants/review";
 import { ALL_EJES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
 import type { PlanMetadata, MethodologySubItem, DcdItem } from "@/modules/planification/planification.types";
 import { formatPrincipioLabel } from "@/modules/planification/planification.types";
@@ -311,9 +311,6 @@ export function ReviewClient({
 
   // "Aprobar PUM completo" requires EVERY section to be explicitly approved
   const allApproved = allSectionKeys.every((k) => states[k]?.approved === true);
-
-  // "Enviar retroalimentación" requires every section to have been either approved or commented
-  const allReviewed = allSectionKeys.every(isReviewed);
 
   const handleApprove = (key: AnySectionKey, current: boolean) => {
     if (!onUpdateSection) return;
@@ -1147,7 +1144,7 @@ export function ReviewClient({
                           </td>
                           <td style={{ padding: "7px 10px", verticalAlign: "top", color: "#334155", maxWidth: "200px" }}>
                             {ev.comment
-                              ? <span style={{ fontStyle: "italic" }}>"{ev.comment}"</span>
+                              ? <span style={{ fontStyle: "italic" }}>&ldquo;{ev.comment}&rdquo;</span>
                               : <span style={{ color: "#cbd5e1" }}>—</span>}
                           </td>
                         </tr>

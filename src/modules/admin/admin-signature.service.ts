@@ -76,45 +76,62 @@ export class AdminSignatureService {
       },
       orderBy: { name: "asc" },
     });
+    const coordinatorIds = coordinators.map((c) => c.id);
+    const legacyTeacherIds = coordinators.flatMap((c) => c.coordinatorAssignmentsAsCoordinator.map((a) => a.teacherId));
 
-    const allTeacherIds = coordinators.flatMap((c) =>
-      c.coordinatorAssignmentsAsCoordinator.map((a) => a.teacherId)
-    );
-
-    const [overviewLinks, overviewPlans] = allTeacherIds.length > 0
-      ? await Promise.all([
-          prisma.planificationTeacher.findMany({
-            where: { teacherId: { in: allTeacherIds }, planification: { academicYearId: yearId } },
-            select: { planificationId: true, teacherId: true },
-          }),
-          prisma.planification.findMany({
-            where: { academicYearId: yearId, teachers: { some: { teacherId: { in: allTeacherIds } } } },
-            select: { id: true, status: true },
-          }),
-        ])
-      : [[], []];
-
-    const overviewLinkByTeacher = new Map<string, Set<string>>();
-    for (const link of overviewLinks) {
-      if (!overviewLinkByTeacher.has(link.teacherId))
-        overviewLinkByTeacher.set(link.teacherId, new Set());
-      overviewLinkByTeacher.get(link.teacherId)!.add(link.planificationId);
-    }
-    const overviewPlanMap = new Map(overviewPlans.map((p) => [p.id, p.status]));
+    // Los PUM de un coordinador salen de las mismas tres fuentes que usa su
+    // bandeja: revisiones a su cargo, asignaciones con coordinatorId y el
+    // vínculo coordinador→docente
+    const [plans, directAssignments] = await Promise.all([
+      prisma.planification.findMany({
+        where: {
+          academicYearId: yearId,
+          OR: [
+            { review: { coordinatorId: { in: coordinatorIds } } },
+            { teachers: { some: { teacherId: { in: legacyTeacherIds } } } },
+          ],
+        },
+        select: {
+          id: true, status: true, subjectId: true, levelId: true,
+          review:   { select: { coordinatorId: true } },
+          teachers: { select: { teacherId: true } },
+        },
+      }),
+      prisma.teacherAssignment.findMany({
+        where:  { academicYearId: yearId, active: true, coordinatorId: { in: coordinatorIds } },
+        select: { coordinatorId: true, teacherId: true, subjectId: true, levelId: true },
+      }),
+    ]);
+    const comboPlans = directAssignments.length > 0
+      ? await prisma.planification.findMany({
+          where: {
+            academicYearId: yearId,
+            OR: directAssignments.map((a) => ({ subjectId: a.subjectId, levelId: a.levelId })),
+          },
+          select: { id: true, status: true, subjectId: true, levelId: true },
+        })
+      : [];
 
     return coordinators.map((c) => {
-      const teacherIds = c.coordinatorAssignmentsAsCoordinator.map((a) => a.teacherId);
-      const planIds = new Set<string>();
-      for (const tid of teacherIds) {
-        overviewLinkByTeacher.get(tid)?.forEach((pid) => planIds.add(pid));
+      const legacy  = new Set(c.coordinatorAssignmentsAsCoordinator.map((a) => a.teacherId));
+      const direct  = directAssignments.filter((a) => a.coordinatorId === c.id);
+      const statusById = new Map<string, string>();
+      for (const p of plans) {
+        if (p.review?.coordinatorId === c.id || p.teachers.some((t) => legacy.has(t.teacherId))) {
+          statusById.set(p.id, p.status);
+        }
       }
-      const statuses = [...planIds].map((pid) => overviewPlanMap.get(pid) ?? "");
+      for (const p of comboPlans) {
+        if (direct.some((a) => a.subjectId === p.subjectId && a.levelId === p.levelId)) statusById.set(p.id, p.status);
+      }
+      const statuses = [...statusById.values()];
+      const teacherIds = new Set([...legacy, ...direct.map((a) => a.teacherId)]);
 
       return {
         coordinatorId:    c.id,
         coordinatorName:  c.name,
         coordinatorEmail: c.email,
-        teacherCount:     teacherIds.length,
+        teacherCount:     teacherIds.size,
         pendingReview:    statuses.filter((s) => ["FINALIZED", "FEEDBACK_RECEIVED"].includes(s)).length,
         pendingSignature: statuses.filter((s) => s === "PENDING_SIGNATURE").length,
         adminRejected:    statuses.filter((s) => s === "ADMIN_REJECTED").length,
@@ -150,6 +167,7 @@ export class AdminSignatureService {
         level:        { select: { name: true, code: true } },
         period:       { select: { name: true, number: true } },
         academicYear: { select: { label: true } },
+        review:       { select: { coordinator: { select: { id: true, name: true, email: true } } } },
       },
     });
 
@@ -179,10 +197,14 @@ export class AdminSignatureService {
       const editorLink = displayLinks.find((t) => t.isEditor) ?? displayLinks[0];
       const editorEmail = editorLink?.teacher.email ?? "";
 
-      // Determine coordinator(s) for this plan — siempre con activeLinks,
-      // incluso si el PUM ya está firmado (ver comentario arriba).
+      // Coordinador del PUM: quien lo revisó y envió a firma (PlanReview).
+      // Antes solo se miraba CoordinatorAssignment, y un coordinador
+      // vinculado por TeacherAssignment.coordinatorId podía enviar a firma un
+      // PUM que el admin nunca veía. Sin revisión (datos antiguos), se cae al
+      // vínculo coordinador→docente, siempre con activeLinks.
       const coordinatorSet = new Map<string, { id: string; name: string | null; email: string }>();
-      for (const link of activeLinks) {
+      if (plan.review) coordinatorSet.set(plan.review.coordinator.id, plan.review.coordinator);
+      else for (const link of activeLinks) {
         for (const ca of link.teacher.coordinatorAssignmentsAsTeacher) {
           coordinatorSet.set(ca.coordinatorId, {
             id:    ca.coordinator.id,

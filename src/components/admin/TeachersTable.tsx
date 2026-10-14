@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import {
   resetTeacherPasswordAction,
   deleteTeacherAction,
@@ -40,15 +40,18 @@ export function TeachersTable({ teachers }: Props) {
     resetTeacherPasswordAction, null
   );
   const [deleteState, deleteAction, isDeletePending] = useActionState<DeleteTeacherState, FormData>(
-    deleteTeacherAction, null
+    async (prev, formData) => {
+      const result = await deleteTeacherAction(prev, formData);
+      if (result?.ok) setModal(null);
+      return result;
+    },
+    null,
   );
 
   // Estado del reset al abrir el modal: solo se muestra un resultado posterior a esa apertura,
   // así la contraseña temporal de un reset anterior no reaparece al abrir otro docente
   const [resetBaseline, setResetBaseline] = useState<ResetPasswordState>(null);
   const resetResult = resetState !== resetBaseline ? resetState : null;
-
-  useEffect(() => { if (deleteState?.ok) setModal(null); }, [deleteState]);
 
   const openModal = (kind: ModalKind, teacher: Teacher) => {
     setResetBaseline(resetState);

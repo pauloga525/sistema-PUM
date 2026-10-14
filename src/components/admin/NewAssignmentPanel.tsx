@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   createAssignmentAction,
   type AssignmentActionState,
@@ -49,24 +49,25 @@ export function NewAssignmentPanel({ academicYearId, teachers, subjects, levels 
   const [subjectId,    setSubjectId]    = useState("");
   const [levelId,      setLevelId]      = useState("");
 
-  const [state, formAction, isPending] = useActionState<AssignmentActionState, FormData>(
-    createAssignmentAction, null
-  );
-
-  useEffect(() => {
-    if (state?.ok) {
-      setIsOpen(false);
-      setFormKey((k) => k + 1);
-      resetForm();
-    }
-  }, [state]);
-
   function resetForm() {
     setTeacherQuery("");
     setSelectedTeacher(null);
     setSubjectId("");
     setLevelId("");
   }
+
+  const [state, formAction, isPending] = useActionState<AssignmentActionState, FormData>(
+    async (prev, formData) => {
+      const result = await createAssignmentAction(prev, formData);
+      if (result?.ok) {
+        setIsOpen(false);
+        setFormKey((k) => k + 1);
+        resetForm();
+      }
+      return result;
+    },
+    null,
+  );
 
   function handleClose() {
     setIsOpen(false);

@@ -3,11 +3,11 @@
 import { useState, useTransition, useCallback, useRef, useEffect, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import type { PlanificationRow, EjeTransversalId, PrincipioIcon, DuaSelection, DcdItem } from "@/modules/planification/planification.types";
+import type { PlanificationRow, EjeTransversalId, PrincipioIcon, DuaSelection } from "@/modules/planification/planification.types";
 import { formatPrincipioLabel } from "@/modules/planification/planification.types";
 import type { ActionResult } from "@/types";
 import type { SavePlanificationRowsInput } from "@/modules/planification/planification.schema";
-import { EJES_TRANSVERSALES, ERE_SOCIAL, ERE_ODS, PREPARATORIA_HABILIDADES, ALL_EJES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
+import { EJES_TRANSVERSALES, ERE_SOCIAL, ERE_ODS, PREPARATORIA_HABILIDADES, PRINCIPIO_COLORS, DUA_PRINCIPIOS } from "@/constants/planification";
 import type { SectionState } from "@/constants/review";
 
 // ── Tipos locales (solo UI) ───────────────────────────────────────────────────
@@ -491,9 +491,13 @@ function PrincipleBadge({
   const [local, setLocal] = useState<PrincipioIcon>(principle);
   const [activePauta, setActivePauta] = useState<number | null>(null);
 
-  useEffect(() => {
+  // Al abrir el editor se parte del valor guardado (ajuste durante el render,
+  // en lugar de un efecto que provoca un segundo render)
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) { setLocal(principle); setActivePauta(null); }
-  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   const clickPauta = (pautaNum: number) => {
     const inSel = local.selections.some((s) => s.pauta === pautaNum);

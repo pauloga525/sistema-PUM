@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma/client";
-import { REVIEW_SECTION_KEYS, BLOCKING_REVIEW_KEYS, type SectionStates, type ReviewStatus } from "@/constants/review";
+import { REVIEW_SECTION_KEYS, type SectionStates, type ReviewStatus } from "@/constants/review";
 import { normalizePumRowData, normalizePlanMetadata } from "@/modules/planification/planification.service";
 import { filterActiveTeacherLinks, loadActiveLinkChecker, visibleTeacherLinks } from "@/modules/planification/teacher-links";
 import { auditService } from "@/modules/audit/audit.service";
@@ -538,16 +538,17 @@ export const coordinatorService = {
     return !!planificationId;
   },
 
-  async sendForSignature(planificationId: string, coordinatorId: string): Promise<void> {
+  /** Devuelve false si no tiene acceso o el PUM ya no estaba en un estado que permita enviarlo. */
+  async sendForSignature(planificationId: string, coordinatorId: string): Promise<boolean> {
     const canAccess = await this._coordinatorCanAccessPlan(coordinatorId, planificationId);
-    if (!canAccess) return;
+    if (!canAccess) return false;
 
     const coordinator = await prisma.user.findUnique({
       where: { id: coordinatorId },
       select: { name: true },
     });
 
-    await prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx) => {
       // Desde APPROVED o ADMIN_REJECTED; se limpia el último rechazo del admin
       const moved = await transitionPlan(tx, planificationId, "PENDING_SIGNATURE", {
         data:  { adminRejectionComment: null, adminRejectedAt: null },
@@ -565,6 +566,7 @@ export const coordinatorService = {
           data:  { status: "APPROVED", approvedAt: new Date() },
         });
       }
+      return moved;
     });
   },
 

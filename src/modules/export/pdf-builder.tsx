@@ -72,11 +72,8 @@ const C = {
 } as const;
 
 // Colores de tema Word usados en el documento institucional
-const VERDE     = "#70AD47"; // Verde Énfasis 6
 const VERDE_LT  = "#E2EFDA"; // Verde Énfasis 6, claro 80%
-const ROSA      = "#ED7D96"; // Rosa Énfasis 5
 const ROSA_LT   = "#FBE5EA"; // Rosa Énfasis 5, claro 80%
-const TEAL_LT40 = "#93CDDD"; // Turquesa Énfasis 4, claro 40%
 
 const BADGE_COLORS: Record<1 | 2 | 3, string> = {
   1: C.badgeP1, 2: C.badgeP2, 3: C.badgeP3,
@@ -496,7 +493,6 @@ function fmtDatePdf(iso: string | null): string {
 
 function SignatureSection({ data }: { data: SignatureBlockData }) {
   const teacherStr = data.teacherNames.length > 0 ? data.teacherNames.join(", ") : "—";
-  const SIG_BORDER = { borderWidth: 0.5, borderColor: "#002753" };
 
   return (
     <View style={{ marginTop: 12, borderWidth: 0.5, borderColor: "#002753" }}>

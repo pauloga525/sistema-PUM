@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
   createCoordinatorAction,
@@ -696,7 +696,17 @@ function CreateCoordinatorPanel({ teachers }: { teachers: TeacherOption[] }) {
     null,
   );
   const [statePromote, formActionPromote, isPendingPromote] = useActionState<CoordinatorActionState, FormData>(
-    promoteTeacherToCoordinatorAction,
+    async (prev, formData) => {
+      const result = await promoteTeacherToCoordinatorAction(prev, formData);
+      if (result?.ok) {
+        setIsOpen(false);
+        setFormKey((k) => k + 1);
+        setSelected(new Set());
+        setPromoteTeacherId("");
+        setTeacherSearch("");
+      }
+      return result;
+    },
     null,
   );
 
@@ -719,11 +729,6 @@ function CreateCoordinatorPanel({ teachers }: { teachers: TeacherOption[] }) {
     setPromoteTeacherId("");
     setTeacherSearch("");
   };
-
-  useEffect(() => {
-    if (statePromote?.ok && isOpen && mode === "promote") closeAndReset();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statePromote]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {

@@ -3,7 +3,6 @@ import {
   globalAuditService,
   USER_AUDIT_LABELS,
 } from "@/modules/audit/global-audit.service";
-import { AUDIT_EVENT_LABELS } from "@/modules/audit/audit.service";
 import { PlanHistoryModal } from "@/components/superadmin/PlanHistoryModal";
 import { ROUTES } from "@/constants/routes";
 

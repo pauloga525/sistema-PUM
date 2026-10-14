@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
   createTeacherAssignmentAction,
@@ -46,16 +46,16 @@ function AddAssignmentModal({
   const [formKey,   setFormKey]   = useState(0);
 
   const [state, formAction, isPending] = useActionState<TeacherAssignmentActionState, FormData>(
-    createTeacherAssignmentAction,
+    async (prev, formData) => {
+      const result = await createTeacherAssignmentAction(prev, formData);
+      if (result?.ok) {
+        onClose();
+        setFormKey((k) => k + 1);
+      }
+      return result;
+    },
     null,
   );
-
-  useEffect(() => {
-    if (state?.ok) {
-      onClose();
-      setFormKey((k) => k + 1);
-    }
-  }, [state]);
 
   return createPortal(
     <div

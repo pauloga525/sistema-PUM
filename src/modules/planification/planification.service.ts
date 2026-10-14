@@ -608,15 +608,6 @@ export class PlanificationService {
 
   // ── Métodos de edición ───────────────────────────────────────────────────
 
-  async listForTeacher(
-    teacherId: UserId,
-    yearId: AcademicYearId,
-    periodId: PeriodId
-  ): Promise<PlanificationSummary[]> {
-    log.info("listForTeacher", { teacherId, yearId, periodId });
-    throw new AppError(ErrorCode.NOT_IMPLEMENTED, "PlanificationService.listForTeacher — Fase 3C");
-  }
-
   async getById(planId: string, teacherId: UserId): Promise<Planification> {
     log.info("getById", { planId, teacherId });
 
@@ -799,11 +790,6 @@ export class PlanificationService {
       data:  { metadata: input.metadata, updatedAt: new Date() },
     });
     if (count !== 1) throw notEditableError();
-  }
-
-  async cloneFromPrevious(sourcePlanId: string, teacherId: UserId): Promise<Planification> {
-    log.info("cloneFromPrevious", { sourcePlanId });
-    throw new AppError(ErrorCode.NOT_IMPLEMENTED, "PlanificationService.cloneFromPrevious — Fase 3C");
   }
 
   /**
