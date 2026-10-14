@@ -84,6 +84,16 @@ const log = logger.child("AuditService");
 
 // ── Servicio ──────────────────────────────────────────────────────────────────
 
+export interface AuditLogInput {
+  planificationId: string;
+  actorId?:    string | null;
+  actorName?:  string | null;
+  actorRole?:  string | null;
+  eventType:   AuditEventType;
+  sectionKey?: string | null;
+  comment?:    string | null;
+}
+
 export const auditService = {
   /**
    * Registra un evento de auditoría del PUM.
@@ -93,15 +103,7 @@ export const auditService = {
    * estado sin rastro). Sin `tx` (eventos informativos), un fallo se registra
    * en el log y no interrumpe el flujo.
    */
-  async log(data: {
-    planificationId: string;
-    actorId?:    string | null;
-    actorName?:  string | null;
-    actorRole?:  string | null;
-    eventType:   AuditEventType;
-    sectionKey?: string | null;
-    comment?:    string | null;
-  }, tx?: Prisma.TransactionClient): Promise<void> {
+  async log(data: AuditLogInput, tx?: Prisma.TransactionClient): Promise<void> {
     const sectionLabel = data.sectionKey
       ? (REVIEW_SECTION_LABELS[data.sectionKey as ReviewSectionKey] ?? data.sectionKey)
       : null;

@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
-import { Prisma } from "@prisma/client";
+import { Prisma, type Role } from "@prisma/client";
+import { isRole } from "@/lib/validation/enums";
 import { prisma } from "@/lib/prisma/client";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
@@ -45,7 +46,7 @@ class SuperAdminService {
         { cedula: { contains: search.trim() } },
       ];
     }
-    if (role && role !== "ALL") where.role = role;
+    if (isRole(role)) where.role = role;
     if (status === "active") where.isActive = true;
     else if (status === "inactive") where.isActive = false;
 
@@ -147,7 +148,7 @@ class SuperAdminService {
     return updated;
   }
 
-  async changeRole(actorId: string, userId: string, newRole: string) {
+  async changeRole(actorId: string, userId: string, newRole: Role) {
     requireNotSelf(actorId, userId);
     const user = await this.getUserById(userId);
 

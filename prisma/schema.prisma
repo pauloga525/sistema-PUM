@@ -5,7 +5,8 @@
 // =============================================================
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -13,7 +14,41 @@ datasource db {
 }
 
 // =============================================================
-// AUTH — Modelos requeridos por @auth/prisma-adapter
+// ENUMS
+// =============================================================
+
+enum Role {
+  TEACHER
+  COORDINATOR
+  ADMIN
+  SUPERADMIN
+}
+
+// Ciclo de vida del PUM. Las transiciones válidas están en
+// PLAN_TRANSITIONS (src/modules/planification/planification.domain.ts).
+enum PlanStatus {
+  DRAFT
+  FINALIZED
+  FEEDBACK_RECEIVED
+  APPROVED
+  PENDING_SIGNATURE
+  SIGNED
+  ADMIN_REJECTED
+}
+
+enum ReviewStatus {
+  IN_REVIEW
+  FEEDBACK_SENT
+  APPROVED
+}
+
+enum LevelTrack {
+  BASICA
+  BACHILLERATO
+}
+
+// =============================================================
+// USUARIOS
 // =============================================================
 
 model User {
@@ -25,71 +60,32 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  role                String  @default("TEACHER")
-  cedula              String? @unique
-  passwordHash        String?
-  forcePasswordChange Boolean @default(false)
+  role                  Role      @default(TEACHER)
+  cedula                String?   @unique
+  passwordHash          String?
+  forcePasswordChange   Boolean   @default(false)
   // Vencimiento de la contraseña temporal (creación/restablecimiento); null = contraseña propia
   tempPasswordExpiresAt DateTime?
-  coordinatorArea     String?
-  isActive            Boolean  @default(true)
-  lastLoginAt         DateTime?
+  coordinatorArea       String?
+  isActive              Boolean   @default(true)
+  lastLoginAt           DateTime?
 
-  accounts            Account[]
-  sessions            Session[]
-  assignments         TeacherAssignment[]
-  planificationLinks  PlanificationTeacher[]
+  assignments        TeacherAssignment[]
+  planificationLinks PlanificationTeacher[]
 
-  coordinatorAssignmentsAsCoordinator CoordinatorAssignment[]         @relation("CoordinatorTeachers")
-  coordinatorAssignmentsAsTeacher     CoordinatorAssignment[]         @relation("TeacherCoordinators")
-  coordinatedAssignments              TeacherAssignment[]             @relation("AssignmentCoordinator")
-  coordinatorSubjectLinks             CoordinatorSubjectAssignment[]  @relation("CoordinatorSubjects")
-  planReviews                         PlanReview[]            @relation("CoordinatorReviews")
-  auditEvents                         PlanAuditEvent[]        @relation("AuditActor")
-  userAuditLogsAsActor                UserAuditLog[]          @relation("UserAuditActor")
-  userAuditLogsAsTarget               UserAuditLog[]          @relation("UserAuditTarget")
+  coordinatorAssignmentsAsCoordinator CoordinatorAssignment[]        @relation("CoordinatorTeachers")
+  coordinatorAssignmentsAsTeacher     CoordinatorAssignment[]        @relation("TeacherCoordinators")
+  coordinatedAssignments              TeacherAssignment[]            @relation("AssignmentCoordinator")
+  coordinatorSubjectLinks             CoordinatorSubjectAssignment[] @relation("CoordinatorSubjects")
+  planReviews                         PlanReview[]                   @relation("CoordinatorReviews")
+  auditEvents                         PlanAuditEvent[]               @relation("AuditActor")
+  userAuditLogsAsActor                UserAuditLog[]                 @relation("UserAuditActor")
+  userAuditLogsAsTarget               UserAuditLog[]                 @relation("UserAuditTarget")
+  maintenanceToggles                  SystemSetting[]                @relation("MaintenanceEnabledBy")
+  resolvedErrors                      SystemErrorLog[]               @relation("ErrorResolvedBy")
 
+  @@index([role])
   @@map("users")
-}
-
-model Account {
-  id                String  @id @default(uuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_tokens")
 }
 
 // =============================================================
@@ -98,11 +94,11 @@ model VerificationToken {
 
 model AcademicYear {
   id        String    @id @default(uuid())
-  label     String    @unique  // "2026-2027"
-  yearStart Int                // 2026
+  label     String    @unique // "2026-2027"
+  yearStart Int // 2026
   active    Boolean   @default(true)
-  startDate DateTime?          // Fecha de inicio del año lectivo
-  endDate   DateTime?          // Fecha de fin del año lectivo
+  startDate DateTime? // Fecha de inicio del año lectivo
+  endDate   DateTime? // Fecha de fin del año lectivo
   createdAt DateTime  @default(now())
 
   periods        Period[]
@@ -114,14 +110,14 @@ model AcademicYear {
 
 model Period {
   id             String    @id @default(uuid())
-  name           String    // "Quimestre 1"
-  number         Int       // 1, 2, 3...
+  name           String // "Quimestre 1"
+  number         Int // 1, 2, 3...
   academicYearId String
   startDate      DateTime? // Fecha de inicio del periodo
   endDate        DateTime? // Fecha de fin del periodo
   createdAt      DateTime  @default(now())
 
-  academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   planifications Planification[]
   assignments    TeacherAssignment[]
 
@@ -132,25 +128,25 @@ model Period {
 model Subject {
   id          String   @id @default(uuid())
   name        String
-  code        String   @unique  // "MAT", "LEN", "CCNN"
+  code        String   @unique // "MAT", "LEN", "CCNN"
   areaEstudio String?
   createdAt   DateTime @default(now())
 
-  assignments              TeacherAssignment[]
-  planifications           Planification[]
-  subjectLevels            SubjectLevel[]
-  coordinatorSubjectLinks  CoordinatorSubjectAssignment[]
+  assignments             TeacherAssignment[]
+  planifications          Planification[]
+  subjectLevels           SubjectLevel[]
+  coordinatorSubjectLinks CoordinatorSubjectAssignment[]
 
   @@map("subjects")
 }
 
 model Level {
-  id         String   @id @default(uuid())
-  name       String                    // "3ro de Bachillerato"
-  code       String   @unique         // "3BGU"
+  id         String     @id @default(uuid())
+  name       String // "3ro de Bachillerato"
+  code       String     @unique // "3BGU"
   orderIndex Int
-  track      String                    // "BASICA" | "BACHILLERATO"
-  createdAt  DateTime @default(now())
+  track      LevelTrack
+  createdAt  DateTime   @default(now())
 
   assignments    TeacherAssignment[]
   planifications Planification[]
@@ -184,60 +180,70 @@ model TeacherAssignment {
   subjectId       String
   levelId         String
   academicYearId  String
-  periodId        String?  // Periodo específico, null = todos los periodos
-  coordinatorId   String?  // Coordinador responsable de esta asignación
+  periodId        String? // Periodo específico, null = todos los periodos
+  coordinatorId   String? // Coordinador responsable de esta asignación
   isPrimaryEditor Boolean  @default(false) // Docente designado como editor principal del PUM
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())
 
   teacher      User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subject      Subject      @relation(fields: [subjectId], references: [id])
-  level        Level        @relation(fields: [levelId], references: [id])
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
-  period       Period?      @relation(fields: [periodId], references: [id])
-  coordinator  User?        @relation("AssignmentCoordinator", fields: [coordinatorId], references: [id])
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  level        Level        @relation(fields: [levelId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  period       Period?      @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  coordinator  User?        @relation("AssignmentCoordinator", fields: [coordinatorId], references: [id], onDelete: SetNull)
 
+  // Una asignación por docente+materia+nivel+año. periodId es informativo:
+  // el acceso del docente abarca todos los periodos del año.
   @@unique([teacherId, subjectId, levelId, academicYearId])
   @@index([teacherId, academicYearId, active])
+  @@index([subjectId, levelId, academicYearId, active])
   @@index([coordinatorId])
   @@map("teacher_assignments")
 }
 
 model Planification {
-  id             String    @id @default(uuid())
+  id             String @id @default(uuid())
   academicYearId String
   periodId       String
   subjectId      String
   levelId        String
 
-  status         String    @default("DRAFT")
+  status         PlanStatus @default(DRAFT)
   editDeadlineAt DateTime?
   finalizedAt    DateTime?
   clonedFromId   String?
   metadata       Json?
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  // Último rechazo del administrador (se limpia al reenviar a firma)
+  adminRejectionComment String?   @db.Text
+  adminRejectedAt       DateTime?
 
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
-  period       Period       @relation(fields: [periodId], references: [id])
-  subject      Subject      @relation(fields: [subjectId], references: [id])
-  level        Level        @relation(fields: [levelId], references: [id])
-  clonedFrom   Planification?  @relation("PlanClone", fields: [clonedFromId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  period       Period          @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  subject      Subject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  level        Level           @relation(fields: [levelId], references: [id], onDelete: Restrict)
+  clonedFrom   Planification?  @relation("PlanClone", fields: [clonedFromId], references: [id], onDelete: SetNull)
   clones       Planification[] @relation("PlanClone")
 
-  teachers     PlanificationTeacher[]
-  rows         PlanificationRow[]
-  review       PlanReview?
-  auditEvents  PlanAuditEvent[]
+  teachers    PlanificationTeacher[]
+  rows        PlanificationRow[]
+  review      PlanReview?
+  auditEvents PlanAuditEvent[]
 
   @@unique([academicYearId, periodId, subjectId, levelId])
   @@index([academicYearId, periodId])
+  @@index([academicYearId, status])
+  @@index([subjectId, levelId, academicYearId])
   @@map("planifications")
 }
 
 // Relación M2M entre docentes y planificaciones.
-// isEditor = true para el docente que creó el PUM (único editor).
+// isEditor = true para el docente que creó el PUM (único editor, garantizado
+// por el índice único parcial planification_teachers_single_editor).
 // Los demás docentes vinculados tienen isEditor = false (solo lectura/consulta).
 model PlanificationTeacher {
   id              String   @id @default(uuid())
@@ -250,25 +256,25 @@ model PlanificationTeacher {
   teacher       User          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
   @@unique([planificationId, teacherId])
+  @@unique([planificationId], where: { isEditor: true }, map: "planification_teachers_single_editor")
   @@index([teacherId])
   @@map("planification_teachers")
 }
 
 model PlanificationRow {
-  id               String   @id @default(uuid())
-  planificationId  String
-  rowIndex         Int
+  id              String @id @default(uuid())
+  planificationId String
+  rowIndex        Int
 
   data             Json
-  methodologyIcons Json     @default("[]")
+  methodologyIcons Json @default("[]")
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   planification Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
 
   @@unique([planificationId, rowIndex])
-  @@index([planificationId])
   @@map("planification_rows")
 }
 
@@ -303,23 +309,25 @@ model CoordinatorAssignment {
   teacher     User @relation("TeacherCoordinators", fields: [teacherId], references: [id], onDelete: Cascade)
 
   @@unique([coordinatorId, teacherId])
+  @@index([teacherId])
   @@map("coordinator_assignments")
 }
 
 // Registro de revisión de un PUM por parte de un coordinador
 model PlanReview {
-  id              String    @id @default(uuid())
-  planificationId String    @unique
+  id              String       @id @default(uuid())
+  planificationId String       @unique
   coordinatorId   String
-  status          String    @default("IN_REVIEW") // "IN_REVIEW" | "APPROVED"
-  sectionStates   Json      @default("{}")        // Record<SectionKey, { approved: boolean; comment: string|null }>
+  status          ReviewStatus @default(IN_REVIEW)
+  sectionStates   Json         @default("{}") // Record<SectionKey, { approved: boolean; comment: string|null }>
   approvedAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   planification Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
-  coordinator   User          @relation("CoordinatorReviews", fields: [coordinatorId], references: [id])
+  coordinator   User          @relation("CoordinatorReviews", fields: [coordinatorId], references: [id], onDelete: Restrict)
 
+  @@index([coordinatorId])
   @@map("plan_reviews")
 }
 
@@ -329,8 +337,8 @@ model PlanAuditEvent {
   planificationId String
   actorId         String?
   actorName       String?
-  actorRole       String?  // "TEACHER" | "COORDINATOR" | "ADMIN" | "SYSTEM"
-  eventType       String   // Ver AuditEventType en audit.service.ts
+  actorRole       String? // "TEACHER" | "COORDINATOR" | "ADMIN" | "SYSTEM"
+  eventType       String // Ver AuditEventType en audit.service.ts
   sectionKey      String?
   sectionLabel    String?
   comment         String?  @db.Text
@@ -360,7 +368,7 @@ model UserAuditLog {
   actorIp    String?
 
   // Tipo de evento y resultado
-  eventType String          // Ver USER_AUDIT_EVENT en user-audit.service.ts
+  eventType String // Ver USER_AUDIT_EVENT en user-audit.service.ts
   result    String @default("SUCCESS") // "SUCCESS" | "FAILURE"
 
   // Entidad afectada (puede ser distinta al actor)
@@ -371,7 +379,7 @@ model UserAuditLog {
   // Datos extra de contexto (endpoint, mensaje de error, etc.)
   metadata Json?
 
-  actor  User? @relation("UserAuditActor",  fields: [actorId],  references: [id], onDelete: SetNull)
+  actor  User? @relation("UserAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
   target User? @relation("UserAuditTarget", fields: [targetId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
@@ -393,8 +401,10 @@ model SystemSetting {
   maintenanceModeEnabled Boolean   @default(false)
   maintenanceMessage     String?
   maintenanceEnabledAt   DateTime?
-  maintenanceEnabledBy   String?   // userId del SuperAdmin que activó/desactivó (sin FK, igual que UserAuditLog.actorId)
+  maintenanceEnabledBy   String? // userId del SuperAdmin que activó/desactivó
   updatedAt              DateTime  @updatedAt
+
+  enabledBy User? @relation("MaintenanceEnabledBy", fields: [maintenanceEnabledBy], references: [id], onDelete: SetNull)
 
   @@map("system_settings")
 }
@@ -409,8 +419,8 @@ model SystemErrorLog {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  level   String  // "ERROR" | "WARN" | "INFO"
-  source  String  // módulo o ruta que originó el error
+  level   String // "ERROR" | "WARN" | "INFO"
+  source  String // módulo o ruta que originó el error
   message String  @db.Text
   stack   String? @db.Text
 
@@ -418,10 +428,12 @@ model SystemErrorLog {
   metadata Json?
 
   // Resolución
-  resolved   Boolean   @default(false)
-  resolvedAt DateTime?
-  resolvedBy String?   // userId del SuperAdmin que lo resolvió
-  resolveNote String?  @db.Text
+  resolved    Boolean   @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String? // userId del SuperAdmin que lo resolvió
+  resolveNote String?   @db.Text
+
+  resolver User? @relation("ErrorResolvedBy", fields: [resolvedBy], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
   @@index([level, resolved])
@@ -437,7 +449,7 @@ model SystemErrorLog {
 // del inicio de la ventana actual. Si now - windowStart > window,
 // se reinicia. Se usa para login y acciones administrativas sensibles.
 model RateLimit {
-  key         String   @id           // ej. "login:user@email.com"
+  key         String   @id // ej. "login:user@email.com"
   windowStart DateTime
   count       Int      @default(1)
 

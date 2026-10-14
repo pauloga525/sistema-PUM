@@ -3,7 +3,9 @@ import { ErrorCode } from "@/lib/errors/error-codes";
 import { logger } from "@/lib/logger/logger";
 import { prisma } from "@/lib/prisma/client";
 import { auditService } from "@/modules/audit/audit.service";
-import { assertCanEdit, assertCanFinalize } from "./planification.domain";
+import type { Prisma } from "@prisma/client";
+import { assertCanEdit, assertCanFinalize, computeDisplayStatus, EDITABLE_STATUSES } from "./planification.domain";
+import { transitionPlan } from "./planification.transitions";
 import type {
   Planification,
   PlanTeacher,
@@ -17,7 +19,6 @@ import type {
   SubjectWithStatus,
   YearSummary,
   PeriodSummary,
-  DisplayStatus,
 } from "./planification.types";
 import type {
   SavePlanificationRowsInput,
@@ -28,6 +29,40 @@ import type { PlanificationStatus } from "@/constants/planification";
 import type { UserId, AcademicYearId, PeriodId, SubjectId, LevelId } from "@/types";
 
 const log = logger.child("PlanificationService");
+
+// ── Guardas de edición dentro de la transacción ───────────────────────────────
+
+/**
+ * Condición SQL equivalente a assertCanEdit: el docente es el editor, el PUM
+ * está en un estado editable y, si es borrador, el plazo no venció.
+ */
+function editableWhere(teacherId: UserId, now: Date): Prisma.PlanificationWhereInput {
+  return {
+    teachers: { some: { teacherId, isEditor: true } },
+    OR: [
+      { status: "FEEDBACK_RECEIVED" },
+      { status: "DRAFT", OR: [{ editDeadlineAt: null }, { editDeadlineAt: { gte: now } }] },
+    ],
+  };
+}
+
+function notEditableError(): AppError {
+  return new AppError(ErrorCode.PLAN_ALREADY_FINALIZED, "La planificación ya no se puede editar. Recarga la página.");
+}
+
+/**
+ * Bloquea la fila del PUM hasta el fin de la transacción si sigue siendo
+ * editable por el docente. Una finalización concurrente espera a que termine
+ * el guardado (y viceversa), así no se escriben filas en un PUM ya enviado.
+ */
+async function lockEditablePlan(tx: Prisma.TransactionClient, planId: string, teacherId: UserId): Promise<void> {
+  const now = new Date();
+  const { count } = await tx.planification.updateMany({
+    where: { id: planId, ...editableWhere(teacherId, now) },
+    data:  { updatedAt: now },
+  });
+  if (count !== 1) throw notEditableError();
+}
 
 // ── Normalización de datos históricos ─────────────────────────────────────────
 
@@ -405,20 +440,7 @@ export class PlanificationService {
         }
       }
 
-      let displayStatus: DisplayStatus;
-      if (!plan) {
-        displayStatus = "NOT_STARTED";
-      } else if (["APPROVED", "PENDING_SIGNATURE", "SIGNED", "ADMIN_REJECTED"].includes(plan.status)) {
-        displayStatus = "APPROVED";
-      } else if (plan.status === "FINALIZED") {
-        displayStatus = "FINALIZED";
-      } else if (plan.status === "FEEDBACK_RECEIVED") {
-        displayStatus = "FEEDBACK_RECEIVED";
-      } else if (plan.editDeadlineAt && plan.editDeadlineAt < now) {
-        displayStatus = "OVERDUE";
-      } else {
-        displayStatus = "DRAFT";
-      }
+      const displayStatus = computeDisplayStatus(plan, now);
 
       return {
         assignmentId: a.id,
@@ -481,15 +503,6 @@ export class PlanificationService {
 
     const myPlans = planLinks.map((l) => l.planification);
 
-    const computeStatus = (plan: typeof myPlans[number] | null): import("./planification.types").DisplayStatus => {
-      if (!plan) return "NOT_STARTED";
-      if (["APPROVED", "PENDING_SIGNATURE", "SIGNED", "ADMIN_REJECTED"].includes(plan.status)) return "APPROVED";
-      if (plan.status === "FEEDBACK_RECEIVED") return "FEEDBACK_RECEIVED";
-      if (plan.status === "FINALIZED") return "FINALIZED";
-      if (plan.editDeadlineAt && plan.editDeadlineAt < now) return "OVERDUE";
-      return "DRAFT";
-    };
-
     const map = new Map<string, import("./planification.types").SubjectYearSummary>();
     for (const a of assignments) {
       const key = `${a.subjectId}-${a.levelId}`;
@@ -528,7 +541,7 @@ export class PlanificationService {
             planId:         plan?.id ?? null,
             planStatus:     (plan?.status ?? null) as import("./planification.types").PeriodPlanStatus["planStatus"],
             editDeadlineAt: plan?.editDeadlineAt ?? null,
-            displayStatus:  computeStatus(plan),
+            displayStatus:  computeDisplayStatus(plan, now),
           };
         }));
         map.set(key, {
@@ -743,6 +756,8 @@ export class PlanificationService {
     assertCanEdit(plan);
 
     await prisma.$transaction(async (tx) => {
+      await lockEditablePlan(tx, input.planificationId, teacherId);
+
       await tx.planificationRow.deleteMany({
         where: { planificationId: input.planificationId },
       });
@@ -757,11 +772,6 @@ export class PlanificationService {
           })),
         });
       }
-
-      await tx.planification.update({
-        where: { id: input.planificationId },
-        data:  { updatedAt: new Date() },
-      });
     });
   }
 
@@ -802,22 +812,26 @@ export class PlanificationService {
     });
 
     await prisma.$transaction(async (tx) => {
-      // Status guard prevents double-finalization if two requests race
-      await tx.planification.update({
-        where: { id: input.planificationId, status: { in: ["DRAFT", "FEEDBACK_RECEIVED"] } },
-        data:  { status: "FINALIZED", finalizedAt: new Date() },
+      // Las condiciones de edición (estado, editor, plazo) se revalidan en el
+      // UPDATE: si cambiaron desde la lectura de arriba, no se finaliza.
+      const ok = await transitionPlan(tx, input.planificationId, "FINALIZED", {
+        from:  EDITABLE_STATUSES,
+        where: editableWhere(teacherId, new Date()),
+        data:  { finalizedAt: new Date() },
+        audit: {
+          actorId:   teacherId,
+          actorName: teacher?.name ?? null,
+          actorRole: "TEACHER",
+          eventType: isResubmission ? "TEACHER_RESUBMITTED" : "FINALIZED",
+        },
       });
+      if (!ok) {
+        throw new AppError(ErrorCode.PLAN_INVALID_TRANSITION, "La planificación cambió de estado. Recarga la página.");
+      }
       await tx.planReview.updateMany({
         where: { planificationId: input.planificationId, status: "FEEDBACK_SENT" },
         data:  { status: "IN_REVIEW" },
       });
-      await auditService.log({
-        planificationId: input.planificationId,
-        actorId:   teacherId,
-        actorName: teacher?.name ?? null,
-        actorRole: "TEACHER",
-        eventType: isResubmission ? "TEACHER_RESUBMITTED" : "FINALIZED",
-      }, tx);
     });
   }
 
@@ -827,10 +841,12 @@ export class PlanificationService {
     const plan = await this.getById(input.planificationId, teacherId);
     assertCanEdit(plan);
 
-    await prisma.planification.update({
-      where: { id: input.planificationId },
+    // Guarda y verificación en una sola sentencia (sin ventana entre ambas)
+    const { count } = await prisma.planification.updateMany({
+      where: { id: input.planificationId, ...editableWhere(teacherId, new Date()) },
       data:  { metadata: input.metadata, updatedAt: new Date() },
     });
+    if (count !== 1) throw notEditableError();
   }
 
   async cloneFromPrevious(sourcePlanId: string, teacherId: UserId): Promise<Planification> {

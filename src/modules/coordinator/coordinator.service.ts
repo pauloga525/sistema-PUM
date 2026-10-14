@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma/client";
 import { REVIEW_SECTION_KEYS, BLOCKING_REVIEW_KEYS, type SectionStates, type ReviewStatus } from "@/constants/review";
 import { normalizePumRowData, normalizePlanMetadata, filterActiveTeacherLinks } from "@/modules/planification/planification.service";
 import { auditService } from "@/modules/audit/audit.service";
+import { IN_REVIEW_CYCLE_STATUSES } from "@/modules/planification/planification.domain";
+import { transitionPlan } from "@/modules/planification/planification.transitions";
 import type { AssignedTeacher, TeacherAssignmentEntry, FinalizedPlanEntry, PlanReviewSummary } from "./coordinator.types";
 
 // All non-pum_ keys (includes meta_*, plan_*, aportes_*, dua_*) — used for normalizing states
@@ -65,7 +67,7 @@ export const coordinatorService = {
   async getAssignedTeachers(coordinatorId: string): Promise<AssignedTeacher[]> {
     const [cas, self] = await Promise.all([
       prisma.coordinatorAssignment.findMany({
-        where: { coordinatorId },
+        where: { coordinatorId, teacher: { isActive: true } },
         include: {
           teacher: {
             select: {
@@ -222,7 +224,7 @@ export const coordinatorService = {
             levelId:        a.levelId,
             academicYearId: a.academicYearId,
           })),
-          status: { in: ["FINALIZED", "FEEDBACK_RECEIVED", "APPROVED", "PENDING_SIGNATURE", "ADMIN_REJECTED", "SIGNED"] },
+          status: { in: [...IN_REVIEW_CYCLE_STATUSES] },
         },
         select: { id: true },
       });
@@ -241,7 +243,7 @@ export const coordinatorService = {
           teacherId: { in: teacherIds },
           planification: {
             subjectId: { in: allowedSubjectIds },
-            status: { in: ["FINALIZED", "FEEDBACK_RECEIVED", "APPROVED", "PENDING_SIGNATURE", "ADMIN_REJECTED", "SIGNED"] },
+            status: { in: [...IN_REVIEW_CYCLE_STATUSES] },
           },
         },
         select: { planificationId: true },
@@ -298,13 +300,6 @@ export const coordinatorService = {
         totalSections:    total,
       };
 
-      const meta = (p.metadata && typeof p.metadata === "object" && !Array.isArray(p.metadata))
-        ? (p.metadata as Record<string, unknown>)
-        : {};
-      const adminRejectionComment = typeof meta.adminRejectionComment === "string"
-        ? meta.adminRejectionComment
-        : null;
-
       const editorLink = teachers.find((t) => t.isEditor);
       const allNames   = teachers.map((t) => t.teacher.name ?? t.teacher.email);
       const teacherNames = allNames.length <= 2
@@ -325,7 +320,7 @@ export const coordinatorService = {
         yearLabel:            p.academicYear.label,
         finalizedAt:          p.finalizedAt,
         review:               reviewSummary,
-        adminRejectionComment,
+        adminRejectionComment: p.adminRejectionComment,
       };
     });
   },
@@ -483,22 +478,22 @@ export const coordinatorService = {
       if (!review || review.coordinatorId !== coordinatorId) return null;
       if (review.status !== "IN_REVIEW") return null;
 
-      // Status guard in WHERE prevents a concurrent call from double-sending
+      // Solo desde FINALIZED o ADMIN_REJECTED (PLAN_TRANSITIONS); la guarda de
+      // estado en el UPDATE evita un doble envío concurrente
+      const moved = await transitionPlan(tx, review.planificationId, "FEEDBACK_RECEIVED", {
+        audit: {
+          actorId:   coordinatorId,
+          actorName: coordinator?.name ?? null,
+          actorRole: "COORDINATOR",
+          eventType: "FEEDBACK_SENT",
+        },
+      });
+      if (!moved) return null;
+
       await tx.planReview.update({
         where: { id: reviewId, status: "IN_REVIEW" },
         data:  { status: "FEEDBACK_SENT" },
       });
-      await tx.planification.update({
-        where: { id: review.planificationId },
-        data:  { status: "FEEDBACK_RECEIVED" },
-      });
-      await auditService.log({
-        planificationId: review.planificationId,
-        actorId:   coordinatorId,
-        actorName: coordinator?.name ?? null,
-        actorRole: "COORDINATOR",
-        eventType: "FEEDBACK_SENT",
-      }, tx);
       return review.planificationId;
     });
 
@@ -518,13 +513,6 @@ export const coordinatorService = {
       if (!review || review.coordinatorId !== coordinatorId) return null;
       if (review.status !== "IN_REVIEW") return null;
 
-      // Plan must still be in FINALIZED state — prevents approving after a status change
-      const plan = await tx.planification.findUnique({
-        where: { id: review.planificationId },
-        select: { status: true },
-      });
-      if (!plan || plan.status !== "FINALIZED") return null;
-
       const actualRowCount = await tx.planificationRow.count({
         where: { planificationId: review.planificationId },
       });
@@ -536,22 +524,21 @@ export const coordinatorService = {
 
       if (!sectionsDone || !rowsDone) return null;
 
-      // Status guards in WHERE prevent a double-approval race from corrupting state
+      // Solo desde FINALIZED; la guarda de estado evita una doble aprobación
+      const moved = await transitionPlan(tx, review.planificationId, "APPROVED", {
+        audit: {
+          actorId:   coordinatorId,
+          actorName: coordinator?.name ?? null,
+          actorRole: "COORDINATOR",
+          eventType: "PLAN_APPROVED",
+        },
+      });
+      if (!moved) return null;
+
       await tx.planReview.update({
         where: { id: reviewId, status: "IN_REVIEW" },
         data:  { status: "APPROVED", approvedAt: new Date() },
       });
-      await tx.planification.update({
-        where: { id: review.planificationId, status: "FINALIZED" },
-        data:  { status: "APPROVED" },
-      });
-      await auditService.log({
-        planificationId: review.planificationId,
-        actorId:   coordinatorId,
-        actorName: coordinator?.name ?? null,
-        actorRole: "COORDINATOR",
-        eventType: "PLAN_APPROVED",
-      }, tx);
       return review.planificationId;
     });
 
@@ -568,35 +555,23 @@ export const coordinatorService = {
     });
 
     await prisma.$transaction(async (tx) => {
-      const plan = await tx.planification.findUnique({
-        where: { id: planificationId },
-        select: { status: true, metadata: true },
+      // Desde APPROVED o ADMIN_REJECTED; se limpia el último rechazo del admin
+      const moved = await transitionPlan(tx, planificationId, "PENDING_SIGNATURE", {
+        data:  { adminRejectionComment: null, adminRejectedAt: null },
+        audit: {
+          actorId:   coordinatorId,
+          actorName: coordinator?.name ?? null,
+          actorRole: "COORDINATOR",
+          eventType: "SENT_FOR_SIGNATURE",
+        },
       });
-      if (!plan || (plan.status !== "APPROVED" && plan.status !== "ADMIN_REJECTED")) return false;
-
-      const rawMeta = (plan.metadata && typeof plan.metadata === "object" && !Array.isArray(plan.metadata))
-        ? (plan.metadata as Record<string, unknown>)
-        : {};
-      const cleanMeta: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(rawMeta)) {
-        if (k !== "adminRejectionComment" && k !== "adminRejectedAt") {
-          cleanMeta[k] = v;
-        }
+      // Reenviar tras un rechazo equivale a volver a aprobar la revisión
+      if (moved) {
+        await tx.planReview.updateMany({
+          where: { planificationId, status: { not: "APPROVED" } },
+          data:  { status: "APPROVED", approvedAt: new Date() },
+        });
       }
-
-      // Status guard in WHERE prevents a concurrent double-send
-      await tx.planification.update({
-        where: { id: planificationId, status: { in: ["APPROVED", "ADMIN_REJECTED"] } },
-        data:  { status: "PENDING_SIGNATURE", metadata: cleanMeta as object },
-      });
-      await auditService.log({
-        planificationId,
-        actorId:   coordinatorId,
-        actorName: coordinator?.name ?? null,
-        actorRole: "COORDINATOR",
-        eventType: "SENT_FOR_SIGNATURE",
-      }, tx);
-      return true;
     });
   },
 
@@ -650,12 +625,17 @@ export const coordinatorService = {
     });
     if (directAssignment) return true;
 
-    // Check 2: legacy CoordinatorAssignment (coordinator→teacher)
+    // Check 2: legacy CoordinatorAssignment (coordinator→teacher), limitado a
+    // las materias habilitadas para el coordinador — la misma regla con la que
+    // getFinalizedPlans arma su bandeja.
     const legacyLink = await prisma.planificationTeacher.findFirst({
       where: {
         planificationId,
         teacher: {
           coordinatorAssignmentsAsTeacher: { some: { coordinatorId } },
+        },
+        planification: {
+          subject: { coordinatorSubjectLinks: { some: { coordinatorId } } },
         },
       },
     });

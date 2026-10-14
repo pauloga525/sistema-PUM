@@ -651,7 +651,7 @@ function CoordinatorCard({ entry, teachers, subjects }: { entry: CoordinatorEntr
             <div>
               <h3 className="font-semibold text-pum-text mb-1">Eliminar coordinador</h3>
               <p className="text-sm text-pum-text-muted">
-                ¿Eliminar a <strong>{entry.name ?? entry.email}</strong>? Esta acción no se puede deshacer.
+                ¿Eliminar a <strong>{entry.name ?? entry.email}</strong>? Se desactivará la cuenta; sus revisiones se conservan y un SuperAdmin puede reactivarla.
                 Se perderán todas sus asignaciones y revisiones.
               </p>
             </div>

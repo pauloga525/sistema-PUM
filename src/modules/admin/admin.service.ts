@@ -6,6 +6,7 @@ import { ErrorCode } from "@/lib/errors/error-codes";
 import { userAuditService } from "@/modules/audit/user-audit.service";
 import { generateTempPassword, tempPasswordExpiresAt } from "@/modules/security/temp-password";
 import { normalizePumRowData, normalizePlanMetadata, planificationService } from "@/modules/planification/planification.service";
+import { transitionPlan } from "@/modules/planification/planification.transitions";
 
 export type TeacherSortOption = "name_asc" | "name_desc" | "created_asc" | "created_desc" | "assign_asc" | "assign_desc";
 
@@ -139,9 +140,17 @@ export class AdminService {
   }
 
   async deleteSubject(id: string) {
-    const hasAssignments = await prisma.teacherAssignment.count({ where: { subjectId: id, active: true } });
-    if (hasAssignments > 0) {
+    // Las asignaciones inactivas y los PUM también referencian la materia (FK Restrict)
+    const [hasActive, hasAny, hasPlans] = await Promise.all([
+      prisma.teacherAssignment.count({ where: { subjectId: id, active: true } }),
+      prisma.teacherAssignment.count({ where: { subjectId: id } }),
+      prisma.planification.count({ where: { subjectId: id } }),
+    ]);
+    if (hasActive > 0) {
       throw new AppError(ErrorCode.ADMIN_CATALOG_ITEM_IN_USE, "No se puede eliminar una materia que tiene docentes asignados");
+    }
+    if (hasAny > 0 || hasPlans > 0) {
+      throw new AppError(ErrorCode.ADMIN_CATALOG_ITEM_IN_USE, "No se puede eliminar una materia con historial de asignaciones o planificaciones");
     }
     // Cascade: subjectLevels se eliminan automáticamente
     return prisma.subject.delete({ where: { id } });
@@ -225,7 +234,7 @@ export class AdminService {
   async getAssignmentFormData() {
     const [teachers, subjects, levels] = await Promise.all([
       prisma.user.findMany({
-        where: { role: "TEACHER" },
+        where: { role: "TEACHER", isActive: true },
         select: { id: true, name: true, email: true },
         orderBy: { name: "asc" },
       }),
@@ -244,7 +253,7 @@ export class AdminService {
   async getAssignmentFormDataFull(academicYearId: string) {
     const [teachers, subjects, levels, periods] = await Promise.all([
       prisma.user.findMany({
-        where: { role: "TEACHER" },
+        where: { role: "TEACHER", isActive: true },
         select: { id: true, name: true, email: true },
         orderBy: { name: "asc" },
       }),
@@ -405,6 +414,7 @@ export class AdminService {
 
     const where: Prisma.UserWhereInput = {
       role: "TEACHER",
+      isActive: true,
       ...(status === "active"  ? { forcePasswordChange: false } : {}),
       ...(status === "pending" ? { forcePasswordChange: true  } : {}),
       ...(search ? {
@@ -565,11 +575,41 @@ export class AdminService {
     return { tempPassword };
   }
 
-  async deleteTeacher(teacherId: string) {
-    const user = await prisma.user.findUnique({ where: { id: teacherId }, select: { id: true, role: true } });
+  /**
+   * "Eliminar" un docente lo desactiva: borrarlo arrastraba en cascada sus
+   * vínculos con PUMs ya firmados (registro institucional). Se le quitan las
+   * asignaciones activas con el mismo flujo que una remoción manual (promueve
+   * a otro editor o bloquea si es el único editor de un PUM en curso).
+   * Un SuperAdmin puede reactivar la cuenta.
+   */
+  async deleteTeacher(teacherId: string, actor: { actorId: string; actorName: string | null }) {
+    const user = await prisma.user.findUnique({ where: { id: teacherId }, select: { id: true, role: true, email: true } });
     if (!user) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Docente no encontrado");
     if (user.role !== "TEACHER") throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Solo se pueden eliminar cuentas de docentes");
-    await prisma.user.delete({ where: { id: teacherId } });
+
+    const assignments = await prisma.teacherAssignment.findMany({
+      where:  { teacherId, active: true },
+      select: { id: true },
+    });
+    for (const a of assignments) {
+      const result = await planificationService.unassignTeacherFromCombo({
+        assignmentId: a.id,
+        actorId:      actor.actorId,
+        actorName:    actor.actorName,
+        actorRole:    "ADMIN",
+      });
+      if (!result.ok) throw new AppError(ErrorCode.VAL_INVALID_INPUT, result.error);
+    }
+
+    await prisma.user.update({ where: { id: teacherId }, data: { isActive: false } });
+    await userAuditService.log({
+      eventType:   "USER_DEACTIVATED",
+      actorId:     actor.actorId,
+      actorRole:   "ADMIN",
+      targetId:    teacherId,
+      targetEmail: user.email,
+      targetRole:  user.role,
+    });
   }
 
   // ── Coordinadores ────────────────────────────────────────────────────────────
@@ -583,7 +623,7 @@ export class AdminService {
 
   async getCoordinators() {
     const coordinators = await prisma.user.findMany({
-      where: { role: "COORDINATOR" },
+      where: { role: "COORDINATOR", isActive: true },
       include: {
         coordinatorAssignmentsAsCoordinator: {
           include: {
@@ -671,7 +711,7 @@ export class AdminService {
 
   async getTeachersForCoordinatorPanel() {
     return prisma.user.findMany({
-      where: { role: "TEACHER" },
+      where: { role: "TEACHER", isActive: true },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     });
@@ -805,11 +845,24 @@ export class AdminService {
     await prisma.coordinatorAssignment.delete({ where: { id: assignmentId } });
   }
 
-  async deleteCoordinator(coordinatorId: string) {
-    const user = await prisma.user.findUnique({ where: { id: coordinatorId }, select: { role: true } });
+  /**
+   * "Eliminar" un coordinador lo desactiva: sus revisiones (PlanReview) y la
+   * auditoría de los PUM que revisó se conservan. Otro coordinador puede
+   * retomar las revisiones abiertas.
+   */
+  async deleteCoordinator(coordinatorId: string, actorId: string) {
+    const user = await prisma.user.findUnique({ where: { id: coordinatorId }, select: { role: true, email: true } });
     if (!user) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Coordinador no encontrado");
     if (user.role !== "COORDINATOR") throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Solo se pueden eliminar coordinadores");
-    await prisma.user.delete({ where: { id: coordinatorId } });
+    await prisma.user.update({ where: { id: coordinatorId }, data: { isActive: false } });
+    await userAuditService.log({
+      eventType:   "USER_DEACTIVATED",
+      actorId,
+      actorRole:   "ADMIN",
+      targetId:    coordinatorId,
+      targetEmail: user.email,
+      targetRole:  user.role,
+    });
   }
 
   async resetCoordinatorPassword(coordinatorId: string) {
@@ -852,7 +905,7 @@ export class AdminService {
 
   async getCoordinatorOverview(): Promise<CoordinatorOverview[]> {
     const coordinators = await prisma.user.findMany({
-      where: { role: "COORDINATOR" },
+      where: { role: "COORDINATOR", isActive: true },
       select: { id: true, name: true, email: true,
         coordinatorAssignmentsAsCoordinator: { select: { teacherId: true } },
       },
@@ -1012,58 +1065,39 @@ export class AdminService {
   }
 
   async signPlan(planId: string, actorId?: string, actorName?: string): Promise<void> {
-    const { auditService } = await import("@/modules/audit/audit.service");
     await prisma.$transaction(async (tx) => {
-      await tx.planification.update({
-        where: { id: planId, status: "PENDING_SIGNATURE" },
-        data:  { status: "SIGNED" },
+      const ok = await transitionPlan(tx, planId, "SIGNED", {
+        audit: {
+          actorId:   actorId   ?? null,
+          actorName: actorName ?? null,
+          actorRole: "ADMIN",
+          eventType: "SIGNED",
+        },
       });
-      await auditService.log({
-        planificationId: planId,
-        actorId:   actorId   ?? null,
-        actorName: actorName ?? null,
-        actorRole: "ADMIN",
-        eventType: "SIGNED",
-      }, tx);
+      if (!ok) throw new AppError(ErrorCode.PLAN_INVALID_TRANSITION, "El PUM ya no está pendiente de firma");
     });
   }
 
   async rejectPlan(planId: string, comment: string, actorId?: string, actorName?: string): Promise<void> {
-    const plan = await prisma.planification.findUnique({
-      where: { id: planId },
-      select: { status: true, metadata: true },
-    });
-    if (!plan || plan.status !== "PENDING_SIGNATURE") return;
-
-    const metadata = (plan.metadata && typeof plan.metadata === "object" && !Array.isArray(plan.metadata))
-      ? (plan.metadata as Record<string, unknown>)
-      : {};
-
-    const { auditService } = await import("@/modules/audit/audit.service");
     await prisma.$transaction(async (tx) => {
-      await tx.planification.update({
-        where: { id: planId },
-        data: {
-          status: "ADMIN_REJECTED",
-          metadata: {
-            ...metadata,
-            adminRejectionComment: comment,
-            adminRejectedAt: new Date().toISOString(),
-          },
+      // La guarda de estado va en el UPDATE: un PUM firmado mientras tanto no
+      // puede quedar rechazado
+      const ok = await transitionPlan(tx, planId, "ADMIN_REJECTED", {
+        data:  { adminRejectionComment: comment, adminRejectedAt: new Date() },
+        audit: {
+          actorId:   actorId   ?? null,
+          actorName: actorName ?? null,
+          actorRole: "ADMIN",
+          eventType: "ADMIN_REJECTED",
+          comment,
         },
       });
+      if (!ok) throw new AppError(ErrorCode.PLAN_INVALID_TRANSITION, "El PUM ya no está pendiente de firma");
+
       await tx.planReview.updateMany({
         where: { planificationId: planId },
         data:  { status: "IN_REVIEW", approvedAt: null },
       });
-      await auditService.log({
-        planificationId: planId,
-        actorId:   actorId   ?? null,
-        actorName: actorName ?? null,
-        actorRole: "ADMIN",
-        eventType: "ADMIN_REJECTED",
-        comment,
-      }, tx);
     });
   }
 

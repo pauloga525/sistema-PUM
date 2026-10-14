@@ -84,7 +84,7 @@ export async function createCoordinatorAction(
     return { ok: true, tempPassword };
   } catch (e: unknown) {
     const code = (e as { code?: string }).code;
-    if (!(e instanceof AppError) && code === "P2002") return { ok: false, error: "Ya existe un usuario con ese correo o cédula" };
+    if (!(e instanceof AppError) && code === "P2002") return { ok: false, error: "Ya existe un usuario con ese correo o cédula (si está desactivado, un SuperAdmin puede reactivarlo)" };
     return { ok: false, error: toErrorMessage(e, "createCoordinator", "Error al crear el coordinador") };
   }
 }
@@ -182,7 +182,7 @@ export async function deleteCoordinatorAction(
   if (!parsed.success) return { ok: false, error: "Coordinador no válido" };
 
   try {
-    await adminService.deleteCoordinator(parsed.data);
+    await adminService.deleteCoordinator(parsed.data, session.user.id);
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true };
   } catch (e: unknown) {

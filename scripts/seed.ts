@@ -8,7 +8,7 @@
  */
 
 import { config } from "dotenv";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type LevelTrack } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 config({ path: ".env" });
@@ -35,7 +35,7 @@ async function main() {
   console.log("  ✓ Administrador (admin@test.com)");
 
   // ── Niveles educativos ───────────────────────────────────────────────────
-  const levels = [
+  const levels: Array<{ code: string; name: string; orderIndex: number; track: LevelTrack }> = [
     { code: "1EB",  name: "1ro de Básica",       orderIndex: 1,  track: "BASICA" },
     { code: "2EB",  name: "2do de Básica",       orderIndex: 2,  track: "BASICA" },
     { code: "3EB",  name: "3ro de Básica",       orderIndex: 3,  track: "BASICA" },

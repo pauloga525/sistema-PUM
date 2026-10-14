@@ -57,7 +57,7 @@ export async function createTeacherAction(
   } catch (e) {
     if (e instanceof AppError) return { error: e.message };
     const code = (e as { code?: string }).code;
-    if (code === "P2002") return { error: "Ya existe un docente con ese correo o cédula" };
+    if (code === "P2002") return { error: "Ya existe un usuario con ese correo o cédula (si está desactivado, un SuperAdmin puede reactivarlo)" };
     log.error("createTeacher unexpected error", { error: e });
     return { error: "Error al crear el docente. Inténtalo de nuevo." };
   }
@@ -69,12 +69,15 @@ export async function deleteTeacherAction(
   _prev: DeleteTeacherState,
   formData: FormData
 ): Promise<DeleteTeacherState> {
-  await requireAdmin();
+  const session = await requireAdmin();
   const parsed = TeacherIdSchema.safeParse({ teacherId: field(formData, "teacherId") });
   if (!parsed.success) return { error: "ID de docente no válido" };
 
   try {
-    await adminService.deleteTeacher(parsed.data.teacherId);
+    await adminService.deleteTeacher(parsed.data.teacherId, {
+      actorId:   session.user.id,
+      actorName: session.user.name ?? null,
+    });
     revalidatePath(ROUTES.ADMIN.TEACHERS);
     return { ok: true };
   } catch (e) {

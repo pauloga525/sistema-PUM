@@ -303,7 +303,7 @@ export function TeachersTable({ teachers }: Props) {
               <span className="font-semibold text-pum-text">{modal.name ?? "este docente"}</span>?
             </p>
             <p className="text-xs text-center mb-5" style={{ color: "#ba1a1a" }}>
-              Esta acción eliminará también todas sus asignaciones y planificaciones. No se puede deshacer.
+              Se desactivará la cuenta y se le quitarán sus asignaciones. Los PUM que elaboró se conservan; un SuperAdmin puede reactivar la cuenta.
             </p>
 
             {deleteState?.error && (

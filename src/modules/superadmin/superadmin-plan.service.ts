@@ -1,3 +1,4 @@
+import type { PlanStatus, ReviewStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
@@ -63,6 +64,13 @@ export interface PlanFilters {
 }
 
 const PAGE_SIZE = 20;
+
+/** Estado de PlanReview coherente con cada estado del PUM. */
+function reviewStatusFor(status: PlanStatus): ReviewStatus {
+  if (status === "APPROVED" || status === "PENDING_SIGNATURE" || status === "SIGNED") return "APPROVED";
+  if (status === "FEEDBACK_RECEIVED") return "FEEDBACK_SENT";
+  return "IN_REVIEW";
+}
 
 export const superAdminPlanService = {
   async getAllPlans(
@@ -193,12 +201,31 @@ export const superAdminPlanService = {
       select: { status: true },
     });
     if (!plan) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
+    if (plan.status === input.newStatus) {
+      throw new AppError(ErrorCode.VAL_INVALID_INPUT, "El PUM ya está en ese estado");
+    }
 
+    // Corrección manual: puede salir del mapa PLAN_TRANSITIONS (es su
+    // propósito), pero se aplica solo si nadie cambió el estado mientras tanto
+    // y deja la revisión del coordinador coherente con el nuevo estado.
     await prisma.$transaction(async (tx) => {
-      await tx.planification.update({
-        where: { id: planId },
-        data:  { status: input.newStatus },
+      const { count } = await tx.planification.updateMany({
+        where: { id: planId, status: plan.status },
+        data:  {
+          status: input.newStatus,
+          ...(input.newStatus !== "ADMIN_REJECTED" ? { adminRejectionComment: null, adminRejectedAt: null } : {}),
+        },
       });
+      if (count !== 1) {
+        throw new AppError(ErrorCode.PLAN_INVALID_TRANSITION, "El estado del PUM cambió. Recarga la página e inténtalo de nuevo.");
+      }
+
+      const reviewStatus = reviewStatusFor(input.newStatus);
+      await tx.planReview.updateMany({
+        where: { planificationId: planId, status: { not: reviewStatus } },
+        data:  { status: reviewStatus, approvedAt: reviewStatus === "APPROVED" ? new Date() : null },
+      });
+
       await auditService.log({
         planificationId: planId,
         actorId,

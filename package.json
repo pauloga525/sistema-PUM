@@ -9,8 +9,8 @@
     "lint": "eslint",
     "db:seed": "npx tsx scripts/seed.ts",
     "db:check": "npx tsx scripts/check-db.ts",
-    "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "clean:temp": "npx tsx scripts/clean-temp.ts",
     "prisma:generate": "prisma generate"

@@ -92,9 +92,46 @@ El cliente Prisma está en `src/lib/prisma/client.ts`. Es un singleton para evit
 ## Scripts de base de datos
 
 ```bash
-npm run db:migrate    # Crea o aplica migraciones
-npm run db:push       # Sincroniza schema sin crear migración (solo desarrollo)
+npm run db:migrate    # Desarrollo: crea una migración a partir de los cambios del schema y la aplica
+npm run db:deploy     # Producción: aplica las migraciones pendientes (no genera nada nuevo)
 npm run db:seed       # Carga datos iniciales (niveles, año lectivo)
 npm run db:check      # Verifica conectividad
 npm run db:studio     # Abre Prisma Studio (interfaz visual)
 ```
+
+## Migraciones
+
+El esquema se versiona con Prisma Migrate (`prisma/migrations/`). Ya no se usa
+`prisma db push`: no deja historial y, al cambiar el tipo de una columna, puede
+borrar datos.
+
+- **Cambiar el esquema:** editar `prisma/schema.prisma` y ejecutar
+  `npm run db:migrate -- --name descripcion_corta`. Revisar el SQL generado
+  antes de confirmarlo; si convierte columnas con `DROP COLUMN`/`ADD COLUMN`,
+  reescribirlo con `ALTER COLUMN ... USING` (ver
+  `20261014120000_integridad_datos`).
+- **Producción:** respaldo de la base y luego `npm run db:deploy`.
+
+### Paso único: adoptar migraciones en una base existente
+
+Las bases creadas con `db push` no tienen historial. `0_init` describe el
+esquema tal como quedó tras el plan de seguridad (incluye
+`users.tempPasswordExpiresAt` y `rate_limits`). Una sola vez por base:
+
+```bash
+# 1. Respaldo
+pg_dump "$DATABASE_URL" > respaldo-antes-de-migraciones.sql
+
+# 2. Si aún no se aplicó el cambio del plan de seguridad (tempPasswordExpiresAt):
+npx prisma db push          # sin --accept-data-loss
+
+# 3. Comprobar que la base coincide con 0_init (la salida debe ser una migración vacía)
+npx prisma migrate diff --from-config-datasource   --to-schema <(git show 4ba5828:prisma/schema.prisma) --script
+
+# 4. Marcar 0_init como aplicada y aplicar el resto
+npx prisma migrate resolve --applied 0_init
+npm run db:deploy
+```
+
+Si el paso 3 muestra diferencias, no continuar: la base se desvió del esquema y
+hay que revisarla antes.

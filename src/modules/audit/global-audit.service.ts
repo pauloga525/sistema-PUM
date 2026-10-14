@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma/client";
 import { Prisma } from "@prisma/client";
 import { AUDIT_EVENT_LABELS, AUDIT_ACTOR_LABELS } from "./audit.service";
+import { isPlanStatus } from "@/lib/validation/enums";
 import type { AuditEventType } from "./audit.service";
 
 // ── Plan audit ────────────────────────────────────────────────────────────────
@@ -104,7 +105,7 @@ export const globalAuditService = {
     const skip = (page - 1) * PAGE_SIZE;
 
     const where: Prisma.PlanificationWhereInput = {};
-    if (filters.status) where.status        = filters.status;
+    if (isPlanStatus(filters.status)) where.status = filters.status;
     if (filters.yearId) where.academicYearId = filters.yearId;
     if (filters.search) {
       const s = filters.search.trim();

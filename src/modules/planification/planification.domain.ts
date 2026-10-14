@@ -1,8 +1,56 @@
-import type { Planification } from "./planification.types";
+import type { PlanStatus } from "@prisma/client";
+import type { DisplayStatus, Planification } from "./planification.types";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 
-const EDITABLE_STATUSES: readonly string[] = ["DRAFT", "FEEDBACK_RECEIVED"];
+// ── Máquina de estados ───────────────────────────────────────────────────────
+
+/**
+ * Transiciones válidas del ciclo de vida del PUM.
+ *
+ *   DRAFT             → FINALIZED          (docente finaliza)
+ *   FINALIZED         → FEEDBACK_RECEIVED  (coordinador envía observaciones)
+ *                     → APPROVED           (coordinador aprueba)
+ *   FEEDBACK_RECEIVED → FINALIZED          (docente reenvía corregido)
+ *   APPROVED          → PENDING_SIGNATURE  (coordinador envía a firma)
+ *   PENDING_SIGNATURE → SIGNED             (admin firma)
+ *                     → ADMIN_REJECTED     (admin rechaza)
+ *   ADMIN_REJECTED    → FEEDBACK_RECEIVED  (coordinador devuelve al docente)
+ *                     → PENDING_SIGNATURE  (coordinador reenvía a firma)
+ *
+ * SuperAdmin puede corregir el estado fuera de este mapa (correctPlanStatus).
+ */
+export const PLAN_TRANSITIONS: Readonly<Record<PlanStatus, readonly PlanStatus[]>> = {
+  DRAFT:             ["FINALIZED"],
+  FINALIZED:         ["FEEDBACK_RECEIVED", "APPROVED"],
+  FEEDBACK_RECEIVED: ["FINALIZED"],
+  APPROVED:          ["PENDING_SIGNATURE"],
+  PENDING_SIGNATURE: ["SIGNED", "ADMIN_REJECTED"],
+  ADMIN_REJECTED:    ["FEEDBACK_RECEIVED", "PENDING_SIGNATURE"],
+  SIGNED:            [],
+};
+
+export function canTransition(from: PlanStatus, to: PlanStatus): boolean {
+  return PLAN_TRANSITIONS[from].includes(to);
+}
+
+/** Estados desde los que se puede llegar a `to`. */
+export function statusesLeadingTo(to: PlanStatus): PlanStatus[] {
+  return (Object.keys(PLAN_TRANSITIONS) as PlanStatus[]).filter((from) => canTransition(from, to));
+}
+
+/** Estados en los que el docente editor puede modificar el PUM. */
+export const EDITABLE_STATUSES: readonly PlanStatus[] = ["DRAFT", "FEEDBACK_RECEIVED"];
+
+/** Estados que el coordinador ve en su bandeja (el PUM ya salió del borrador). */
+export const IN_REVIEW_CYCLE_STATUSES: readonly PlanStatus[] = [
+  "FINALIZED", "FEEDBACK_RECEIVED", "APPROVED", "PENDING_SIGNATURE", "ADMIN_REJECTED", "SIGNED",
+];
+
+/** Estados posteriores a la aprobación del coordinador. */
+export const APPROVED_OR_LATER_STATUSES: readonly PlanStatus[] = [
+  "APPROVED", "PENDING_SIGNATURE", "SIGNED", "ADMIN_REJECTED",
+];
 
 export function assertCanEdit(plan: Planification): void {
   if (!plan.isEditor) {
@@ -13,7 +61,7 @@ export function assertCanEdit(plan: Planification): void {
   }
 
   // Lista blanca: cualquier otro estado (en revisión, firmado, rechazado por admin…) es de solo lectura
-  if (!EDITABLE_STATUSES.includes(plan.status)) {
+  if (!(EDITABLE_STATUSES as readonly string[]).includes(plan.status)) {
     throw new AppError(
       ErrorCode.PLAN_ALREADY_FINALIZED,
       "Esta planificación ya fue finalizada y no puede modificarse"
@@ -54,10 +102,18 @@ export function assertCanFinalize(plan: Planification): void {
   }
 }
 
-export function computeDisplayStatus(plan: Planification): "DRAFT" | "PREVIEW" | "FINALIZED" | "OVERDUE" | "FEEDBACK_RECEIVED" | "APPROVED" {
-  if (plan.status === "APPROVED" || plan.status === "PENDING_SIGNATURE" || plan.status === "SIGNED" || plan.status === "ADMIN_REJECTED") return "APPROVED";
+/**
+ * Estado que ve el docente en sus listados. Agrupa los estados posteriores a
+ * la aprobación y marca como vencido un borrador fuera de plazo.
+ */
+export function computeDisplayStatus(
+  plan: { status: string; editDeadlineAt: Date | null } | null,
+  now: Date = new Date(),
+): DisplayStatus {
+  if (!plan) return "NOT_STARTED";
+  if ((APPROVED_OR_LATER_STATUSES as readonly string[]).includes(plan.status)) return "APPROVED";
   if (plan.status === "FEEDBACK_RECEIVED") return "FEEDBACK_RECEIVED";
   if (plan.status === "FINALIZED") return "FINALIZED";
-  if (plan.editDeadlineAt && plan.editDeadlineAt < new Date()) return "OVERDUE";
-  return plan.status as "DRAFT" | "PREVIEW";
+  if (plan.editDeadlineAt && plan.editDeadlineAt < now) return "OVERDUE";
+  return "DRAFT";
 }
