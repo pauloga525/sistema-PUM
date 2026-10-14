@@ -286,7 +286,7 @@ export default async function PlanTablaPage({
       {/* Row count hint */}
       {!isFinalized && (
         <p className="text-xs text-pum-text-disabled mt-3 text-right">
-          Máximo 50 filas por planificación · Los cambios no se guardan automáticamente
+          Máximo 50 filas por planificación · Los cambios se guardan automáticamente cada 30 segundos
         </p>
       )}
     </div>
