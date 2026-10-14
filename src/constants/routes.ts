@@ -9,6 +9,8 @@
  * Convención: las funciones reciben parámetros tipados y retornan el path completo.
  */
 
+import type { UserRole } from "./levels";
+
 // --- Rutas públicas ---
 export const ROUTES = {
   // Auth
@@ -86,3 +88,44 @@ export const ROUTES = {
     FTP_PUSH: "/api/ftp/push",
   },
 } as const;
+
+// --- Navegación por rol ---
+
+/** Iconos disponibles para los ítems de navegación (ver components/layout/NavIcon). */
+export type NavIconName =
+  | "grid" | "user" | "users" | "book" | "bookOpen" | "coordinators"
+  | "calendar" | "download" | "message" | "file" | "shield" | "alert" | "settings";
+
+export interface NavItem {
+  href: string;
+  label: string;
+  icon?: NavIconName;
+}
+
+/** Ítems de navegación de cada rol, en el orden en que se muestran. */
+export const NAV_ITEMS: Record<UserRole, readonly NavItem[]> = {
+  TEACHER: [
+    { href: ROUTES.TEACHER.YEAR, label: "Mis materias", icon: "bookOpen" },
+  ],
+  COORDINATOR: [
+    { href: ROUTES.COORDINATOR.RETROALIMENTACION, label: "Retroalimentación", icon: "message" },
+    { href: ROUTES.COORDINATOR.DOCENTES,          label: "Docentes",          icon: "user" },
+  ],
+  ADMIN: [
+    { href: ROUTES.ADMIN.DASHBOARD,    label: "Dashboard",     icon: "grid" },
+    { href: ROUTES.ADMIN.TEACHERS,     label: "Docentes",      icon: "user" },
+    { href: ROUTES.ADMIN.ASSIGNMENTS,  label: "Asignaciones",  icon: "users" },
+    { href: ROUTES.ADMIN.CATALOG,      label: "Catálogo",      icon: "book" },
+    { href: ROUTES.ADMIN.COORDINATORS, label: "Coordinadores", icon: "coordinators" },
+    { href: ROUTES.ADMIN.DEADLINES,    label: "Plazos",        icon: "calendar" },
+    { href: ROUTES.ADMIN.EXPORT_ZIP,   label: "Exportar ZIP",  icon: "download" },
+  ],
+  SUPERADMIN: [
+    { href: ROUTES.SUPERADMIN.DASHBOARD, label: "Dashboard", icon: "grid" },
+    { href: ROUTES.SUPERADMIN.USERS,     label: "Usuarios",  icon: "users" },
+    { href: ROUTES.SUPERADMIN.PLANS,     label: "PUM",       icon: "file" },
+    { href: ROUTES.SUPERADMIN.AUDIT,     label: "Auditoría", icon: "shield" },
+    { href: ROUTES.SUPERADMIN.ERRORS,    label: "Errores",   icon: "alert" },
+    { href: ROUTES.SUPERADMIN.SETTINGS,  label: "Sistema",   icon: "settings" },
+  ],
+};
