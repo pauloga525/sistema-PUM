@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { auth } from "@/auth";
+import { getLogos } from "@/lib/assets/logos";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma/client";
 import { planificationService } from "@/modules/planification/planification.service";
@@ -60,9 +59,7 @@ export default async function PreviewPage({
   const meta = plan!.metadata;
 
   // Logos institucionales — opcionales, se muestran solo si existen en /public/logos/
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-right.png"));
+  const { left: hasLogoLeft, right: hasLogoRight } = getLogos();
 
   // Subnivel — prefer teacher override if set
   const nivelSub = meta?.nivelSubnivelOverride

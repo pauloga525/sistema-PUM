@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { auth } from "@/auth";
+import { getLogos } from "@/lib/assets/logos";
 import { redirect, notFound } from "next/navigation";
 import { hasMinRole } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
@@ -39,9 +38,7 @@ export default async function AdminPlanPreviewPage({
   // SUPERADMIN can inspect any plan regardless of status.
   if (!isSuperAdmin && planData.status !== "PENDING_SIGNATURE" && planData.status !== "SIGNED") notFound();
 
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-right.png"));
+  const { left: hasLogoLeft, right: hasLogoRight } = getLogos();
 
   const isSigned    = planData.status === "SIGNED";
   // Admin action controls (sign/reject) only make sense on plans awaiting signature

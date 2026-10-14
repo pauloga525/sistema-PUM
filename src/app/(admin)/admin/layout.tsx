@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { auth } from "@/auth";
+import { getLogos } from "@/lib/assets/logos";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import { hasMinRole } from "@/constants/levels";
@@ -13,9 +12,7 @@ export const metadata: Metadata = {
   title: "Admin — PUM Web",
 };
 
-const _publicDir   = path.join(process.cwd(), "public");
-const hasLogo      = fs.existsSync(path.join(_publicDir, "logos", "logo-left.png"));
-const hasLogoRight = fs.existsSync(path.join(_publicDir, "logos", "logo-header-right.png"));
+const { left: hasLogo, headerRight: hasLogoRight } = getLogos();
 
 export default async function AdminLayout({
   children,

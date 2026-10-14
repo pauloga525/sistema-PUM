@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { notFound, redirect } from "next/navigation";
+import { getLogos } from "@/lib/assets/logos";
 import { auth } from "@/auth";
 import { hasMinRole } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
@@ -33,9 +32,7 @@ export default async function PlanPreviewPage({
   ]);
   if (!planData) notFound();
 
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-right.png"));
+  const { left: hasLogoLeft, right: hasLogoRight } = getLogos();
 
   const isSigned = planData.status === "SIGNED";
   const signatureBlock = isSigned

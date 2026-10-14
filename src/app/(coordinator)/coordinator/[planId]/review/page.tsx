@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { auth } from "@/auth";
+import { getLogos } from "@/lib/assets/logos";
 import { redirect, notFound } from "next/navigation";
 import { ROUTES } from "@/constants/routes";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -40,9 +39,7 @@ export default async function ReviewPage({
     ? await auditService.getSignatureBlock(planId)
     : null;
 
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-right.png"));
+  const { left: hasLogoLeft, right: hasLogoRight } = getLogos();
 
   return (
     <div className="flex-1 flex flex-col bg-pum-bg">

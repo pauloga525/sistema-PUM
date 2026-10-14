@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import Link from "next/link";
+import { getLogos } from "@/lib/assets/logos";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
@@ -11,10 +10,7 @@ import { notificationsService } from "@/modules/notifications/notifications.serv
 import { ToastProvider } from "@/components/ui/Toast";
 import type { Metadata } from "next";
 
-// Evaluated once at module load — logos are static assets that don't change at runtime
-const _publicDir   = path.join(process.cwd(), "public");
-const hasLogo      = fs.existsSync(path.join(_publicDir, "logos", "logo-left.png"));
-const hasLogoRight = fs.existsSync(path.join(_publicDir, "logos", "logo-header-right.png"));
+const { left: hasLogo, headerRight: hasLogoRight } = getLogos();
 
 export const metadata: Metadata = {
   title: "PUM Web",

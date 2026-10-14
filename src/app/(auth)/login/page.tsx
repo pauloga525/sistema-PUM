@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { redirect } from "next/navigation";
+import { getLogos } from "@/lib/assets/logos";
 import { signIn } from "@/auth";
 import { appConfig } from "@/config/app.config";
 
@@ -39,9 +38,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     ? (AUTH_ERROR_MESSAGES[errorCode] ?? AUTH_ERROR_MESSAGES.Default)
     : null;
 
-  const publicDir = path.join(process.cwd(), "public");
-  const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));
-  const hasLogoRight = fs.existsSync(path.join(publicDir, "logos", "logo-right.png"));
+  const { left: hasLogoLeft, right: hasLogoRight } = getLogos();
 
   return (
     <main className="w-full max-w-[380px] flex flex-col items-center gap-5">

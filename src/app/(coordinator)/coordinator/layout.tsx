@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { auth } from "@/auth";
+import { getLogos } from "@/lib/assets/logos";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import { appConfig } from "@/config/app.config";
@@ -12,9 +11,7 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { ROUTES } from "@/constants/routes";
 import type { Metadata } from "next";
 
-const _publicDir   = path.join(process.cwd(), "public");
-const hasLogo      = fs.existsSync(path.join(_publicDir, "logos", "logo-left.png"));
-const hasLogoRight = fs.existsSync(path.join(_publicDir, "logos", "logo-header-right.png"));
+const { left: hasLogo, headerRight: hasLogoRight } = getLogos();
 
 export const metadata: Metadata = {
   title: "Coordinador — PUM Web",
