@@ -133,17 +133,18 @@ export default async function AuditPage({
             <input
               name="search" defaultValue={search}
               placeholder="Buscar docente o materia…"
+              aria-label="Buscar docente o materia"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text placeholder-pum-text-muted focus:outline-none focus:ring-2 focus:ring-violet-400 min-w-[220px]"
             />
             <select
-              name="yearId" defaultValue={yearId}
+              name="yearId" defaultValue={yearId} aria-label="Filtrar por año lectivo"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
             >
               <option value="">Todos los años</option>
               {years.map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}
             </select>
             <select
-              name="status" defaultValue={status}
+              name="status" defaultValue={status} aria-label="Filtrar por estado"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
             >
               <option value="">Todos los estados</option>
@@ -241,10 +242,11 @@ export default async function AuditPage({
             <input
               name="search" defaultValue={search}
               placeholder="Buscar por email del actor…"
+              aria-label="Buscar por email del actor"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text placeholder-pum-text-muted focus:outline-none focus:ring-2 focus:ring-violet-400 min-w-[220px]"
             />
             <select
-              name="eventType" defaultValue={eventType}
+              name="eventType" defaultValue={eventType} aria-label="Filtrar por tipo de evento"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
             >
               <option value="">Todos los eventos</option>
@@ -253,16 +255,16 @@ export default async function AuditPage({
               ))}
             </select>
             <select
-              name="result" defaultValue={result}
+              name="result" defaultValue={result} aria-label="Filtrar por resultado"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
             >
               <option value="">Todos los resultados</option>
               <option value="SUCCESS">Exitoso</option>
               <option value="FAILURE">Fallido</option>
             </select>
-            <input type="date" name="from" defaultValue={from} title="Desde"
+            <input type="date" name="from" defaultValue={from} title="Desde" aria-label="Desde"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400" />
-            <input type="date" name="to" defaultValue={to} title="Hasta"
+            <input type="date" name="to" defaultValue={to} title="Hasta" aria-label="Hasta"
               className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400" />
             <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ background: "#4c1d95" }}>
               Filtrar

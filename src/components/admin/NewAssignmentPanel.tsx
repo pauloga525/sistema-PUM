@@ -92,7 +92,7 @@ export function NewAssignmentPanel({ academicYearId, teachers, subjects, levels 
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 text-sm font-semibold text-white px-4 py-2 rounded-xl cursor-pointer pum-navy-btn"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
@@ -157,6 +157,7 @@ export function NewAssignmentPanel({ academicYearId, teachers, subjects, levels 
                   <svg
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-pum-text-muted"
                     width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                    aria-hidden="true"
                   >
                     <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
                   </svg>

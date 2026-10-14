@@ -77,12 +77,14 @@ export default async function UsersPage({
             name="search"
             defaultValue={filters.search}
             placeholder="Buscar por nombre, email o cédula..."
+            aria-label="Buscar usuarios"
             className="w-full px-3 py-2 text-sm rounded-lg border border-pum-border bg-white focus:outline-none focus:ring-2 focus:ring-purple-300/50"
           />
         </div>
         <select
           name="role"
           defaultValue={filters.role}
+          aria-label="Filtrar por rol"
           className="px-3 py-2 text-sm rounded-lg border border-pum-border bg-white focus:outline-none"
         >
           {ROLE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -90,6 +92,7 @@ export default async function UsersPage({
         <select
           name="status"
           defaultValue={filters.status}
+          aria-label="Filtrar por estado"
           className="px-3 py-2 text-sm rounded-lg border border-pum-border bg-white focus:outline-none"
         >
           <option value="all">Todos</option>

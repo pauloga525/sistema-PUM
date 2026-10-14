@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
 import {
   createAcademicYearAction,
   createPeriodAction,
@@ -22,6 +22,7 @@ function formatDate(d: Date | null): string {
 function YearRow({ year }: { year: YearData }) {
   const [expanded, setExpanded] = useState(false);
   const [showPeriodForm, setShowPeriodForm] = useState(false);
+  const fid = useId();
 
   const [stateActivate, activateAction, pendingActivate] = useActionState<CatalogActionState, FormData>(
     setActiveYearAction, null
@@ -130,7 +131,7 @@ function YearRow({ year }: { year: YearData }) {
           )}
 
           {stateDeleteP?.error && (
-            <p className="text-xs text-pum-error mb-2">{stateDeleteP.error}</p>
+            <p role="alert" className="text-xs text-pum-error mb-2">{stateDeleteP.error}</p>
           )}
 
           {/* Botón / formulario nuevo periodo */}
@@ -148,10 +149,11 @@ function YearRow({ year }: { year: YearData }) {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="col-span-2">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-name`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Nombre del periodo
                   </label>
                   <input
+                    id={`${fid}-name`}
                     name="name"
                     placeholder="Quimestre 1"
                     required
@@ -159,10 +161,11 @@ function YearRow({ year }: { year: YearData }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-number`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Número
                   </label>
                   <input
+                    id={`${fid}-number`}
                     name="number"
                     type="number"
                     min={1}
@@ -177,21 +180,21 @@ function YearRow({ year }: { year: YearData }) {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-start`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Fecha de inicio
                   </label>
-                  <input name="startDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
+                  <input id={`${fid}-start`} name="startDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-end`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Fecha de fin
                   </label>
-                  <input name="endDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
+                  <input id={`${fid}-end`} name="endDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
                 </div>
               </div>
 
               {statePeriod?.error && (
-                <p className="text-xs text-pum-error">{statePeriod.error}</p>
+                <p role="alert" className="text-xs text-pum-error">{statePeriod.error}</p>
               )}
 
               <div className="flex gap-2 mt-1">
@@ -223,6 +226,7 @@ function YearRow({ year }: { year: YearData }) {
 
 export function AcademicYearManager({ years }: { years: YearData[] }) {
   const [showYearForm, setShowYearForm] = useState(false);
+  const fid = useId();
   const [stateYear, yearAction, pendingYear] = useActionState<CatalogActionState, FormData>(
     createAcademicYearAction, null
   );
@@ -270,10 +274,11 @@ export function AcademicYearManager({ years }: { years: YearData[] }) {
             <form action={yearAction} className="flex flex-col gap-3">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="col-span-2">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-label`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Etiqueta
                   </label>
                   <input
+                    id={`${fid}-label`}
                     name="label"
                     placeholder="2026-2027"
                     required
@@ -281,10 +286,11 @@ export function AcademicYearManager({ years }: { years: YearData[] }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-yearStart`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Año de inicio
                   </label>
                   <input
+                    id={`${fid}-yearStart`}
                     name="yearStart"
                     type="number"
                     min={2020}
@@ -298,24 +304,24 @@ export function AcademicYearManager({ years }: { years: YearData[] }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-start`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Fecha de inicio
                   </label>
-                  <input name="startDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
+                  <input id={`${fid}-start`} name="startDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-end`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Fecha de fin
                   </label>
-                  <input name="endDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
+                  <input id={`${fid}-end`} name="endDate" type="date" className="pum-glass-input w-full px-3 py-2 text-sm" />
                 </div>
               </div>
 
               {stateYear?.error && (
-                <p className="text-xs text-pum-error">{stateYear.error}</p>
+                <p role="alert" className="text-xs text-pum-error">{stateYear.error}</p>
               )}
               {stateYear?.ok && (
-                <p className="text-xs text-green-700">Año lectivo creado correctamente.</p>
+                <p role="status" className="text-xs text-green-700">Año lectivo creado correctamente.</p>
               )}
 
               <div className="flex gap-2">

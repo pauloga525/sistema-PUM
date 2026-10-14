@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useId, useTransition, useState } from "react";
 import { correctPlanStatusAction, reassignCoordinatorAction, clearPlanDeadlineAction } from "@/app/(superadmin)/superadmin/plans/actions";
 import { PLAN_STATUSES } from "@/modules/superadmin/superadmin.schema";
 
@@ -48,6 +48,7 @@ export function PlanAdminActions({
   const [coordMsg,   setCoordMsg]   = useState<{ ok: boolean; text: string } | null>(null);
   const [deadlineMsg, setDeadlineMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmingDeadline, setConfirmingDeadline] = useState(false);
+  const fid = useId();
 
   function handleClearDeadline() {
     startTransition(async () => {
@@ -101,7 +102,7 @@ export function PlanAdminActions({
           </p>
 
           {deadlineMsg && (
-            <p className="text-xs font-medium mb-3" style={{ color: deadlineMsg.ok ? "#166534" : "#991b1b" }}>
+            <p role={deadlineMsg.ok ? "status" : "alert"} className="text-xs font-medium mb-3" style={{ color: deadlineMsg.ok ? "#166534" : "#991b1b" }}>
               {deadlineMsg.text}
             </p>
           )}
@@ -147,8 +148,9 @@ export function PlanAdminActions({
         <h3 className="text-sm font-semibold text-pum-text mb-4">Corregir estado del PUM</h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-pum-text-muted mb-1">Nuevo estado</label>
+            <label htmlFor={`${fid}-status`} className="block text-xs text-pum-text-muted mb-1">Nuevo estado</label>
             <select
+              id={`${fid}-status`}
               value={statusValue}
               onChange={(e) => { setStatusValue(e.target.value); setStatusMsg(null); }}
               className="w-full border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -160,8 +162,9 @@ export function PlanAdminActions({
             </select>
           </div>
           <div>
-            <label className="block text-xs text-pum-text-muted mb-1">Motivo de la corrección</label>
+            <label htmlFor={`${fid}-reason`} className="block text-xs text-pum-text-muted mb-1">Motivo de la corrección</label>
             <textarea
+              id={`${fid}-reason`}
               value={reason}
               onChange={(e) => { setReason(e.target.value); setStatusMsg(null); }}
               rows={3}
@@ -171,7 +174,7 @@ export function PlanAdminActions({
             />
           </div>
           {statusMsg && (
-            <p className="text-xs font-medium" style={{ color: statusMsg.ok ? "#166534" : "#991b1b" }}>
+            <p role={statusMsg.ok ? "status" : "alert"} className="text-xs font-medium" style={{ color: statusMsg.ok ? "#166534" : "#991b1b" }}>
               {statusMsg.text}
             </p>
           )}
@@ -194,8 +197,9 @@ export function PlanAdminActions({
         ) : (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-pum-text-muted mb-1">Coordinador</label>
+              <label htmlFor={`${fid}-coordinator`} className="block text-xs text-pum-text-muted mb-1">Coordinador</label>
               <select
+                id={`${fid}-coordinator`}
                 value={coordinatorId}
                 onChange={(e) => { setCoordinatorId(e.target.value); setCoordMsg(null); }}
                 className="w-full border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -210,7 +214,7 @@ export function PlanAdminActions({
               </select>
             </div>
             {coordMsg && (
-              <p className="text-xs font-medium" style={{ color: coordMsg.ok ? "#166534" : "#991b1b" }}>
+              <p role={coordMsg.ok ? "status" : "alert"} className="text-xs font-medium" style={{ color: coordMsg.ok ? "#166534" : "#991b1b" }}>
                 {coordMsg.text}
               </p>
             )}

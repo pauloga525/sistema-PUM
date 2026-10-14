@@ -77,18 +77,19 @@ export default async function AdminTeachersPage({
           name="search"
           defaultValue={search}
           placeholder="Buscar por nombre, email o cédula…"
+          aria-label="Buscar docentes"
           className={`${inputClass} flex-1 min-w-[220px]`}
         />
 
         {/* Estado */}
-        <select name="status" defaultValue={status} className={inputClass}>
+        <select name="status" defaultValue={status} aria-label="Filtrar por estado" className={inputClass}>
           <option value="all">Todos los estados</option>
           <option value="active">Activo</option>
           <option value="pending">Primer acceso</option>
         </select>
 
         {/* Ordenar por */}
-        <select name="sort" defaultValue={sort} className={inputClass}>
+        <select name="sort" defaultValue={sort} aria-label="Ordenar por" className={inputClass}>
           <option value="name_asc">Nombre A → Z</option>
           <option value="name_desc">Nombre Z → A</option>
           <option value="created_desc">Más recientes</option>

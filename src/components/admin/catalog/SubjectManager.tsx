@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
 import {
   createSubjectAction,
   deleteSubjectAction,
@@ -92,7 +92,7 @@ function SubjectRow({
       </div>
 
       {stateDelete?.error && (
-        <p className="px-4 pb-2 text-xs text-pum-error">{stateDelete.error}</p>
+        <p role="alert" className="px-4 pb-2 text-xs text-pum-error">{stateDelete.error}</p>
       )}
 
       {/* ── Niveles vinculados ── */}
@@ -121,6 +121,7 @@ function SubjectRow({
                       type="submit"
                       className="ml-1 text-pum-text-muted hover:text-pum-error cursor-pointer"
                       title="Desvincular"
+                      aria-label={`Desvincular de ${sl.level.name}`}
                       style={{ lineHeight: 1 }}
                     >
                       ×
@@ -132,7 +133,7 @@ function SubjectRow({
           )}
 
           {stateRemove?.error && (
-            <p className="text-xs text-pum-error mb-2">{stateRemove.error}</p>
+            <p role="alert" className="text-xs text-pum-error mb-2">{stateRemove.error}</p>
           )}
 
           {/* Agregar vínculo */}
@@ -142,6 +143,7 @@ function SubjectRow({
               <select
                 name="levelId"
                 required
+                aria-label={`Vincular ${subject.name} a nivel`}
                 className="pum-glass-input flex-1 px-2 py-1.5 text-xs"
               >
                 <option value="">Vincular a nivel…</option>
@@ -166,7 +168,7 @@ function SubjectRow({
           )}
 
           {stateAdd?.error && (
-            <p className="text-xs text-pum-error mt-1">{stateAdd.error}</p>
+            <p role="alert" className="text-xs text-pum-error mt-1">{stateAdd.error}</p>
           )}
         </div>
       )}
@@ -184,6 +186,7 @@ interface Props {
 export function SubjectManager({ subjects, levels }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const fid = useId();
   const [stateCreate, createAction, pendingCreate] = useActionState<CatalogActionState, FormData>(
     createSubjectAction, null
   );
@@ -238,10 +241,11 @@ export function SubjectManager({ subjects, levels }: Props) {
             <form action={createAction} className="flex flex-col gap-3">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-name`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Nombre de la materia
                   </label>
                   <input
+                    id={`${fid}-name`}
                     name="name"
                     placeholder="Ej: Ciencias Naturales"
                     required
@@ -249,10 +253,11 @@ export function SubjectManager({ subjects, levels }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                  <label htmlFor={`${fid}-code`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                     Código
                   </label>
                   <input
+                    id={`${fid}-code`}
                     name="code"
                     placeholder="Ej: CCNN"
                     required
@@ -263,10 +268,11 @@ export function SubjectManager({ subjects, levels }: Props) {
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
+                <label htmlFor={`${fid}-area`} className="text-[10px] font-semibold uppercase tracking-wide text-pum-text-muted block mb-1">
                   Área de estudio (opcional)
                 </label>
                 <input
+                  id={`${fid}-area`}
                   name="areaEstudio"
                   placeholder="Ej: Ciencias Naturales y Experimentales"
                   className="pum-glass-input w-full px-3 py-2 text-sm"
@@ -274,10 +280,10 @@ export function SubjectManager({ subjects, levels }: Props) {
               </div>
 
               {stateCreate?.error && (
-                <p className="text-xs text-pum-error">{stateCreate.error}</p>
+                <p role="alert" className="text-xs text-pum-error">{stateCreate.error}</p>
               )}
               {stateCreate?.ok && (
-                <p className="text-xs text-green-700">Materia creada. Ahora puedes vincularla a los niveles.</p>
+                <p role="status" className="text-xs text-green-700">Materia creada. Ahora puedes vincularla a los niveles.</p>
               )}
 
               <div className="flex gap-2">
@@ -309,6 +315,7 @@ export function SubjectManager({ subjects, levels }: Props) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar por nombre, código o área…"
+              aria-label="Buscar materias"
               className="pum-glass-input w-full max-w-sm px-3 py-2 text-sm"
             />
           </div>

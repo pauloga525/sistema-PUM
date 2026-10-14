@@ -1,7 +1,7 @@
 "use client";
 import { USER_ROLE } from "@/constants/levels";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/constants/routes";
 import { createUserAction } from "@/app/(superadmin)/superadmin/users/actions";
@@ -26,6 +26,8 @@ export function CreateUserForm() {
   const [form, setForm] = useState({
     name: "", email: "", cedula: "", role: "TEACHER", coordinatorArea: "",
   });
+
+  const fid = useId();
 
   const set = (field: string, value: string) => setForm((p) => ({ ...p, [field]: value }));
 
@@ -71,14 +73,16 @@ export function CreateUserForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5 max-w-lg">
       {error && (
-        <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid rgba(153,27,27,0.2)" }}>
+        <div role="alert" className="rounded-lg px-4 py-3 text-sm" style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid rgba(153,27,27,0.2)" }}>
           {error}
         </div>
       )}
 
       <div>
-        <label className={LABEL_CLASS}>Nombre completo *</label>
+        <label htmlFor={`${fid}-name`} className={LABEL_CLASS}>Nombre completo<span aria-hidden="true"> *</span></label>
         <input
+          id={`${fid}-name`}
+          aria-required="true"
           type="text"
           required
           value={form.name}
@@ -89,8 +93,10 @@ export function CreateUserForm() {
       </div>
 
       <div>
-        <label className={LABEL_CLASS}>Email institucional *</label>
+        <label htmlFor={`${fid}-email`} className={LABEL_CLASS}>Email institucional<span aria-hidden="true"> *</span></label>
         <input
+          id={`${fid}-email`}
+          aria-required="true"
           type="email"
           required
           value={form.email}
@@ -101,8 +107,11 @@ export function CreateUserForm() {
       </div>
 
       <div>
-        <label className={LABEL_CLASS}>Cédula *</label>
+        <label htmlFor={`${fid}-cedula`} className={LABEL_CLASS}>Cédula<span aria-hidden="true"> *</span></label>
         <input
+          id={`${fid}-cedula`}
+          aria-required="true"
+          aria-describedby={`${fid}-cedula-hint`}
           type="text"
           required
           maxLength={10}
@@ -111,12 +120,14 @@ export function CreateUserForm() {
           placeholder="0000000000"
           className={INPUT_CLASS}
         />
-        <p className="text-xs text-pum-text-muted mt-1">10 dígitos.</p>
+        <p id={`${fid}-cedula-hint`} className="text-xs text-pum-text-muted mt-1">10 dígitos.</p>
       </div>
 
       <div>
-        <label className={LABEL_CLASS}>Rol *</label>
+        <label htmlFor={`${fid}-role`} className={LABEL_CLASS}>Rol<span aria-hidden="true"> *</span></label>
         <select
+          id={`${fid}-role`}
+          aria-required="true"
           value={form.role}
           onChange={(e) => set("role", e.target.value)}
           className={INPUT_CLASS}
@@ -129,8 +140,9 @@ export function CreateUserForm() {
 
       {form.role === USER_ROLE.COORDINATOR && (
         <div>
-          <label className={LABEL_CLASS}>Área de coordinación</label>
+          <label htmlFor={`${fid}-area`} className={LABEL_CLASS}>Área de coordinación</label>
           <input
+            id={`${fid}-area`}
             type="text"
             value={form.coordinatorArea}
             onChange={(e) => set("coordinatorArea", e.target.value)}

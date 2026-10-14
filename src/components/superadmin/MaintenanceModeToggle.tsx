@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toggleMaintenanceModeAction } from "@/app/(superadmin)/superadmin/settings/actions";
 
@@ -18,6 +18,7 @@ export function MaintenanceModeToggle({ initialEnabled, initialMessage, enabledA
   const [message, setMessage]         = useState(initialMessage ?? "");
   const [confirming, setConfirming]   = useState(false);
   const [resultMsg, setResultMsg]     = useState<{ ok: boolean; text: string } | null>(null);
+  const messageId = useId();
 
   function handleToggle() {
     const nextEnabled = !enabled;
@@ -44,6 +45,7 @@ export function MaintenanceModeToggle({ initialEnabled, initialMessage, enabledA
     <div className="rounded-xl border border-pum-border bg-white p-5">
       <div className="flex items-center gap-2 mb-1">
         <span
+          aria-hidden="true"
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{ background: enabled ? "#dc2626" : "#16a34a" }}
         />
@@ -60,10 +62,11 @@ export function MaintenanceModeToggle({ initialEnabled, initialMessage, enabledA
 
       {!enabled && (
         <div className="mb-4">
-          <label className="block text-xs text-pum-text-muted mb-1">
+          <label htmlFor={messageId} className="block text-xs text-pum-text-muted mb-1">
             Mensaje para la pantalla de aviso (opcional)
           </label>
           <textarea
+            id={messageId}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={2}
@@ -75,7 +78,7 @@ export function MaintenanceModeToggle({ initialEnabled, initialMessage, enabledA
       )}
 
       {resultMsg && (
-        <p className="text-xs font-medium mb-3" style={{ color: resultMsg.ok ? "#166534" : "#991b1b" }}>
+        <p role={resultMsg.ok ? "status" : "alert"} className="text-xs font-medium mb-3" style={{ color: resultMsg.ok ? "#166534" : "#991b1b" }}>
           {resultMsg.text}
         </p>
       )}

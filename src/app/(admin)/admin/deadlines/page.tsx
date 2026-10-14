@@ -301,7 +301,7 @@ export default async function AdminDeadlinesPage({
                                   name="deadline"
                                   defaultValue={deadlineStr}
                                   className={DATE_INPUT_CLS}
-                                  aria-label="Nueva fecha límite"
+                                  aria-label={`Nueva fecha límite — ${plan.subject.name}, ${plan.level.name}`}
                                 />
                                 <button
                                   type="submit"

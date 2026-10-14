@@ -94,6 +94,7 @@ export default async function ErrorsPage({
         <select
           name="level"
           defaultValue={level}
+          aria-label="Filtrar por nivel"
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
         >
           <option value="">Todos los niveles</option>
@@ -104,6 +105,7 @@ export default async function ErrorsPage({
         <select
           name="resolved"
           defaultValue={resolved}
+          aria-label="Filtrar por estado de resolución"
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
         >
           <option value="">Todos</option>
@@ -114,6 +116,7 @@ export default async function ErrorsPage({
           <select
             name="source"
             defaultValue={source}
+            aria-label="Filtrar por módulo"
             className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
           >
             <option value="">Todos los módulos</option>
@@ -123,11 +126,11 @@ export default async function ErrorsPage({
           </select>
         )}
         <input
-          type="date" name="from" defaultValue={from} title="Desde"
+          type="date" name="from" defaultValue={from} title="Desde" aria-label="Desde"
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
         />
         <input
-          type="date" name="to" defaultValue={to} title="Hasta"
+          type="date" name="to" defaultValue={to} title="Hasta" aria-label="Hasta"
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
         />
         <button

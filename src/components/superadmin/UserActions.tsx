@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import {
   changeRoleAction,
   deactivateUserAction,
@@ -56,6 +56,7 @@ export function UserActions({
   const [editName,   setEditName]   = useState(currentName   ?? "");
   const [editEmail,  setEditEmail]  = useState(currentEmail);
   const [editCedula, setEditCedula] = useState(currentCedula ?? "");
+  const fid = useId();
 
   const flash = (type: "success" | "error", text: string) => {
     setMsg({ type, text });
@@ -112,6 +113,7 @@ export function UserActions({
     <div className="space-y-4">
       {msg && (
         <div
+          role={msg.type === "success" ? "status" : "alert"}
           className="rounded-lg px-4 py-3 text-sm"
           style={{
             background: msg.type === "success" ? "#f0fdf4" : "#fef2f2",
@@ -128,8 +130,9 @@ export function UserActions({
         <p className="text-sm font-semibold text-pum-text mb-3">Editar datos</p>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-pum-text-muted">Nombre completo</label>
+            <label htmlFor={`${fid}-name`} className="text-xs font-medium text-pum-text-muted">Nombre completo</label>
             <input
+              id={`${fid}-name`}
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
@@ -139,8 +142,9 @@ export function UserActions({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-pum-text-muted">Correo electrónico</label>
+            <label htmlFor={`${fid}-email`} className="text-xs font-medium text-pum-text-muted">Correo electrónico</label>
             <input
+              id={`${fid}-email`}
               type="email"
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
@@ -150,8 +154,9 @@ export function UserActions({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-pum-text-muted">Cédula</label>
+            <label htmlFor={`${fid}-cedula`} className="text-xs font-medium text-pum-text-muted">Cédula</label>
             <input
+              id={`${fid}-cedula`}
               type="text"
               value={editCedula}
               onChange={(e) => setEditCedula(e.target.value.replace(/\D/g, "").slice(0, 10))}
@@ -184,6 +189,7 @@ export function UserActions({
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
+              aria-label="Nuevo rol"
               disabled={isPending}
               className="flex-1 px-3 py-2 text-sm rounded-lg border border-pum-border bg-white focus:outline-none"
             >

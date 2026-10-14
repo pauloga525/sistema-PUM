@@ -194,12 +194,14 @@ export function AssignmentsClient({ assignments, yearLabel }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar docente, materia, nivel…"
+            aria-label="Buscar docente, materia o nivel"
             style={INPUT}
             className="px-3 py-1.5 text-sm outline-none w-52"
           />
           <select
             value={filterLevel}
             onChange={(e) => setFilterLevel(e.target.value)}
+            aria-label="Filtrar por nivel"
             style={INPUT}
             className="px-3 py-1.5 text-sm outline-none"
           >

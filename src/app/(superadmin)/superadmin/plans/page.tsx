@@ -86,11 +86,13 @@ export default async function PlansPage({
           name="search"
           defaultValue={search}
           placeholder="Buscar docente, email o materia…"
+          aria-label="Buscar docente, email o materia"
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text placeholder-pum-text-muted focus:outline-none focus:ring-2 focus:ring-violet-400 min-w-[240px]"
         />
         <select
           name="status"
           defaultValue={status}
+          aria-label="Filtrar por estado"
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
         >
           <option value="">Todos los estados</option>
@@ -101,6 +103,7 @@ export default async function PlansPage({
         <select
           name="yearId"
           defaultValue={yearId}
+          aria-label="Filtrar por año lectivo"
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400"
         >
           <option value="">Todos los años</option>
@@ -111,6 +114,7 @@ export default async function PlansPage({
         <select
           name="periodId"
           defaultValue={periodId}
+          aria-label="Filtrar por trimestre"
           disabled={!yearId}
           className="border border-pum-border rounded-lg px-3 py-2 text-sm text-pum-text focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-50 disabled:cursor-not-allowed"
         >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { ROUTES } from "@/constants/routes";
 import { DownloadZipButton } from "./DownloadZipButton";
 
@@ -51,6 +51,7 @@ export function ExportZipClient({ plans, periodName, yearLabel }: Props) {
   const [searchTeacher, setSearchTeacher]     = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedLevel, setSelectedLevel]     = useState("");
+  const fid = useId();
 
   // Derive unique subjects + levels from plans for filter dropdowns
   const subjects = useMemo(() => {
@@ -116,7 +117,7 @@ export function ExportZipClient({ plans, periodName, yearLabel }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Buscar docente */}
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold text-pum-text-muted uppercase tracking-wide">
+            <label htmlFor={`${fid}-teacher`} className="text-[11px] font-semibold text-pum-text-muted uppercase tracking-wide">
               Buscar docente
             </label>
             <div className="relative">
@@ -124,10 +125,12 @@ export function ExportZipClient({ plans, periodName, yearLabel }: Props) {
                 className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                 width="13" height="13" viewBox="0 0 24 24" fill="none"
                 stroke="#737781" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <input
+                id={`${fid}-teacher`}
                 type="text"
                 value={searchTeacher}
                 onChange={(e) => setSearchTeacher(e.target.value)}
@@ -144,10 +147,11 @@ export function ExportZipClient({ plans, periodName, yearLabel }: Props) {
 
           {/* Materia */}
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold text-pum-text-muted uppercase tracking-wide">
+            <label htmlFor={`${fid}-subject`} className="text-[11px] font-semibold text-pum-text-muted uppercase tracking-wide">
               Materia
             </label>
             <select
+              id={`${fid}-subject`}
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
               className="w-full text-sm px-3 py-2 rounded-xl outline-none transition-colors appearance-none cursor-pointer"
@@ -166,10 +170,11 @@ export function ExportZipClient({ plans, periodName, yearLabel }: Props) {
 
           {/* Nivel */}
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold text-pum-text-muted uppercase tracking-wide">
+            <label htmlFor={`${fid}-level`} className="text-[11px] font-semibold text-pum-text-muted uppercase tracking-wide">
               Nivel
             </label>
             <select
+              id={`${fid}-level`}
               value={selectedLevel}
               onChange={(e) => setSelectedLevel(e.target.value)}
               className="w-full text-sm px-3 py-2 rounded-xl outline-none transition-colors appearance-none cursor-pointer"

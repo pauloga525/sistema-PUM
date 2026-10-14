@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { resolveErrorAction, reopenErrorAction } from "@/app/(superadmin)/superadmin/errors/actions";
 
 interface ErrorResolveActionProps {
@@ -12,6 +12,7 @@ export function ErrorResolveAction({ errorId, resolved }: ErrorResolveActionProp
   const [isPending, startTransition] = useTransition();
   const [note, setNote]   = useState("");
   const [msg,  setMsg]    = useState<{ ok: boolean; text: string } | null>(null);
+  const noteId = useId();
 
   function handleResolve() {
     startTransition(async () => {
@@ -45,8 +46,9 @@ export function ErrorResolveAction({ errorId, resolved }: ErrorResolveActionProp
       {!resolved ? (
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-pum-text-muted mb-1">Nota de resolución (opcional)</label>
+            <label htmlFor={noteId} className="block text-xs text-pum-text-muted mb-1">Nota de resolución (opcional)</label>
             <textarea
+              id={noteId}
               value={note}
               onChange={(e) => { setNote(e.target.value); setMsg(null); }}
               rows={3}
@@ -56,7 +58,7 @@ export function ErrorResolveAction({ errorId, resolved }: ErrorResolveActionProp
             />
           </div>
           {msg && (
-            <p className="text-xs font-medium" style={{ color: msg.ok ? "#166534" : "#991b1b" }}>
+            <p role={msg.ok ? "status" : "alert"} className="text-xs font-medium" style={{ color: msg.ok ? "#166534" : "#991b1b" }}>
               {msg.text}
             </p>
           )}
@@ -75,7 +77,7 @@ export function ErrorResolveAction({ errorId, resolved }: ErrorResolveActionProp
             Este error está marcado como resuelto. Puedes reabrirlo si el problema persiste.
           </p>
           {msg && (
-            <p className="text-xs font-medium" style={{ color: msg.ok ? "#166534" : "#991b1b" }}>
+            <p role={msg.ok ? "status" : "alert"} className="text-xs font-medium" style={{ color: msg.ok ? "#166534" : "#991b1b" }}>
               {msg.text}
             </p>
           )}
