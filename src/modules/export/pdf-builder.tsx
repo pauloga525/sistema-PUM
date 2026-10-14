@@ -27,7 +27,9 @@ import type { PlanContext } from "./docx-builder";
 function findFont(filename: string): string | null {
   const candidates = [
     path.join(process.cwd(), "public", "fonts", filename),
-    path.join("C:", "Windows", "Fonts", filename),
+    // Ruta dinámica (WINDIR): con una ruta constante Turbopack intenta rastrear
+    // C:\Windows\Fonts al compilar y el build falla.
+    ...(process.env.WINDIR ? [path.join(process.env.WINDIR, "Fonts", filename)] : []),
   ];
   return candidates.find((p) => { try { return fs.existsSync(p); } catch { return false; } }) ?? null;
 }
