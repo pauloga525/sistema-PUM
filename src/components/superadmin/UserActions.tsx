@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   changeRoleAction,
   deactivateUserAction,
@@ -47,7 +46,6 @@ export function UserActions({
   userId, currentRole, isActive, isSelf,
   currentName, currentEmail, currentCedula,
 }: UserActionsProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedRole, setSelectedRole] = useState(currentRole);
   const [msg, setMsg] = useState<Message | null>(null);
@@ -75,7 +73,7 @@ export function UserActions({
         email:  editEmail.trim()  || undefined,
         cedula: editCedula.trim() || undefined,
       });
-      if (r.success) { flash("success", "Datos actualizados correctamente"); router.refresh(); }
+      if (r.success) { flash("success", "Datos actualizados correctamente"); }
       else flash("error", r.error);
     });
   };
@@ -84,7 +82,7 @@ export function UserActions({
     if (selectedRole === currentRole) return;
     run(async () => {
       const r = await changeRoleAction(userId, selectedRole);
-      if (r.success) { flash("success", "Rol actualizado correctamente"); router.refresh(); }
+      if (r.success) { flash("success", "Rol actualizado correctamente"); }
       else flash("error", r.error);
     });
   };
@@ -92,7 +90,7 @@ export function UserActions({
   const handleToggleStatus = () => {
     run(async () => {
       const r = isActive ? await deactivateUserAction(userId) : await reactivateUserAction(userId);
-      if (r.success) { flash("success", isActive ? "Usuario desactivado" : "Usuario reactivado"); router.refresh(); }
+      if (r.success) { flash("success", isActive ? "Usuario desactivado" : "Usuario reactivado"); }
       else flash("error", r.error);
     });
   };

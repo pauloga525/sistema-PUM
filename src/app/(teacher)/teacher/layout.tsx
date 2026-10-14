@@ -5,9 +5,10 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import { appConfig } from "@/config/app.config";
-import { NotificationModal } from "@/components/notifications/NotificationModal";
+import { Suspense } from "react";
+import { NotificationsLoader } from "@/components/notifications/NotificationsLoader";
+import { notificationsService } from "@/modules/notifications/notifications.service";
 import { ToastProvider } from "@/components/ui/Toast";
-import { getTeacherNotificationsAction } from "./notifications/actions";
 import type { Metadata } from "next";
 
 // Evaluated once at module load — logos are static assets that don't change at runtime
@@ -164,7 +165,11 @@ export default async function TeacherLayout({
         </ToastProvider>
       </main>
 
-      <NotificationModal fetchNotifications={getTeacherNotificationsAction} />
+      {!session.user.forcePasswordChange && (
+        <Suspense fallback={null}>
+          <NotificationsLoader load={() => notificationsService.getTeacherNotifications(session.user.id)} />
+        </Suspense>
+      )}
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
       <footer className="flex-shrink-0 border-t border-pum-border/60 px-8 py-3 flex items-center justify-between">

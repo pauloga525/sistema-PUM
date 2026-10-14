@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { removeTeacherLinkAction, setPlanEditorAction } from "@/app/(superadmin)/superadmin/plans/actions";
 import type { LinkedPerson, LinkedPersonRole } from "@/modules/superadmin/superadmin-plan.service";
 
@@ -39,7 +38,6 @@ export function PlanLinkedPeople({ planId, people }: PlanLinkedPeopleProps) {
 }
 
 function PersonRow({ planId, person }: { planId: string; person: LinkedPerson }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [confirmingAction, setConfirmingAction] = useState<"remove" | "makeEditor" | null>(null);
   const [resultMsg, setResultMsg]   = useState<{ ok: boolean; text: string } | null>(null);
@@ -52,7 +50,6 @@ function PersonRow({ planId, person }: { planId: string; person: LinkedPerson })
     startTransition(async () => {
       const res = await removeTeacherLinkAction(planId, person.userId);
       if (res.success) {
-        router.refresh();
       } else {
         setConfirmingAction(null);
         setResultMsg({ ok: false, text: res.error ?? "Error al quitar el vínculo" });
@@ -65,7 +62,6 @@ function PersonRow({ planId, person }: { planId: string; person: LinkedPerson })
     startTransition(async () => {
       const res = await setPlanEditorAction(planId, person.userId);
       if (res.success) {
-        router.refresh();
       } else {
         setConfirmingAction(null);
         setResultMsg({ ok: false, text: res.error ?? "Error al designar al editor" });

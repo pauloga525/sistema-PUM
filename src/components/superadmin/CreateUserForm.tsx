@@ -49,7 +49,6 @@ export function CreateUserForm() {
 
   const goToList = () => {
     router.push(ROUTES.SUPERADMIN.USERS);
-    router.refresh();
   };
 
   if (tempPassword) {

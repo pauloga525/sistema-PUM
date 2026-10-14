@@ -16,15 +16,7 @@ import {
 import { getAuditHistoryAction } from "@/modules/audit/audit.actions";
 import Link from "next/link";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ planId: string }>;
-}) {
-  const { planId } = await params;
-  void planId;
-  return { title: `Revisión PUM — Coordinador` };
-}
+export const metadata = { title: "Revisión PUM" };
 
 export default async function ReviewPage({
   params,

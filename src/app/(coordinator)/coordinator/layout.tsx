@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import { appConfig } from "@/config/app.config";
 import { CoordinatorNav } from "@/components/coordinator/CoordinatorNav";
-import { NotificationModal } from "@/components/notifications/NotificationModal";
+import { Suspense } from "react";
+import { NotificationsLoader } from "@/components/notifications/NotificationsLoader";
+import { notificationsService } from "@/modules/notifications/notifications.service";
 import { ToastProvider } from "@/components/ui/Toast";
-import { getCoordinatorNotificationsAction } from "./notifications/actions";
 import { ROUTES } from "@/constants/routes";
 import type { Metadata } from "next";
 
@@ -125,7 +126,11 @@ export default async function CoordinatorLayout({
         </ToastProvider>
       </main>
 
-      <NotificationModal fetchNotifications={getCoordinatorNotificationsAction} />
+      {!session.user.forcePasswordChange && (
+        <Suspense fallback={null}>
+          <NotificationsLoader load={() => notificationsService.getCoordinatorNotifications(session.user.id)} />
+        </Suspense>
+      )}
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer className="flex-shrink-0 border-t border-pum-border/60 px-8 py-3 flex items-center justify-between">

@@ -3,7 +3,6 @@ import path from "path";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { hasMinRole } from "@/constants/levels";
-import type { UserRole } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
 import { adminSignatureService } from "@/modules/admin/admin-signature.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -14,15 +13,7 @@ import { auditService } from "@/modules/audit/audit.service";
 import Link from "next/link";
 import { ExportMenu } from "@/components/planification/ExportMenu";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ planId: string }>;
-}) {
-  const { planId } = await params;
-  void planId;
-  return { title: "Vista previa PUM — Sistema" };
-}
+export const metadata = { title: "Vista previa PUM" };
 
 export default async function PlanPreviewPage({
   params,
@@ -34,7 +25,7 @@ export default async function PlanPreviewPage({
   // El layout no se re-ejecuta en todas las navegaciones: la página verifica la sesión por sí misma.
   // No status restriction: superadmin can inspect any plan regardless of workflow state.
   const session = await auth();
-  if (!session || !hasMinRole(session.user.role as UserRole, "ADMIN")) redirect(ROUTES.LOGIN);
+  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
 
   const [planData, review] = await Promise.all([
     adminSignatureService.getPlanForAdmin(planId),

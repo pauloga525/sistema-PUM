@@ -4,7 +4,7 @@ import { useState, useActionState } from "react";
 import {
   changePasswordAction,
   type ChangePasswordState,
-} from "@/app/(teacher)/teacher/change-password/actions";
+} from "@/modules/users/change-password.actions";
 
 function getStrength(pw: string): { level: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
   if (pw.length === 0) return { level: 0, label: "", color: "" };

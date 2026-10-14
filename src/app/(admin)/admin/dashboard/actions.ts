@@ -1,23 +1,15 @@
 "use server";
 
-import { requireActiveSession } from "@/lib/auth/session";
-import { redirect } from "next/navigation";
+import { requireRoleOrRedirect } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
-import { hasMinRole } from "@/constants/levels";
 import { adminSignatureService } from "@/modules/admin/admin-signature.service";
 import { ROUTES } from "@/constants/routes";
 import { IdSchema } from "@/lib/validation/ids";
 
 const MAX_REJECT_COMMENT = 2000;
 
-async function requireAdmin() {
-  const session = await requireActiveSession();
-  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
-  return session;
-}
-
 export async function signPlanAction(planId: string): Promise<{ success: boolean }> {
-  const session = await requireAdmin();
+  const session = await requireRoleOrRedirect("ADMIN");
   if (!IdSchema.safeParse(planId).success) return { success: false };
   try {
     await adminSignatureService.signPlan(planId, session.user.id, session.user.name ?? undefined);
@@ -29,7 +21,7 @@ export async function signPlanAction(planId: string): Promise<{ success: boolean
 }
 
 export async function rejectPlanAction(planId: string, comment: string): Promise<{ success: boolean }> {
-  const session = await requireAdmin();
+  const session = await requireRoleOrRedirect("ADMIN");
   if (!IdSchema.safeParse(planId).success) return { success: false };
   if (typeof comment !== "string" || !comment.trim() || comment.trim().length > MAX_REJECT_COMMENT) {
     return { success: false };

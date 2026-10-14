@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { adminCatalogService } from "@/modules/admin/admin-catalog.service";
@@ -72,14 +73,12 @@ export default async function AdminDashboardPage() {
     );
   }
 
-  const [stats, signatureGroups, coordinatorOverview, allYears] = await Promise.all([
+  // Las cifras generales se esperan aquí; las tablas (más pesadas) llegan
+  // por streaming dentro de <Suspense>
+  const [stats, allYears] = await Promise.all([
     adminSignatureService.getDashboardStats(activeYear.id),
-    adminSignatureService.getPendingSignaturePlans(activeYear.id),
-    adminSignatureService.getCoordinatorOverview(activeYear.id),
     adminCatalogService.getAllYears(),
   ]);
-
-  const totalPending = signatureGroups.reduce((sum, g) => sum + g.plans.length, 0);
 
   return (
     <div className="flex-1 flex flex-col p-6 sm:p-8 max-w-7xl mx-auto w-full">
@@ -195,162 +194,185 @@ export default async function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Sección coordinadores */}
+      <Suspense fallback={<SectionSkeleton />}>
+        <CoordinatorOverviewSection yearId={activeYear.id} />
+      </Suspense>
+
+      <Suspense fallback={<SectionSkeleton />}>
+        <SignatureSection yearId={activeYear.id} />
+      </Suspense>
+    </div>
+  );
+}
+
+// ── Secciones con streaming ────────────────────────────────────────────────────
+
+function SectionSkeleton() {
+  return <div className="h-40 mb-8 rounded-2xl bg-pum-surface-container animate-pulse" aria-hidden="true" />;
+}
+
+async function CoordinatorOverviewSection({ yearId }: { yearId: string }) {
+  const coordinatorOverview = await adminSignatureService.getCoordinatorOverview(yearId);
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-6"
+      style={{
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        border: "1px solid rgba(195,198,210,0.70)",
+        boxShadow: "0 2px 12px rgba(0,39,83,0.05), inset 0 1px 0 rgba(255,255,255,0.90)",
+      }}
+    >
       <div
-        className="rounded-2xl overflow-hidden mb-6"
-        style={{
-          background: "rgba(255,255,255,0.85)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          border: "1px solid rgba(195,198,210,0.70)",
-          boxShadow: "0 2px 12px rgba(0,39,83,0.05), inset 0 1px 0 rgba(255,255,255,0.90)",
-        }}
+        className="px-5 py-4 border-b flex items-center justify-between"
+        style={{ background: "rgba(0,39,83,0.03)", borderColor: "rgba(0,39,83,0.07)" }}
       >
-        <div
-          className="px-5 py-4 border-b flex items-center justify-between"
-          style={{ background: "rgba(0,39,83,0.03)", borderColor: "rgba(0,39,83,0.07)" }}
+        <div>
+          <h2 className="text-sm font-semibold text-pum-text">Coordinadores</h2>
+          <p className="text-[11px] text-pum-text-muted mt-0.5">
+            Estado de revisión por coordinador
+          </p>
+        </div>
+        <span
+          className="text-xs font-semibold px-2.5 py-1 rounded-full"
+          style={{ background: "rgba(0,39,83,0.08)", color: "#002753" }}
         >
-          <div>
-            <h2 className="text-sm font-semibold text-pum-text">Coordinadores</h2>
-            <p className="text-[11px] text-pum-text-muted mt-0.5">
-              Estado de revisión por coordinador
-            </p>
-          </div>
+          {coordinatorOverview.length} coordinador{coordinatorOverview.length !== 1 ? "es" : ""}
+        </span>
+      </div>
+
+      {coordinatorOverview.length === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <p className="text-sm text-pum-text-muted">No hay coordinadores registrados.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr style={{ borderBottom: "1px solid rgba(0,39,83,0.08)" }}>
+                {["Coordinador", "Docentes", "En revisión", "Pend. firma", "Rechazados", "Firmados"].map((col) => (
+                  <th
+                    key={col}
+                    className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-pum-text-muted"
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {coordinatorOverview.map((c, i) => (
+                <tr
+                  key={c.coordinatorId}
+                  style={{
+                    background: i % 2 !== 0 ? "rgba(0,39,83,0.015)" : "transparent",
+                    borderBottom: "1px solid rgba(0,39,83,0.04)",
+                  }}
+                >
+                  <td className="px-5 py-3">
+                    <p className="text-sm font-medium text-pum-text">
+                      {c.coordinatorName ?? "—"}
+                    </p>
+                    <p className="text-[11px] text-pum-text-disabled">{c.coordinatorEmail}</p>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className="text-sm font-semibold text-pum-text">{c.teacherCount}</span>
+                    <span className="text-xs text-pum-text-muted ml-1">asignado{c.teacherCount !== 1 ? "s" : ""}</span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {c.pendingReview > 0 ? (
+                      <span
+                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                        style={{ background: "#fff7ed", color: "#b45309" }}
+                      >
+                        {c.pendingReview}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-pum-text-disabled">—</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    {c.pendingSignature > 0 ? (
+                      <span
+                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                        style={{ background: "rgba(124,58,237,0.10)", color: "#6d28d9" }}
+                      >
+                        {c.pendingSignature}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-pum-text-disabled">—</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    {c.adminRejected > 0 ? (
+                      <span
+                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                        style={{ background: "#ffdad6", color: "#ba1a1a" }}
+                      >
+                        {c.adminRejected}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-pum-text-disabled">—</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    {c.signed > 0 ? (
+                      <span
+                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                        style={{ background: "#ccfbf1", color: "#0f766e" }}
+                      >
+                        {c.signed}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-pum-text-disabled">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function SignatureSection({ yearId }: { yearId: string }) {
+  const signatureGroups = await adminSignatureService.getPendingSignaturePlans(yearId);
+  const totalPending = signatureGroups.reduce((sum, g) => sum + g.plans.length, 0);
+  return (
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        border: "1px solid rgba(195,198,210,0.70)",
+        boxShadow: "0 2px 12px rgba(0,39,83,0.05), inset 0 1px 0 rgba(255,255,255,0.90)",
+      }}
+    >
+      <div
+        className="px-5 py-4 border-b flex items-center justify-between"
+        style={{ background: "rgba(0,39,83,0.03)", borderColor: "rgba(0,39,83,0.07)" }}
+      >
+        <div>
+          <h2 className="text-sm font-semibold text-pum-text">PUMs pendientes de firma</h2>
+          <p className="text-[11px] text-pum-text-muted mt-0.5">
+            Despliega un coordinador para ver sus PUMs y firmar o rechazar
+          </p>
+        </div>
+        {totalPending > 0 && (
           <span
             className="text-xs font-semibold px-2.5 py-1 rounded-full"
-            style={{ background: "rgba(0,39,83,0.08)", color: "#002753" }}
+            style={{ background: "rgba(124,58,237,0.10)", color: "#6d28d9" }}
           >
-            {coordinatorOverview.length} coordinador{coordinatorOverview.length !== 1 ? "es" : ""}
+            {totalPending} pendiente{totalPending !== 1 ? "s" : ""}
           </span>
-        </div>
-
-        {coordinatorOverview.length === 0 ? (
-          <div className="px-6 py-10 text-center">
-            <p className="text-sm text-pum-text-muted">No hay coordinadores registrados.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(0,39,83,0.08)" }}>
-                  {["Coordinador", "Docentes", "En revisión", "Pend. firma", "Rechazados", "Firmados"].map((col) => (
-                    <th
-                      key={col}
-                      className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-pum-text-muted"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {coordinatorOverview.map((c, i) => (
-                  <tr
-                    key={c.coordinatorId}
-                    style={{
-                      background: i % 2 !== 0 ? "rgba(0,39,83,0.015)" : "transparent",
-                      borderBottom: "1px solid rgba(0,39,83,0.04)",
-                    }}
-                  >
-                    <td className="px-5 py-3">
-                      <p className="text-sm font-medium text-pum-text">
-                        {c.coordinatorName ?? "—"}
-                      </p>
-                      <p className="text-[11px] text-pum-text-disabled">{c.coordinatorEmail}</p>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-sm font-semibold text-pum-text">{c.teacherCount}</span>
-                      <span className="text-xs text-pum-text-muted ml-1">asignado{c.teacherCount !== 1 ? "s" : ""}</span>
-                    </td>
-                    <td className="px-5 py-3">
-                      {c.pendingReview > 0 ? (
-                        <span
-                          className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                          style={{ background: "#fff7ed", color: "#b45309" }}
-                        >
-                          {c.pendingReview}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-pum-text-disabled">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {c.pendingSignature > 0 ? (
-                        <span
-                          className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(124,58,237,0.10)", color: "#6d28d9" }}
-                        >
-                          {c.pendingSignature}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-pum-text-disabled">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {c.adminRejected > 0 ? (
-                        <span
-                          className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                          style={{ background: "#ffdad6", color: "#ba1a1a" }}
-                        >
-                          {c.adminRejected}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-pum-text-disabled">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {c.signed > 0 ? (
-                        <span
-                          className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                          style={{ background: "#ccfbf1", color: "#0f766e" }}
-                        >
-                          {c.signed}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-pum-text-disabled">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         )}
       </div>
 
-      {/* Tabla de PUMs pendientes de firma */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: "rgba(255,255,255,0.85)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          border: "1px solid rgba(195,198,210,0.70)",
-          boxShadow: "0 2px 12px rgba(0,39,83,0.05), inset 0 1px 0 rgba(255,255,255,0.90)",
-        }}
-      >
-        <div
-          className="px-5 py-4 border-b flex items-center justify-between"
-          style={{ background: "rgba(0,39,83,0.03)", borderColor: "rgba(0,39,83,0.07)" }}
-        >
-          <div>
-            <h2 className="text-sm font-semibold text-pum-text">PUMs pendientes de firma</h2>
-            <p className="text-[11px] text-pum-text-muted mt-0.5">
-              Despliega un coordinador para ver sus PUMs y firmar o rechazar
-            </p>
-          </div>
-          {totalPending > 0 && (
-            <span
-              className="text-xs font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: "rgba(124,58,237,0.10)", color: "#6d28d9" }}
-            >
-              {totalPending} pendiente{totalPending !== 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-
-        <SignatureTable groups={signatureGroups} />
-      </div>
+      <SignatureTable groups={signatureGroups} />
     </div>
   );
 }

@@ -3,7 +3,6 @@ import path from "path";
 import { auth } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import { hasMinRole } from "@/constants/levels";
-import type { UserRole } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
 import { adminSignatureService } from "@/modules/admin/admin-signature.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -15,15 +14,7 @@ import { auditService } from "@/modules/audit/audit.service";
 import Link from "next/link";
 import { ExportMenu } from "@/components/planification/ExportMenu";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ planId: string }>;
-}) {
-  const { planId } = await params;
-  void planId;
-  return { title: "Vista previa PUM — Admin" };
-}
+export const metadata = { title: "Vista previa PUM" };
 
 export default async function AdminPlanPreviewPage({
   params,
@@ -34,7 +25,7 @@ export default async function AdminPlanPreviewPage({
 
   const session = await auth();
   if (!session) redirect(ROUTES.LOGIN);
-  if (!hasMinRole(session.user.role as UserRole, "ADMIN")) redirect(ROUTES.LOGIN);
+  if (!hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
 
   const isSuperAdmin = session.user.role === "SUPERADMIN";
 

@@ -1,9 +1,7 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireActiveSession } from "@/lib/auth/session";
-import { hasMinRole } from "@/constants/levels";
+import { requireRoleOrRedirect } from "@/lib/auth/session";
 import { adminAssignmentsService } from "@/modules/admin/admin-assignments.service";
 import { AppError } from "@/lib/errors/app-error";
 import { ROUTES } from "@/constants/routes";
@@ -11,19 +9,13 @@ import { IdSchema } from "@/lib/validation/ids";
 
 const isId = (v: string) => IdSchema.safeParse(v).success;
 
-async function requireAdmin() {
-  const session = await requireActiveSession();
-  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
-  return session;
-}
-
 export type AssignmentActionState = { ok?: boolean; error?: string } | null;
 
 export async function createAssignmentAction(
   _prev: AssignmentActionState,
   formData: FormData
 ): Promise<AssignmentActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   const teacherId      = (formData.get("teacherId")      ?? "").toString().trim();
   const subjectId      = (formData.get("subjectId")      ?? "").toString().trim();
   const levelId        = (formData.get("levelId")        ?? "").toString().trim();
@@ -47,7 +39,7 @@ export async function updateAssignmentAction(
   _prev: AssignmentActionState,
   formData: FormData
 ): Promise<AssignmentActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   const id        = (formData.get("id")        ?? "").toString().trim();
   const subjectId = (formData.get("subjectId") ?? "").toString().trim();
   const levelId   = (formData.get("levelId")   ?? "").toString().trim();
@@ -71,7 +63,7 @@ export async function removeAssignmentAction(
   _prev: AssignmentActionState,
   formData: FormData
 ): Promise<AssignmentActionState> {
-  const session = await requireAdmin();
+  const session = await requireRoleOrRedirect("ADMIN");
   const id = (formData.get("id") ?? "").toString().trim();
   if (!isId(id)) return { error: "ID de asignación requerido." };
   try {

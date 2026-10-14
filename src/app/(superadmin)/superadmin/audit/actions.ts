@@ -7,7 +7,6 @@ import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 import type { ActionResult } from "@/types";
 import type { AuditHistoryItem } from "@/modules/audit/audit.service";
-import type { UserRole } from "@/constants/levels";
 
 export async function getPlanHistoryAction(
   planId: string,
@@ -15,7 +14,7 @@ export async function getPlanHistoryAction(
   try {
     const session = await requireActiveSession();
     if (!session?.user?.id) throw new AppError(ErrorCode.AUTH_UNAUTHENTICATED, "No autenticado");
-    if (!hasMinRole(session.user.role as UserRole, "SUPERADMIN")) {
+    if (!hasMinRole(session.user.role, "SUPERADMIN")) {
       throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Acceso exclusivo de SuperAdmin");
     }
     const history = await auditService.getHistory(planId);

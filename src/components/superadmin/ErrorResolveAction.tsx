@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { resolveErrorAction, reopenErrorAction } from "@/app/(superadmin)/superadmin/errors/actions";
 
 interface ErrorResolveActionProps {
@@ -10,7 +9,6 @@ interface ErrorResolveActionProps {
 }
 
 export function ErrorResolveAction({ errorId, resolved }: ErrorResolveActionProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [note, setNote]   = useState("");
   const [msg,  setMsg]    = useState<{ ok: boolean; text: string } | null>(null);
@@ -20,7 +18,6 @@ export function ErrorResolveAction({ errorId, resolved }: ErrorResolveActionProp
       const res = await resolveErrorAction(errorId, note);
       if (res.success) {
         setMsg({ ok: true, text: "Error marcado como resuelto." });
-        router.refresh();
       } else {
         setMsg({ ok: false, text: res.error ?? "No se pudo resolver." });
       }
@@ -33,7 +30,6 @@ export function ErrorResolveAction({ errorId, resolved }: ErrorResolveActionProp
       if (res.success) {
         setMsg({ ok: true, text: "Error reabierto." });
         setNote("");
-        router.refresh();
       } else {
         setMsg({ ok: false, text: res.error ?? "No se pudo reabrir." });
       }

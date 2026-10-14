@@ -1,20 +1,12 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireActiveSession } from "@/lib/auth/session";
-import { hasMinRole } from "@/constants/levels";
+import { requireRoleOrRedirect } from "@/lib/auth/session";
 import { adminCatalogService } from "@/modules/admin/admin-catalog.service";
 import { ROUTES } from "@/constants/routes";
 import { AppError } from "@/lib/errors/app-error";
 import { IdSchema } from "@/lib/validation/ids";
 import { z } from "zod";
-
-async function requireAdmin() {
-  const session = await requireActiveSession();
-  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
-  return session;
-}
 
 export type CatalogActionState = { ok?: boolean; error?: string } | null;
 
@@ -43,7 +35,7 @@ export async function createAcademicYearAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const parsed = z.object({
       label:     z.string("La etiqueta del año lectivo es obligatoria.").trim()
@@ -81,7 +73,7 @@ export async function setActiveYearAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de año lectivo requerido." };
@@ -100,7 +92,7 @@ export async function createPeriodAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const input = z.object({
       academicYearId: z.string("Selecciona un año lectivo.").pipe(IdSchema),
@@ -141,7 +133,7 @@ export async function deletePeriodAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de periodo requerido." };
@@ -160,7 +152,7 @@ export async function createSubjectAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const parsed = z.object({
       name:        z.string("El nombre de la materia es obligatorio.").trim()
@@ -191,7 +183,7 @@ export async function deleteSubjectAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de materia requerido." };
@@ -208,7 +200,7 @@ export async function addSubjectToLevelAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const subjectId = IdSchema.safeParse(formData.get("subjectId"));
     const levelId   = IdSchema.safeParse(formData.get("levelId"));
@@ -226,7 +218,7 @@ export async function removeSubjectFromLevelAction(
   _prev: CatalogActionState,
   formData: FormData
 ): Promise<CatalogActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de vínculo requerido." };

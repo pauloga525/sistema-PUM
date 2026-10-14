@@ -1,7 +1,6 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
 import { correctPlanStatusAction, reassignCoordinatorAction, clearPlanDeadlineAction } from "@/app/(superadmin)/superadmin/plans/actions";
 import { PLAN_STATUSES } from "@/modules/superadmin/superadmin.schema";
 
@@ -39,7 +38,6 @@ export function PlanAdminActions({
   editDeadlineAt,
   teacherLabel,
 }: PlanAdminActionsProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [statusValue,    setStatusValue]    = useState(currentStatus);
@@ -57,7 +55,6 @@ export function PlanAdminActions({
       if (res.success) {
         setDeadlineMsg({ ok: true, text: "Restricción retirada. El docente ya puede editar este PUM." });
         setConfirmingDeadline(false);
-        router.refresh();
       } else {
         setDeadlineMsg({ ok: false, text: res.error ?? "Error al quitar la restricción" });
       }
@@ -71,7 +68,6 @@ export function PlanAdminActions({
       if (res.success) {
         setStatusMsg({ ok: true, text: "Estado actualizado correctamente" });
         setReason("");
-        router.refresh();
       } else {
         setStatusMsg({ ok: false, text: res.error ?? "Error al actualizar" });
       }
@@ -84,7 +80,6 @@ export function PlanAdminActions({
       const res = await reassignCoordinatorAction(planId, { coordinatorId });
       if (res.success) {
         setCoordMsg({ ok: true, text: "Coordinador reasignado correctamente" });
-        router.refresh();
       } else {
         setCoordMsg({ ok: false, text: res.error ?? "Error al reasignar" });
       }

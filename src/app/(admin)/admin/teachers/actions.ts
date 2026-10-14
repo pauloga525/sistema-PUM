@@ -1,10 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireActiveSession } from "@/lib/auth/session";
-import { hasMinRole } from "@/constants/levels";
+import { requireRoleOrRedirect } from "@/lib/auth/session";
 import { adminUsersService } from "@/modules/admin/admin-users.service";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/logger/logger";
@@ -12,12 +10,6 @@ import { IdSchema } from "@/lib/validation/ids";
 import { ROUTES } from "@/constants/routes";
 
 const log = logger.child("AdminTeachersActions");
-
-async function requireAdmin() {
-  const session = await requireActiveSession();
-  if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
-  return session;
-}
 
 // ── Validación de entrada ─────────────────────────────────────────────────────
 
@@ -42,7 +34,7 @@ export async function createTeacherAction(
   _prev: TeacherActionState,
   formData: FormData
 ): Promise<TeacherActionState> {
-  await requireAdmin();
+  await requireRoleOrRedirect("ADMIN");
   const parsed = CreateTeacherSchema.safeParse({
     name:   field(formData, "name"),
     email:  field(formData, "email"),
@@ -69,7 +61,7 @@ export async function deleteTeacherAction(
   _prev: DeleteTeacherState,
   formData: FormData
 ): Promise<DeleteTeacherState> {
-  const session = await requireAdmin();
+  const session = await requireRoleOrRedirect("ADMIN");
   const parsed = TeacherIdSchema.safeParse({ teacherId: field(formData, "teacherId") });
   if (!parsed.success) return { error: "ID de docente no válido" };
 
@@ -91,7 +83,7 @@ export async function resetTeacherPasswordAction(
   _prev: ResetPasswordState,
   formData: FormData
 ): Promise<ResetPasswordState> {
-  const session = await requireAdmin();
+  const session = await requireRoleOrRedirect("ADMIN");
   const parsed  = TeacherIdSchema.safeParse({ teacherId: field(formData, "teacherId") });
   if (!parsed.success) return { error: "ID de docente no válido" };
 

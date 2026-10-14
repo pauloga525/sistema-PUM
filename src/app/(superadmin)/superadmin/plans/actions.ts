@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
 import { superAdminPlanService } from "@/modules/superadmin/superadmin-plan.service";
 import { CorrectPlanStatusSchema, ReassignCoordinatorSchema } from "@/modules/superadmin/superadmin.schema";
@@ -7,13 +8,12 @@ import { hasMinRole } from "@/constants/levels";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 import type { ActionResult } from "@/types";
-import type { UserRole } from "@/constants/levels";
 import type { CorrectPlanStatusInput, ReassignCoordinatorInput } from "@/modules/superadmin/superadmin.schema";
 
 async function getSuperAdminSession() {
   const session = await requireActiveSession();
   if (!session?.user?.id) throw new AppError(ErrorCode.AUTH_UNAUTHENTICATED, "No autenticado");
-  if (!hasMinRole(session.user.role as UserRole, "SUPERADMIN")) {
+  if (!hasMinRole(session.user.role, "SUPERADMIN")) {
     throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Acceso exclusivo de SuperAdmin");
   }
   return session;
@@ -33,6 +33,7 @@ export async function correctPlanStatusAction(
       planId,
       parsed.data,
     );
+    revalidatePath("/superadmin/plans", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al corregir el estado" };
@@ -47,6 +48,7 @@ export async function clearPlanDeadlineAction(planId: string): Promise<ActionRes
       session.user.name ?? session.user.email ?? "SuperAdmin",
       planId,
     );
+    revalidatePath("/superadmin/plans", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al quitar la restricción de fecha" };
@@ -63,6 +65,7 @@ export async function removeTeacherLinkAction(
       actorId:   session.user.id,
       actorName: session.user.name ?? session.user.email ?? "SuperAdmin",
     });
+    revalidatePath("/superadmin/plans", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al quitar el vínculo del docente" };
@@ -79,6 +82,7 @@ export async function setPlanEditorAction(
       actorId:   session.user.id,
       actorName: session.user.name ?? session.user.email ?? "SuperAdmin",
     });
+    revalidatePath("/superadmin/plans", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al designar al editor" };
@@ -99,6 +103,7 @@ export async function reassignCoordinatorAction(
       planId,
       parsed.data,
     );
+    revalidatePath("/superadmin/plans", "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al reasignar coordinador" };

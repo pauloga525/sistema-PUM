@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { PumNotification } from "@/modules/notifications/notifications.service";
 
 const STORAGE_KEY = "pum_notifications_seen_v1";
@@ -69,32 +69,28 @@ const TYPE_CONFIG = {
 } satisfies Record<PumNotification["type"], { icon: string; title: string; color: string; bg: string; border: string; dot: string }>;
 
 interface Props {
-  fetchNotifications: () => Promise<PumNotification[]>;
+  /** Notificaciones del usuario, cargadas en el servidor por el layout. */
+  notifications: PumNotification[];
 }
 
-export function NotificationModal({ fetchNotifications }: Props) {
-  const [unseen, setUnseen] = useState<PumNotification[]>([]);
-  const [visible, setVisible] = useState(false);
-  const [, startTransition] = useTransition();
+// Las vistas se guardan en localStorage: en el servidor no hay registro, así
+// que el modal solo se decide en el cliente (sin desajuste de hidratación).
+const subscribeNoop = () => () => {};
+const isClient = () => true;
+const isServer = () => false;
 
-  useEffect(() => {
-    startTransition(async () => {
-      const all = await fetchNotifications();
-      const seen = getSeenIds();
-      const fresh = all.filter((n) => !seen.has(n.id));
-      if (fresh.length > 0) {
-        setUnseen(fresh);
-        setVisible(true);
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+export function NotificationModal({ notifications }: Props) {
+  const mounted = useSyncExternalStore(subscribeNoop, isClient, isServer);
+  const [dismissed, setDismissed] = useState(false);
 
-  if (!visible || unseen.length === 0) return null;
+  if (!mounted || dismissed) return null;
+  const seen = getSeenIds();
+  const unseen = notifications.filter((n) => !seen.has(n.id));
+  if (unseen.length === 0) return null;
 
   const handleDismiss = () => {
     markAsSeen(unseen.map((n) => n.id));
-    setVisible(false);
+    setDismissed(true);
   };
 
   // Group by type for coordinators (multiple pending reviews look better grouped)

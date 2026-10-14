@@ -10,7 +10,10 @@
  * `!session` como "no autorizado".
  */
 
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { hasMinRole, type UserRole } from "@/constants/levels";
+import { ROUTES } from "@/constants/routes";
 import { getMaintenanceMode } from "@/modules/system/system-settings.service";
 
 export async function requireActiveSession(
@@ -27,5 +30,22 @@ export async function requireActiveSession(
     if ((await getMaintenanceMode()).enabled) return null;
   }
 
+  return session;
+}
+
+/** Sesión activa con al menos `minRole`; null en otro caso. */
+export async function requireRole(
+  minRole: UserRole,
+  options: { allowForcePasswordChange?: boolean } = {},
+) {
+  const session = await requireActiveSession(options);
+  if (!session || !hasMinRole(session.user.role, minRole)) return null;
+  return session;
+}
+
+/** Como requireRole, pero redirige al login si no corresponde (para server actions de paneles). */
+export async function requireRoleOrRedirect(minRole: UserRole) {
+  const session = await requireRole(minRole);
+  if (!session) redirect(ROUTES.LOGIN);
   return session;
 }
