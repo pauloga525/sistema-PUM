@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -9,7 +9,7 @@ import { ROUTES } from "@/constants/routes";
 export async function sendForSignatureAction(
   planId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
   try {
     await coordinatorService.sendForSignature(planId, session.user.id);

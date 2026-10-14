@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma/client";
 import { rateLimitService } from "@/modules/security/rate-limit.service";
 import ExcelJS from "exceljs";
@@ -39,7 +39,7 @@ interface ReportRow {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session)                      return new NextResponse("No autenticado",   { status: 401 });
   if (session.user.role !== "ADMIN") return new NextResponse("Acceso denegado",  { status: 403 });
 

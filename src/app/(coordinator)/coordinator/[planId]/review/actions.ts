@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -13,7 +13,7 @@ export async function updateSectionAction(
   approved: boolean,
   comment: string | null,
 ): Promise<{ success: boolean }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") return { success: false };
 
   const ok = await coordinatorService.updateSectionState(reviewId, session.user.id, sectionKey, approved, comment);
@@ -26,7 +26,7 @@ export async function sendFeedbackAction(
   reviewId: string,
   planId: string,
 ): Promise<{ success: boolean }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") return { success: false };
 
   try {
@@ -44,7 +44,7 @@ export async function approvePlanAction(
   reviewId: string,
   planId: string,
 ): Promise<{ success: boolean }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") return { success: false };
 
   try {
@@ -61,7 +61,7 @@ export async function approvePlanAction(
 export async function getAuditHistoryAction(
   planId: string,
 ): Promise<{ success: boolean; data?: AuditHistoryItem[] }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session) redirect(ROUTES.LOGIN);
   // Accessible by coordinator and admin
   if (session.user.role !== "COORDINATOR" && session.user.role !== "ADMIN") {

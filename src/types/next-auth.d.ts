@@ -37,10 +37,13 @@ declare module "next-auth" {
   interface User {
     role?: UserRole
     forcePasswordChange?: boolean
+    /** Huella del hash de contraseña al iniciar sesión (solo usuarios de BD). */
+    passwordFingerprint?: string
   }
 }
 
-declare module "next-auth/jwt" {
+// El callback `jwt` usa el tipo de @auth/core/jwt (next-auth/jwt lo reexporta).
+declare module "@auth/core/jwt" {
   /**
    * Extiende el JWT para incluir los datos adicionales del usuario
    * que se guardan en el token cifrado.
@@ -49,5 +52,13 @@ declare module "next-auth/jwt" {
     id?: string
     role?: UserRole
     forcePasswordChange?: boolean
+    /** Huella del hash de contraseña; si cambia en la BD, la sesión se invalida. */
+    passwordFingerprint?: string
+    /** Cuenta de prueba (DEV_USERS), sin registro en la BD. */
+    isDevUser?: boolean
+    /** Momento del login (ms) — límite absoluto de la sesión. */
+    loginAt?: number
+    /** Última revalidación contra la BD (ms). */
+    checkedAt?: number
   }
 }

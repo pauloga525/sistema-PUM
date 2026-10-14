@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { hasMinRole } from "@/constants/levels";
@@ -13,7 +13,7 @@ export async function createCoordinatorAction(
   _prev: CoordinatorActionState,
   formData: FormData,
 ): Promise<CoordinatorActionState> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
 
   const name            = formData.get("name") as string;
@@ -42,7 +42,7 @@ export async function setCoordinatorSubjectsAction(
   coordinatorId: string,
   subjectIds: string[],
 ): Promise<CoordinatorActionState> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false, error: "No autorizado" };
 
   try {
@@ -59,7 +59,7 @@ export async function promoteTeacherToCoordinatorAction(
   _prev: CoordinatorActionState,
   formData: FormData,
 ): Promise<CoordinatorActionState> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
 
   const teacherId       = formData.get("teacherId") as string;
@@ -86,7 +86,7 @@ export async function addCoordinatorTeacherAction(
   coordinatorId: string,
   teacherId: string,
 ): Promise<CoordinatorActionState> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false, error: "No autorizado" };
 
   try {
@@ -102,7 +102,7 @@ export async function addCoordinatorTeacherAction(
 export async function removeCoordinatorAssignmentAction(
   assignmentId: string,
 ): Promise<{ ok: boolean }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false };
 
   try {
@@ -117,7 +117,7 @@ export async function removeCoordinatorAssignmentAction(
 export async function deleteCoordinatorAction(
   coordinatorId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false };
 
   try {
@@ -133,7 +133,7 @@ export async function deleteCoordinatorAction(
 export async function resetCoordinatorPasswordAction(
   coordinatorId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || !hasMinRole(session.user.role, "ADMIN")) return { ok: false, error: "No autorizado" };
 
   try {

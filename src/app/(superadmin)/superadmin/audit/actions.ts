@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { auditService } from "@/modules/audit/audit.service";
 import { hasMinRole } from "@/constants/levels";
 import { AppError } from "@/lib/errors/app-error";
@@ -13,7 +13,7 @@ export async function getPlanHistoryAction(
   planId: string,
 ): Promise<ActionResult<AuditHistoryItem[]>> {
   try {
-    const session = await auth();
+    const session = await requireActiveSession();
     if (!session?.user?.id) throw new AppError(ErrorCode.AUTH_UNAUTHENTICATED, "No autenticado");
     if (!hasMinRole(session.user.role as UserRole, "SUPERADMIN")) {
       throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Acceso exclusivo de SuperAdmin");

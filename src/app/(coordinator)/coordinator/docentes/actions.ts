@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma/client";
@@ -28,7 +28,7 @@ export async function createTeacherAssignmentAction(
   _prev: TeacherAssignmentActionState,
   formData: FormData,
 ): Promise<TeacherAssignmentActionState> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
 
   const teacherId      = formData.get("teacherId")      as string;
@@ -95,7 +95,7 @@ export async function removeTeacherAssignmentAction(
   assignmentId: string,
   teacherId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") return { ok: false };
 
   // teacherId viene del cliente: el acceso se valida contra el dueño real de la asignación
@@ -142,7 +142,7 @@ export async function setPrimaryEditorAction(
   teacherId: string,
   setAsEditor: boolean = true,
 ): Promise<{ ok: boolean; error?: string }> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "COORDINATOR") return { ok: false };
 
   // teacherId se mantiene como parámetro para compatibilidad con el componente,

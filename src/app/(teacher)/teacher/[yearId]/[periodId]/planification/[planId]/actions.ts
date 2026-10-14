@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma/client";
 import { revalidatePath } from "next/cache";
 import { planificationService } from "@/modules/planification/planification.service";
@@ -20,7 +20,7 @@ import type {
 export async function saveRowsAction(
   data: SavePlanificationRowsInput
 ): Promise<ActionResult> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
 
   const result = SavePlanificationRowsSchema.safeParse(data);
@@ -44,7 +44,7 @@ export async function saveRowsAction(
 export async function saveMetadataAction(
   data: SaveMetadataInput
 ): Promise<ActionResult> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
 
   const result = SaveMetadataSchema.safeParse(data);
@@ -69,7 +69,7 @@ export async function clearCoordinatorFeedbackAction(
   planId: string,
   keys: string[]
 ): Promise<void> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "TEACHER") return;
   const link = await prisma.planificationTeacher.findUnique({
     where: { planificationId_teacherId: { planificationId: planId, teacherId: session.user.id } },
@@ -80,7 +80,7 @@ export async function clearCoordinatorFeedbackAction(
 }
 
 export async function finalizeAction(planificationId: string): Promise<ActionResult> {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
 
   const result = FinalizePlanificationSchema.safeParse({

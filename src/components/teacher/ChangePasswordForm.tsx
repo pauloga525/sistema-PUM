@@ -8,7 +8,7 @@ import {
 
 function getStrength(pw: string): { level: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
   if (pw.length === 0) return { level: 0, label: "", color: "" };
-  if (pw.length < 8)   return { level: 1, label: "Muy corta", color: "#ba1a1a" };
+  if (pw.length < 10)  return { level: 1, label: "Muy corta", color: "#ba1a1a" };
   let score = 0;
   if (/[a-z]/.test(pw)) score++;
   if (/[A-Z]/.test(pw)) score++;
@@ -20,7 +20,11 @@ function getStrength(pw: string): { level: 0 | 1 | 2 | 3 | 4; label: string; col
   return { level: 4, label: "Fuerte", color: "#16a34a" };
 }
 
-export function ChangePasswordForm() {
+/**
+ * `requireCurrentPassword` es false solo en el cambio obligatorio del primer
+ * login (la contraseña actual es la cédula y el usuario ya la acaba de usar).
+ */
+export function ChangePasswordForm({ requireCurrentPassword }: { requireCurrentPassword: boolean }) {
   const [state, formAction, isPending] = useActionState<ChangePasswordState, FormData>(
     changePasswordAction,
     null
@@ -31,6 +35,22 @@ export function ChangePasswordForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      {requireCurrentPassword && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="currentPassword" className="text-xs font-semibold text-pum-text-muted uppercase tracking-wide">
+            Contraseña actual
+          </label>
+          <input
+            id="currentPassword"
+            name="currentPassword"
+            type="password"
+            required
+            autoComplete="current-password"
+            className="pum-glass-input w-full px-3.5 py-2.5 text-sm text-pum-text placeholder:text-pum-text-disabled"
+          />
+        </div>
+      )}
+
       {/* Nueva contraseña */}
       <div className="flex flex-col gap-1.5">
         <label htmlFor="newPassword" className="text-xs font-semibold text-pum-text-muted uppercase tracking-wide">
@@ -41,9 +61,10 @@ export function ChangePasswordForm() {
           name="newPassword"
           type="password"
           required
-          minLength={8}
+          minLength={10}
+          maxLength={128}
           autoComplete="new-password"
-          placeholder="Mínimo 8 caracteres"
+          placeholder="Mínimo 10 caracteres"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="pum-glass-input w-full px-3.5 py-2.5 text-sm text-pum-text placeholder:text-pum-text-disabled"
@@ -80,7 +101,8 @@ export function ChangePasswordForm() {
           name="confirmPassword"
           type="password"
           required
-          minLength={8}
+          minLength={10}
+          maxLength={128}
           autoComplete="new-password"
           placeholder="Repite la contraseña"
           className="pum-glass-input w-full px-3.5 py-2.5 text-sm text-pum-text placeholder:text-pum-text-disabled"

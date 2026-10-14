@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { superAdminService } from "@/modules/superadmin/superadmin.service";
 import { CreateUserSchema, UpdateUserSchema, ChangeRoleSchema } from "@/modules/superadmin/superadmin.schema";
 import { hasMinRole } from "@/constants/levels";
@@ -12,7 +12,7 @@ import type { CreateUserInput, UpdateUserInput } from "@/modules/superadmin/supe
 import { rateLimitService, RATE_LIMITS } from "@/modules/security/rate-limit.service";
 
 async function getSuperAdminSession() {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session?.user?.id) throw new AppError(ErrorCode.AUTH_UNAUTHENTICATED, "No autenticado");
   if (!hasMinRole(session.user.role as UserRole, "SUPERADMIN")) {
     throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Acceso exclusivo de SuperAdmin");

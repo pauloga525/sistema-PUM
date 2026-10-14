@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { exportService } from "@/modules/export/export.service";
 import { rateLimitService } from "@/modules/security/rate-limit.service";
 import { AppError } from "@/lib/errors/app-error";
@@ -8,7 +8,7 @@ import { logger } from "@/lib/logger/logger";
 const log = logger.child("API:export/zip");
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
+  const session = await requireActiveSession();
 
   if (!session) {
     return new NextResponse("No autenticado", { status: 401 });

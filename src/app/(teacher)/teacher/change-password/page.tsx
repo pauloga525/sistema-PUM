@@ -1,8 +1,11 @@
+import { auth } from "@/auth";
 import { ChangePasswordForm } from "@/components/teacher/ChangePasswordForm";
 
 export const metadata = { title: "Cambio de contraseña — PUM Web" };
 
-export default function ChangePasswordPage() {
+export default async function ChangePasswordPage() {
+  const session = await auth();
+
   return (
     <div className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-[380px]">
@@ -52,7 +55,7 @@ export default function ChangePasswordPage() {
           />
 
           {/* Formulario */}
-          <ChangePasswordForm />
+          <ChangePasswordForm requireCurrentPassword={!session?.user.forcePasswordChange} />
         </div>
       </div>
     </div>

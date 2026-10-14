@@ -13,8 +13,11 @@ export const authConfig = {
   /** Client Secret de la app Google OAuth. NUNCA exponer en el cliente. */
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
 
-  /** Secret para firmar tokens de sesión. Debe ser una cadena aleatoria larga. */
-  authSecret: process.env.AUTH_SECRET ?? "",
+  /**
+   * Secret para firmar tokens de sesión. Debe ser una cadena aleatoria larga.
+   * Se valida al arrancar en src/auth.ts (falla si falta en producción).
+   */
+  authSecret: process.env.AUTH_SECRET,
 
   /**
    * Dominio de email institucional que puede autenticarse.

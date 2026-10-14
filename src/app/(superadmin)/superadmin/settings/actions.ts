@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { hasMinRole } from "@/constants/levels";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
@@ -11,7 +11,7 @@ import { userAuditService, USER_AUDIT_EVENT } from "@/modules/audit/user-audit.s
 import type { ActionResult } from "@/types";
 
 async function getSuperAdminSession() {
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session?.user?.id) throw new AppError(ErrorCode.AUTH_UNAUTHENTICATED, "No autenticado");
   if (!hasMinRole(session.user.role, "SUPERADMIN")) {
     throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Acceso exclusivo de SuperAdmin");

@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { notFound, redirect } from "next/navigation";
 import { planificationService } from "@/modules/planification/planification.service";
 import { prisma } from "@/lib/prisma/client";
@@ -147,7 +148,7 @@ export default async function SubjectsPage({
                   levelName={s.level.name}
                   onCreate={async () => {
                     "use server";
-                    const s2 = await auth();
+                    const s2 = await requireActiveSession();
                     if (!s2) redirect("/login");
                     const { planId } = await planificationService.getOrCreatePlanification(
                       s2.user.id, yearId, periodId, s.subject.id, s.level.id

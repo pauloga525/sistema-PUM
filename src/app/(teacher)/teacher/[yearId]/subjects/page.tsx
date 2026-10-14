@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { notFound, redirect } from "next/navigation";
 import { planificationService } from "@/modules/planification/planification.service";
 import { prisma } from "@/lib/prisma/client";
@@ -13,7 +14,7 @@ export const metadata = { title: "Mis materias — PUM Web" };
 
 async function openPlanification(formData: FormData) {
   "use server";
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session) redirect("/login");
 
   const yearId    = formData.get("yearId")    as string;

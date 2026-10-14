@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireActiveSession } from "@/lib/auth/session";
 import { exportService } from "@/modules/export/export.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
 import { rateLimitService } from "@/modules/security/rate-limit.service";
@@ -15,7 +15,7 @@ export async function GET(
 ) {
   const { planId } = await params;
 
-  const session = await auth();
+  const session = await requireActiveSession();
   if (!session) {
     return new NextResponse("No autenticado", { status: 401 });
   }
