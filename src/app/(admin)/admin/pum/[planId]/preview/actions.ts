@@ -4,7 +4,7 @@ import { requireActiveSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { hasMinRole } from "@/constants/levels";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminSignatureService } from "@/modules/admin/admin-signature.service";
 import { ROUTES } from "@/constants/routes";
 import { IdSchema } from "@/lib/validation/ids";
 
@@ -20,7 +20,7 @@ export async function signPlanPreviewAction(planId: string): Promise<{ success: 
   const session = await requireAdmin();
   if (!IdSchema.safeParse(planId).success) return { success: false };
   try {
-    await adminService.signPlan(planId, session.user.id, session.user.name ?? undefined);
+    await adminSignatureService.signPlan(planId, session.user.id, session.user.name ?? undefined);
     revalidatePath(ROUTES.ADMIN.DASHBOARD);
     return { success: true };
   } catch {
@@ -35,7 +35,7 @@ export async function rejectPlanPreviewAction(planId: string, comment: string): 
     return { success: false };
   }
   try {
-    await adminService.rejectPlan(planId, comment.trim(), session.user.id, session.user.name ?? undefined);
+    await adminSignatureService.rejectPlan(planId, comment.trim(), session.user.id, session.user.name ?? undefined);
     revalidatePath(ROUTES.ADMIN.DASHBOARD);
     return { success: true };
   } catch {

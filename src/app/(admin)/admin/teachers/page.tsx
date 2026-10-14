@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminService, type TeacherSortOption } from "@/modules/admin/admin.service";
+import { adminUsersService, type TeacherSortOption } from "@/modules/admin/admin-users.service";
 import { CreateTeacherPanel } from "@/components/admin/CreateTeacherPanel";
 import { TeachersTable } from "@/components/admin/TeachersTable";
 import { ROUTES } from "@/constants/routes";
@@ -36,7 +36,7 @@ export default async function AdminTeachersPage({
   const sort   = (sp.sort   as TeacherSortOption) ?? "name_asc";
   const page   = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
-  const { items, total, totalPages } = await adminService.getTeachers({ search, status, sort, page });
+  const { items, total, totalPages } = await adminUsersService.getTeachers({ search, status, sort, page });
 
   const hasFilters = search !== "" || status !== "all" || sort !== "name_asc";
   const base       = "/admin/teachers";

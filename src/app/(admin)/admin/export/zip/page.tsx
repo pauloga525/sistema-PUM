@@ -1,7 +1,8 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminAssignmentsService } from "@/modules/admin/admin-assignments.service";
+import { adminCatalogService } from "@/modules/admin/admin-catalog.service";
 import { ROUTES } from "@/constants/routes";
 import { YearSelector } from "@/components/admin/YearSelector";
 import { ExportZipClient } from "@/components/admin/ExportZipClient";
@@ -18,7 +19,7 @@ export default async function AdminExportZipPage({
 
   const { yearId: rawYearId, periodId: rawPeriodId } = await searchParams;
 
-  const years = await adminService.getAllYears();
+  const years = await adminCatalogService.getAllYears();
 
   if (years.length === 0) {
     return (
@@ -54,7 +55,7 @@ export default async function AdminExportZipPage({
 
   // Load all plans for the period (all statuses)
   const rawPlans = periodId
-    ? await adminService.getPlanificationsForPeriod(yearId, periodId)
+    ? await adminAssignmentsService.getPlanificationsForPeriod(yearId, periodId)
     : [];
 
   const plans = rawPlans.map((p) => {

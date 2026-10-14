@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
 import { hasMinRole } from "@/constants/levels";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminUsersService } from "@/modules/admin/admin-users.service";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/logger/logger";
 import { IdSchema } from "@/lib/validation/ids";
@@ -51,7 +51,7 @@ export async function createTeacherAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const { tempPassword } = await adminService.createTeacher({ ...parsed.data, academicYearId: "", assignments: [] });
+    const { tempPassword } = await adminUsersService.createTeacher({ ...parsed.data, academicYearId: "", assignments: [] });
     revalidatePath(ROUTES.ADMIN.TEACHERS);
     return { ok: true, tempPassword };
   } catch (e) {
@@ -74,7 +74,7 @@ export async function deleteTeacherAction(
   if (!parsed.success) return { error: "ID de docente no válido" };
 
   try {
-    await adminService.deleteTeacher(parsed.data.teacherId, {
+    await adminUsersService.deleteTeacher(parsed.data.teacherId, {
       actorId:   session.user.id,
       actorName: session.user.name ?? null,
     });
@@ -96,7 +96,7 @@ export async function resetTeacherPasswordAction(
   if (!parsed.success) return { error: "ID de docente no válido" };
 
   try {
-    const { tempPassword } = await adminService.resetTeacherPassword(parsed.data.teacherId, session.user.id);
+    const { tempPassword } = await adminUsersService.resetTeacherPassword(parsed.data.teacherId, session.user.id);
     revalidatePath(ROUTES.ADMIN.TEACHERS);
     return { ok: true, tempPassword };
   } catch (e) {

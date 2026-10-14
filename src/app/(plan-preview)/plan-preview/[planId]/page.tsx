@@ -5,11 +5,11 @@ import { auth } from "@/auth";
 import { hasMinRole } from "@/constants/levels";
 import type { UserRole } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminSignatureService } from "@/modules/admin/admin-signature.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
 import { appConfig } from "@/config/app.config";
 import { ReviewClient } from "@/components/coordinator/ReviewClient";
-import { getAuditHistoryAction } from "@/app/(coordinator)/coordinator/[planId]/review/actions";
+import { getAuditHistoryAction } from "@/modules/audit/audit.actions";
 import { auditService } from "@/modules/audit/audit.service";
 import Link from "next/link";
 import { ExportMenu } from "@/components/planification/ExportMenu";
@@ -37,7 +37,7 @@ export default async function PlanPreviewPage({
   if (!session || !hasMinRole(session.user.role as UserRole, "ADMIN")) redirect(ROUTES.LOGIN);
 
   const [planData, review] = await Promise.all([
-    adminService.getPlanForAdmin(planId),
+    adminSignatureService.getPlanForAdmin(planId),
     coordinatorService.getReviewForTeacher(planId),
   ]);
   if (!planData) notFound();

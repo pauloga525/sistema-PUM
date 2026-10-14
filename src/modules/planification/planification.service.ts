@@ -6,6 +6,9 @@ import { auditService } from "@/modules/audit/audit.service";
 import type { Prisma } from "@prisma/client";
 import { assertCanEdit, assertCanFinalize, computeDisplayStatus, EDITABLE_STATUSES } from "./planification.domain";
 import { transitionPlan } from "./planification.transitions";
+import { filterActiveTeacherLinks, loadActiveLinkChecker, visibleTeacherLinks } from "./teacher-links";
+
+export { filterActiveTeacherLinks };
 import type {
   Planification,
   PlanTeacher,
@@ -29,6 +32,39 @@ import type { PlanificationStatus } from "@/constants/planification";
 import type { UserId, AcademicYearId, PeriodId, SubjectId, LevelId } from "@/types";
 
 const log = logger.child("PlanificationService");
+
+// ── Vínculos docente ↔ PUM ────────────────────────────────────────────────────
+
+/**
+ * Auto-reparación: vincula al docente, como espectador, a los PUM del año que
+ * corresponden a sus asignaciones activas y a los que aún no está vinculado
+ * (p. ej. PUM creado por un co-docente antes de que la asignación existiera).
+ * Una sola sentencia idempotente; nunca toca vínculos ni editores existentes.
+ */
+async function syncTeacherPlanLinks(teacherId: UserId, yearId: AcademicYearId): Promise<void> {
+  await prisma.$executeRaw`
+    INSERT INTO "planification_teachers" ("id", "planificationId", "teacherId", "isEditor", "joinedAt")
+    SELECT gen_random_uuid()::text, p."id", ${teacherId}, false, now()
+    FROM "planifications" p
+    JOIN "teacher_assignments" a
+      ON  a."subjectId"      = p."subjectId"
+      AND a."levelId"        = p."levelId"
+      AND a."academicYearId" = p."academicYearId"
+    WHERE a."teacherId" = ${teacherId}
+      AND a."active"
+      AND p."academicYearId" = ${yearId}
+    ON CONFLICT ("planificationId", "teacherId") DO NOTHING
+  `;
+}
+
+/** JSON con claves ordenadas, para comparar contenido sin depender del orden. */
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : v
+  );
+}
 
 // ── Guardas de edición dentro de la transacción ───────────────────────────────
 
@@ -201,41 +237,6 @@ function emptyPumRowData(): PumRowData {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Filtra vínculos PlanificationTeacher a solo los docentes que TODAVÍA tienen
- * una TeacherAssignment activa para esa materia+nivel+año.
- *
- * Defensa en profundidad: antes de que existiera unassignTeacherFromCombo,
- * remover una asignación no limpiaba PlanificationTeacher, dejando vínculos
- * huérfanos en producción (docente removido que seguía apareciendo como
- * co-docente y — más grave — podía seguir abriendo el PUM). Este filtro
- * oculta esos vínculos huérfanos en cualquier lectura, sin necesidad de
- * una limpieza manual en la base de datos.
- *
- * Excepción: los PUM ya "SIGNED" nunca se filtran — es el registro
- * institucional permanente y debe mostrar siempre a quienes participaron,
- * sin importar cambios de asignación posteriores (misma regla que
- * unassignTeacherFromCombo usa para decidir qué limpiar).
- */
-export async function filterActiveTeacherLinks<T extends { teacherId: string }>(
-  plan: { subjectId: string; levelId: string; academicYearId: string; status?: string },
-  links: T[],
-): Promise<T[]> {
-  if (links.length === 0 || plan.status === "SIGNED") return links;
-  const active = await prisma.teacherAssignment.findMany({
-    where: {
-      subjectId:      plan.subjectId,
-      levelId:        plan.levelId,
-      academicYearId: plan.academicYearId,
-      active:         true,
-      teacherId:      { in: links.map((l) => l.teacherId) },
-    },
-    select: { teacherId: true },
-  });
-  const activeIds = new Set(active.map((a) => a.teacherId));
-  return links.filter((l) => activeIds.has(l.teacherId));
-}
-
 function buildPlanFromDb(
   plan: {
     id: string;
@@ -382,6 +383,8 @@ export class PlanificationService {
   ): Promise<SubjectWithStatus[]> {
     log.info("getSubjectsWithStatus", { teacherId, yearId, periodId });
 
+    await syncTeacherPlanLinks(teacherId, yearId);
+
     const [assignments, planLinks] = await Promise.all([
       prisma.teacherAssignment.findMany({
         where: { teacherId, academicYearId: yearId, active: true },
@@ -410,35 +413,10 @@ export class PlanificationService {
       .map((l) => ({ ...l.planification, isEditor: l.isEditor }))
       .filter((p) => p.periodId === periodId);
 
-    return Promise.all(assignments.map(async (a) => {
-      let plan = myPlans.find(
+    return assignments.map((a) => {
+      const plan = myPlans.find(
         (p) => p.subjectId === a.subjectId && p.levelId === a.levelId
       ) ?? null;
-
-      // Auto-reparación: puede existir un PUM creado por otro docente co-asignado
-      // cuyo vínculo (PlanificationTeacher) para este docente nunca se sincronizó
-      // (p. ej. la asignación se creó antes de que existiera la sincronización
-      // automática al momento de asignar). Se busca por la clave natural y, si
-      // existe, se crea el vínculo faltante como espectador — jamás se sobrescribe
-      // un vínculo/editor ya existente (upsert con update: {}).
-      if (!plan) {
-        const orphan = await prisma.planification.findUnique({
-          where: {
-            academicYearId_periodId_subjectId_levelId: {
-              academicYearId: yearId, periodId, subjectId: a.subjectId, levelId: a.levelId,
-            },
-          },
-          select: { id: true, status: true, editDeadlineAt: true, finalizedAt: true, subjectId: true, levelId: true, periodId: true, academicYearId: true },
-        });
-        if (orphan) {
-          await prisma.planificationTeacher.upsert({
-            where: { planificationId_teacherId: { planificationId: orphan.id, teacherId } },
-            create: { planificationId: orphan.id, teacherId, isEditor: false },
-            update: {},
-          });
-          plan = { ...orphan, isEditor: false };
-        }
-      }
 
       const displayStatus = computeDisplayStatus(plan, now);
 
@@ -462,7 +440,7 @@ export class PlanificationService {
           : null,
         displayStatus,
       };
-    }));
+    });
   }
 
   async getSubjectsForYear(
@@ -470,6 +448,8 @@ export class PlanificationService {
     yearId: AcademicYearId
   ): Promise<import("./planification.types").SubjectYearSummary[]> {
     log.info("getSubjectsForYear", { teacherId, yearId });
+
+    await syncTeacherPlanLinks(teacherId, yearId);
 
     const [assignments, periods, planLinks] = await Promise.all([
       prisma.teacherAssignment.findMany({
@@ -507,32 +487,10 @@ export class PlanificationService {
     for (const a of assignments) {
       const key = `${a.subjectId}-${a.levelId}`;
       if (!map.has(key)) {
-        const periodStatuses = await Promise.all(periods.map(async (p) => {
-          let plan = myPlans.find(
+        const periodStatuses = periods.map((p) => {
+          const plan = myPlans.find(
             (pl) => pl.subjectId === a.subjectId && pl.levelId === a.levelId && pl.periodId === p.id
           ) ?? null;
-
-          // Auto-reparación: mismo mecanismo que en getSubjectsWithStatus —
-          // vincula al docente a un PUM ya existente cuyo vínculo nunca se
-          // sincronizó, sin sobrescribir vínculos/editores existentes.
-          if (!plan) {
-            const orphan = await prisma.planification.findUnique({
-              where: {
-                academicYearId_periodId_subjectId_levelId: {
-                  academicYearId: yearId, periodId: p.id, subjectId: a.subjectId, levelId: a.levelId,
-                },
-              },
-              select: { id: true, periodId: true, subjectId: true, levelId: true, status: true, editDeadlineAt: true, finalizedAt: true, academicYearId: true },
-            });
-            if (orphan) {
-              await prisma.planificationTeacher.upsert({
-                where: { planificationId_teacherId: { planificationId: orphan.id, teacherId } },
-                create: { planificationId: orphan.id, teacherId, isEditor: false },
-                update: {},
-              });
-              plan = orphan;
-            }
-          }
 
           return {
             periodId:       p.id,
@@ -543,7 +501,7 @@ export class PlanificationService {
             editDeadlineAt: plan?.editDeadlineAt ?? null,
             displayStatus:  computeDisplayStatus(plan, now),
           };
-        }));
+        });
         map.set(key, {
           subjectId:       a.subjectId,
           subjectName:     a.subject.name,
@@ -587,79 +545,65 @@ export class PlanificationService {
     }
 
     const allTeacherIds = [...new Set(coAssigned.map((a) => a.teacherId))];
+    const naturalKey = { academicYearId: yearId, periodId, subjectId, levelId };
 
-    const existing = await prisma.planification.findUnique({
-      where: { academicYearId_periodId_subjectId_levelId: { academicYearId: yearId, periodId, subjectId, levelId } },
-      select: { id: true },
-    });
+    // Vincula a los co-docentes como espectadores. skipDuplicates: nunca toca
+    // isEditor de un vínculo existente (el editor actual se preserva; el
+    // coordinador puede cambiarlo explícitamente desde su panel).
+    const linkViewers = (db: Prisma.TransactionClient, planificationId: string) =>
+      db.planificationTeacher.createMany({
+        data: allTeacherIds.map((tid) => ({ planificationId, teacherId: tid, isEditor: false })),
+        skipDuplicates: true,
+      });
 
-    if (existing) {
-      // PUM existente: solo vincular nuevos docentes co-asignados como viewers.
-      // Nunca se toca isEditor de registros ya existentes — el editor actual se preserva.
-      // El coordinador puede cambiar el editor explícitamente desde su panel.
-      await Promise.all(
-        allTeacherIds.map((tid) =>
-          prisma.planificationTeacher.upsert({
-            where: { planificationId_teacherId: { planificationId: existing.id, teacherId: tid } },
-            create: { planificationId: existing.id, teacherId: tid, isEditor: false },
-            update: {},
-          })
-        )
-      );
-      return { planId: existing.id, isNewPlan: false };
-    }
-
-    // PUM nuevo: quien lo crea es el editor (primer docente que accede).
-    const editorId = teacherId;
-
-    let created: { id: string };
     const teacher = await prisma.user.findUnique({ where: { id: teacherId }, select: { name: true } });
 
     try {
-      created = await prisma.planification.create({
-        data: { academicYearId: yearId, periodId, subjectId, levelId, status: "DRAFT" },
-        select: { id: true },
-      });
-    } catch (err) {
-      // P2002 = two teachers opened the PUM simultaneously — the second one links to the winner
-      if ((err as { code?: string }).code === "P2002") {
-        const conflict = await prisma.planification.findUnique({
-          where: { academicYearId_periodId_subjectId_levelId: { academicYearId: yearId, periodId, subjectId, levelId } },
+      // Crear el PUM, sus vínculos y la auditoría juntos: antes un fallo a
+      // mitad dejaba un PUM sin editor.
+      return await prisma.$transaction(async (tx) => {
+        const existing = await tx.planification.findUnique({
+          where:  { academicYearId_periodId_subjectId_levelId: naturalKey },
           select: { id: true },
         });
-        if (!conflict) throw err;
-        await Promise.all(
-          allTeacherIds.map((tid) =>
-            prisma.planificationTeacher.upsert({
-              where:  { planificationId_teacherId: { planificationId: conflict.id, teacherId: tid } },
-              create: { planificationId: conflict.id, teacherId: tid, isEditor: false },
-              update: {},
-            })
-          )
-        );
-        return { planId: conflict.id, isNewPlan: false };
-      }
-      throw err;
+        if (existing) {
+          await linkViewers(tx, existing.id);
+          return { planId: existing.id, isNewPlan: false };
+        }
+
+        // PUM nuevo: quien lo crea es el editor (primer docente que accede)
+        const created = await tx.planification.create({
+          data:   { ...naturalKey, status: "DRAFT" },
+          select: { id: true },
+        });
+        await tx.planificationTeacher.createMany({
+          data: allTeacherIds.map((tid) => ({
+            planificationId: created.id,
+            teacherId:       tid,
+            isEditor:        tid === teacherId,
+          })),
+          skipDuplicates: true,
+        });
+        await auditService.log({
+          planificationId: created.id,
+          actorId:   teacherId,
+          actorName: teacher?.name ?? null,
+          actorRole: "TEACHER",
+          eventType: "PLAN_CREATED",
+        }, tx);
+        return { planId: created.id, isNewPlan: true };
+      });
+    } catch (err) {
+      // P2002: dos docentes abrieron el PUM a la vez — el segundo se vincula al ganador
+      if ((err as { code?: string }).code !== "P2002") throw err;
+      const winner = await prisma.planification.findUnique({
+        where:  { academicYearId_periodId_subjectId_levelId: naturalKey },
+        select: { id: true },
+      });
+      if (!winner) throw err;
+      await linkViewers(prisma, winner.id);
+      return { planId: winner.id, isNewPlan: false };
     }
-
-    await prisma.planificationTeacher.createMany({
-      data: allTeacherIds.map((tid) => ({
-        planificationId: created.id,
-        teacherId:       tid,
-        isEditor:        tid === editorId,
-      })),
-      skipDuplicates: true,
-    });
-
-    await auditService.log({
-      planificationId: created.id,
-      actorId:   teacherId,
-      actorName: teacher?.name ?? null,
-      actorRole: "TEACHER",
-      eventType: "PLAN_CREATED",
-    });
-
-    return { planId: created.id, isNewPlan: true };
   }
 
   // ── Métodos de edición ───────────────────────────────────────────────────
@@ -724,26 +668,11 @@ export class PlanificationService {
       include: PLAN_INCLUDE,
     });
 
-    // Misma lógica que filterActiveTeacherLinks, pero en un solo query para
-    // todos los planes del batch (evita N+1 al filtrar vínculos huérfanos).
-    const allTeacherIds = [...new Set(plans.flatMap((p) => p.teachers.map((t) => t.teacherId)))];
-    const activeAssignments = allTeacherIds.length > 0
-      ? await prisma.teacherAssignment.findMany({
-          where: { teacherId: { in: allTeacherIds }, active: true },
-          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
-        })
-      : [];
-    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
-    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
+    // Vínculos huérfanos: una sola consulta para todo el lote (ver teacher-links.ts)
+    const isActive = await loadActiveLinkChecker(plans);
 
     return plans.map((plan) => {
-      // PUM ya SIGNED: registro histórico permanente, nunca se filtra (misma
-      // excepción que filterActiveTeacherLinks aplica en getById/Unchecked).
-      const filteredTeachers = plan.status === "SIGNED"
-        ? plan.teachers
-        : plan.teachers.filter((t) =>
-            activeSet.has(activeKey(plan.subjectId, plan.levelId, plan.academicYearId, t.teacherId))
-          );
+      const filteredTeachers = visibleTeacherLinks(plan, plan.teachers, isActive);
       const editorTeacherId = filteredTeachers.find((t) => t.isEditor)?.teacherId ?? "";
       return buildPlanFromDb({ ...plan, teachers: filteredTeachers }, editorTeacherId);
     });
@@ -758,18 +687,41 @@ export class PlanificationService {
     await prisma.$transaction(async (tx) => {
       await lockEditablePlan(tx, input.planificationId, teacherId);
 
-      await tx.planificationRow.deleteMany({
-        where: { planificationId: input.planificationId },
+      // Diff por rowIndex: el autoguardado solo escribe las filas que cambiaron
+      // (antes borraba y recreaba todas en cada guardado)
+      const existing = await tx.planificationRow.findMany({
+        where:  { planificationId: input.planificationId },
+        select: { rowIndex: true, data: true },
+      });
+      const existingByIndex = new Map(existing.map((r) => [r.rowIndex, stableStringify(r.data)]));
+      const incomingIndexes = new Set(input.rows.map((r) => r.rowIndex));
+
+      const toDelete = existing.filter((r) => !incomingIndexes.has(r.rowIndex)).map((r) => r.rowIndex);
+      const toCreate = input.rows.filter((r) => !existingByIndex.has(r.rowIndex));
+      const toUpdate = input.rows.filter((r) => {
+        const prev = existingByIndex.get(r.rowIndex);
+        return prev !== undefined && prev !== stableStringify(r.data);
       });
 
-      if (input.rows.length > 0) {
+      if (toDelete.length > 0) {
+        await tx.planificationRow.deleteMany({
+          where: { planificationId: input.planificationId, rowIndex: { in: toDelete } },
+        });
+      }
+      if (toCreate.length > 0) {
         await tx.planificationRow.createMany({
-          data: input.rows.map((r) => ({
+          data: toCreate.map((r) => ({
             planificationId:  input.planificationId,
             rowIndex:         r.rowIndex,
             data:             r.data,
             methodologyIcons: [],
           })),
+        });
+      }
+      for (const r of toUpdate) {
+        await tx.planificationRow.update({
+          where: { planificationId_rowIndex: { planificationId: input.planificationId, rowIndex: r.rowIndex } },
+          data:  { data: r.data },
         });
       }
     });
@@ -909,6 +861,11 @@ export class PlanificationService {
 
       for (const plan of affectedPlans) {
         const myLink = plan.teachers.find((t) => t.teacherId === teacherId);
+        // Primero se quita el vínculo del docente removido: el índice de
+        // editor único no admite dos editores ni por un instante.
+        await tx.planificationTeacher.delete({
+          where: { planificationId_teacherId: { planificationId: plan.id, teacherId } },
+        });
         if (myLink?.isEditor && otherActive) {
           await tx.planificationTeacher.upsert({
             where:  { planificationId_teacherId: { planificationId: plan.id, teacherId: otherActive.teacherId } },
@@ -916,9 +873,6 @@ export class PlanificationService {
             update: { isEditor: true },
           });
         }
-        await tx.planificationTeacher.delete({
-          where: { planificationId_teacherId: { planificationId: plan.id, teacherId } },
-        });
       }
     });
 

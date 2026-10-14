@@ -84,6 +84,9 @@ const log = logger.child("AuditService");
 
 // ── Servicio ──────────────────────────────────────────────────────────────────
 
+/** Tope de eventos por PUM en el historial (un PUM normal tiene decenas). */
+const MAX_HISTORY_EVENTS = 1000;
+
 export interface AuditLogInput {
   planificationId: string;
   actorId?:    string | null;
@@ -149,6 +152,7 @@ export const auditService = {
       prisma.planAuditEvent.findMany({
         where: { planificationId },
         orderBy: { createdAt: "asc" },
+        take: MAX_HISTORY_EVENTS,
       }),
     ]);
 

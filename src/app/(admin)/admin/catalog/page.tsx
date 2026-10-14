@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminCatalogService } from "@/modules/admin/admin-catalog.service";
 import { ROUTES } from "@/constants/routes";
 import { CatalogClient } from "@/components/admin/catalog/CatalogClient";
 
@@ -15,7 +15,7 @@ export default async function AdminCatalogPage({
   if (!session) redirect(ROUTES.LOGIN);
 
   const { year } = await searchParams;
-  const data = await adminService.getFullCatalogData(year);
+  const data = await adminCatalogService.getFullCatalogData(year);
 
   return (
     <CatalogClient

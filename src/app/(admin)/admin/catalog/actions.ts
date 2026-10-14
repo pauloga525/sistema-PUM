@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
 import { hasMinRole } from "@/constants/levels";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminCatalogService } from "@/modules/admin/admin-catalog.service";
 import { ROUTES } from "@/constants/routes";
 import { AppError } from "@/lib/errors/app-error";
 import { IdSchema } from "@/lib/validation/ids";
@@ -61,7 +61,7 @@ export async function createAcademicYearAction(
     if (!parsed.success) return { error: firstIssue(parsed.error, "Datos del año lectivo inválidos.") };
     const { label, yearStart, startDate, endDate } = parsed.data;
 
-    await adminService.createAcademicYear({
+    await adminCatalogService.createAcademicYear({
       label,
       yearStart,
       startDate: startDate ? new Date(startDate) : null,
@@ -85,7 +85,7 @@ export async function setActiveYearAction(
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de año lectivo requerido." };
-    await adminService.setActiveYear(id.data);
+    await adminCatalogService.setActiveYear(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -120,7 +120,7 @@ export async function createPeriodAction(
     if (!input.success) return { error: firstIssue(input.error, "Datos del periodo inválidos.") };
     const { academicYearId, name, number, startDate, endDate } = input.data;
 
-    await adminService.createPeriod({
+    await adminCatalogService.createPeriod({
       academicYearId,
       name,
       number,
@@ -145,7 +145,7 @@ export async function deletePeriodAction(
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de periodo requerido." };
-    await adminService.deletePeriod(id.data);
+    await adminCatalogService.deletePeriod(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -177,7 +177,7 @@ export async function createSubjectAction(
     const { name, code } = parsed.data;
     const areaEstudio = parsed.data.areaEstudio || undefined;
 
-    await adminService.createSubject({ name, code, areaEstudio });
+    await adminCatalogService.createSubject({ name, code, areaEstudio });
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -195,7 +195,7 @@ export async function deleteSubjectAction(
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de materia requerido." };
-    await adminService.deleteSubject(id.data);
+    await adminCatalogService.deleteSubject(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -213,7 +213,7 @@ export async function addSubjectToLevelAction(
     const subjectId = IdSchema.safeParse(formData.get("subjectId"));
     const levelId   = IdSchema.safeParse(formData.get("levelId"));
     if (!subjectId.success || !levelId.success) return { error: "Materia y nivel son requeridos." };
-    await adminService.addSubjectToLevel(subjectId.data, levelId.data);
+    await adminCatalogService.addSubjectToLevel(subjectId.data, levelId.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {
@@ -230,7 +230,7 @@ export async function removeSubjectFromLevelAction(
   try {
     const id = IdSchema.safeParse(formData.get("id"));
     if (!id.success) return { error: "ID de vínculo requerido." };
-    await adminService.removeSubjectFromLevel(id.data);
+    await adminCatalogService.removeSubjectFromLevel(id.data);
     revalidatePath(ROUTES.ADMIN.CATALOG);
     return { ok: true };
   } catch (e) {

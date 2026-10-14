@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma/client";
 import { REVIEW_SECTION_KEYS, BLOCKING_REVIEW_KEYS, type SectionStates, type ReviewStatus } from "@/constants/review";
-import { normalizePumRowData, normalizePlanMetadata, filterActiveTeacherLinks } from "@/modules/planification/planification.service";
+import { normalizePumRowData, normalizePlanMetadata } from "@/modules/planification/planification.service";
+import { filterActiveTeacherLinks, loadActiveLinkChecker, visibleTeacherLinks } from "@/modules/planification/teacher-links";
 import { auditService } from "@/modules/audit/audit.service";
 import { IN_REVIEW_CYCLE_STATUSES } from "@/modules/planification/planification.domain";
 import { transitionPlan } from "@/modules/planification/planification.transitions";
@@ -253,8 +254,12 @@ export const coordinatorService = {
 
     if (planIdSet.size === 0) return [];
 
+    // Años anteriores: solo lo que sigue abierto (lo firmado queda en el historial)
     const plans = await prisma.planification.findMany({
-      where: { id: { in: Array.from(planIdSet) } },
+      where: {
+        id: { in: Array.from(planIdSet) },
+        OR: [{ academicYear: { active: true } }, { status: { not: "SIGNED" } }],
+      },
       include: {
         teachers:     { include: { teacher: { select: { name: true, email: true } } } },
         subject:      true,
@@ -267,23 +272,11 @@ export const coordinatorService = {
       orderBy: [{ academicYear: { yearStart: "desc" } }, { period: { number: "asc" } }, { finalizedAt: "desc" }],
     });
 
-    // Oculta vínculos huérfanos (docentes removidos cuya asignación ya no
-    // está activa) en un solo query batch — ver filterActiveTeacherLinks.
-    // Los PUM ya SIGNED nunca se filtran (registro histórico permanente).
-    const allTeacherIds = [...new Set(plans.flatMap((p) => p.teachers.map((t) => t.teacherId)))];
-    const activeAssignments = allTeacherIds.length > 0
-      ? await prisma.teacherAssignment.findMany({
-          where: { teacherId: { in: allTeacherIds }, active: true },
-          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
-        })
-      : [];
-    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
-    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
+    // Vínculos huérfanos: una sola consulta para todo el lote (ver teacher-links.ts)
+    const isActive = await loadActiveLinkChecker(plans);
 
     return plans.map((p) => {
-      const teachers = p.status === "SIGNED"
-        ? p.teachers
-        : p.teachers.filter((t) => activeSet.has(activeKey(p.subjectId, p.levelId, p.academicYearId, t.teacherId)));
+      const teachers = visibleTeacherLinks(p, p.teachers, isActive);
       const states  = normalizeStates(p.review?.sectionStates);
       const { approved, total } = countProgress(states, p._count.rows);
       const reviewStatus: ReviewStatus = p.status === "ADMIN_REJECTED"

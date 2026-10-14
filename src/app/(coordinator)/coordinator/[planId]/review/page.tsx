@@ -12,8 +12,8 @@ import {
   updateSectionAction,
   sendFeedbackAction,
   approvePlanAction,
-  getAuditHistoryAction,
 } from "./actions";
+import { getAuditHistoryAction } from "@/modules/audit/audit.actions";
 import Link from "next/link";
 
 export async function generateMetadata({

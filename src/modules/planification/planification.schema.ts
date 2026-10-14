@@ -196,7 +196,11 @@ export const SavePlanificationRowsSchema = z.object({
   planificationId: z.string().uuid("ID de planificación inválido"),
   rows: z
     .array(PlanificationRowSchema)
-    .max(MAX_PUM_ROWS, `No se pueden guardar más de ${MAX_PUM_ROWS} filas`),
+    .max(MAX_PUM_ROWS, `No se pueden guardar más de ${MAX_PUM_ROWS} filas`)
+    .refine(
+      (rows) => new Set(rows.map((r) => r.rowIndex)).size === rows.length,
+      "Hay filas con el mismo índice",
+    ),
 });
 
 export const FinalizePlanificationSchema = z.object({

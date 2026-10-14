@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminCatalogService } from "@/modules/admin/admin-catalog.service";
+import { adminSignatureService } from "@/modules/admin/admin-signature.service";
 import { ROUTES } from "@/constants/routes";
 import { SignatureTable } from "./SignatureTable";
 import { ExcelDownloadButton } from "@/components/admin/ExcelDownloadButton";
@@ -49,7 +50,7 @@ export default async function AdminDashboardPage() {
   const session = await auth();
   if (!session) redirect(ROUTES.LOGIN);
 
-  const activeYear = await adminService.getActiveYear();
+  const activeYear = await adminCatalogService.getActiveYear();
 
   if (!activeYear) {
     return (
@@ -72,10 +73,10 @@ export default async function AdminDashboardPage() {
   }
 
   const [stats, signatureGroups, coordinatorOverview, allYears] = await Promise.all([
-    adminService.getDashboardStats(activeYear.id),
-    adminService.getPendingSignaturePlans(),
-    adminService.getCoordinatorOverview(),
-    adminService.getAllYears(),
+    adminSignatureService.getDashboardStats(activeYear.id),
+    adminSignatureService.getPendingSignaturePlans(activeYear.id),
+    adminSignatureService.getCoordinatorOverview(activeYear.id),
+    adminCatalogService.getAllYears(),
   ]);
 
   const totalPending = signatureGroups.reduce((sum, g) => sum + g.plans.length, 0);

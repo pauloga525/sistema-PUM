@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import { Prisma, type Role } from "@prisma/client";
 import { isRole } from "@/lib/validation/enums";
 import { prisma } from "@/lib/prisma/client";
@@ -6,7 +5,7 @@ import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 import { requireNotSelf } from "@/modules/auth/auth.guards";
 import { userAuditService } from "@/modules/audit/user-audit.service";
-import { generateTempPassword, tempPasswordExpiresAt } from "@/modules/security/temp-password";
+import { assertIdentityAvailable, issueTempPassword, normalizeEmail, resetToTempPassword } from "@/modules/users/user-accounts";
 import type { CreateUserInput, UpdateUserInput } from "./superadmin.schema";
 
 const USER_SELECT = {
@@ -71,25 +70,16 @@ class SuperAdminService {
   }
 
   async createUser(actorId: string, data: CreateUserInput) {
-    const existingCedula = await prisma.user.findUnique({ where: { cedula: data.cedula }, select: { id: true } });
-    if (existingCedula) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "Ya existe un usuario con esa cédula");
-
-    const existingEmail = await prisma.user.findUnique({ where: { email: data.email }, select: { id: true } });
-    if (existingEmail) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "Ya existe un usuario con ese email");
-
-    // Contraseña temporal aleatoria (ya no la cédula, que es previsible)
-    const tempPassword = generateTempPassword();
-    const passwordHash = await bcrypt.hash(tempPassword, 12);
+    await assertIdentityAvailable(data.email, data.cedula);
+    const { tempPassword, data: credentials } = await issueTempPassword();
     const user = await prisma.user.create({
       data: {
         name: data.name,
-        email: data.email,
+        email: normalizeEmail(data.email),
         cedula: data.cedula,
         role: data.role,
         coordinatorArea: data.role === "COORDINATOR" ? (data.coordinatorArea ?? null) : null,
-        passwordHash,
-        forcePasswordChange: true,
-        tempPasswordExpiresAt: tempPasswordExpiresAt(),
+        ...credentials,
         isActive: true,
       },
       select: USER_SELECT,
@@ -197,12 +187,7 @@ class SuperAdminService {
   async resetPassword(actorId: string, userId: string) {
     const user = await this.getUserById(userId);
 
-    const tempPassword = generateTempPassword();
-    const passwordHash = await bcrypt.hash(tempPassword, 12);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash, forcePasswordChange: true, tempPasswordExpiresAt: tempPasswordExpiresAt() },
-    });
+    const { tempPassword } = await resetToTempPassword(userId);
 
     await userAuditService.log({ eventType: "USER_PASSWORD_RESET", actorId, targetId: userId, targetEmail: user.email });
     return { tempPassword };

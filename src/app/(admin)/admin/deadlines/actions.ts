@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
 import { hasMinRole } from "@/constants/levels";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminAssignmentsService } from "@/modules/admin/admin-assignments.service";
 import { ROUTES } from "@/constants/routes";
 import { IdSchema } from "@/lib/validation/ids";
 
@@ -27,7 +27,7 @@ export async function setDeadlineAction(formData: FormData) {
   const planId   = (formData.get("planId")   ?? "").toString().trim();
   const deadline = (formData.get("deadline") ?? "").toString();
   if (!IdSchema.safeParse(planId).success) return;
-  await adminService.setDeadline(planId, parseDate(deadline));
+  await adminAssignmentsService.setDeadline(planId, parseDate(deadline));
   revalidatePath(ROUTES.ADMIN.DEADLINES);
 }
 
@@ -37,6 +37,6 @@ export async function setBulkDeadlineAction(formData: FormData) {
   const periodId = (formData.get("periodId") ?? "").toString().trim();
   const deadline = (formData.get("deadline") ?? "").toString();
   if (!IdSchema.safeParse(yearId).success || !IdSchema.safeParse(periodId).success) return;
-  await adminService.setBulkDeadline(yearId, periodId, parseDate(deadline));
+  await adminAssignmentsService.setBulkDeadline(yearId, periodId, parseDate(deadline));
   revalidatePath(ROUTES.ADMIN.DEADLINES);
 }

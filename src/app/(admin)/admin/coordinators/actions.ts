@@ -5,7 +5,7 @@ import { requireActiveSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { hasMinRole } from "@/constants/levels";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminUsersService } from "@/modules/admin/admin-users.service";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/logger/logger";
 import { IdSchema } from "@/lib/validation/ids";
@@ -79,7 +79,7 @@ export async function createCoordinatorAction(
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const { tempPassword } = await adminService.createCoordinator(parsed.data);
+    const { tempPassword } = await adminUsersService.createCoordinator(parsed.data);
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true, tempPassword };
   } catch (e: unknown) {
@@ -100,7 +100,7 @@ export async function setCoordinatorSubjectsAction(
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
 
   try {
-    await adminService.setCoordinatorSubjects(parsed.data.coordinatorId, parsed.data.subjectIds);
+    await adminUsersService.setCoordinatorSubjects(parsed.data.coordinatorId, parsed.data.subjectIds);
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true };
   } catch (e: unknown) {
@@ -126,7 +126,7 @@ export async function promoteTeacherToCoordinatorAction(
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    await adminService.promoteTeacherToCoordinator({ ...parsed.data, actorId: session.user.id });
+    await adminUsersService.promoteTeacherToCoordinator({ ...parsed.data, actorId: session.user.id });
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true };
   } catch (e: unknown) {
@@ -145,7 +145,7 @@ export async function addCoordinatorTeacherAction(
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
 
   try {
-    await adminService.addCoordinatorTeacher(parsed.data.coordinatorId, parsed.data.teacherId);
+    await adminUsersService.addCoordinatorTeacher(parsed.data.coordinatorId, parsed.data.teacherId);
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true };
   } catch (e: unknown) {
@@ -163,7 +163,7 @@ export async function removeCoordinatorAssignmentAction(
   if (!parsed.success) return { ok: false };
 
   try {
-    await adminService.removeCoordinatorAssignment(parsed.data);
+    await adminUsersService.removeCoordinatorAssignment(parsed.data);
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true };
   } catch (e: unknown) {
@@ -182,7 +182,7 @@ export async function deleteCoordinatorAction(
   if (!parsed.success) return { ok: false, error: "Coordinador no válido" };
 
   try {
-    await adminService.deleteCoordinator(parsed.data, session.user.id);
+    await adminUsersService.deleteCoordinator(parsed.data, session.user.id);
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true };
   } catch (e: unknown) {
@@ -200,7 +200,7 @@ export async function resetCoordinatorPasswordAction(
   if (!parsed.success) return { ok: false, error: "Coordinador no válido" };
 
   try {
-    const { tempPassword } = await adminService.resetCoordinatorPassword(parsed.data);
+    const { tempPassword } = await adminUsersService.resetCoordinatorPassword(parsed.data);
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true, tempPassword };
   } catch (e: unknown) {

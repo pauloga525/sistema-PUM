@@ -16,6 +16,7 @@ export const notificationsService = {
       where: {
         status: { in: ["FEEDBACK_RECEIVED", "APPROVED", "PENDING_SIGNATURE", "SIGNED"] },
         teachers: { some: { teacherId } },
+        academicYear: { active: true },
       },
       select: {
         id: true,
@@ -85,6 +86,7 @@ export const notificationsService = {
         teacherId: { in: teacherIds },
         planification: {
           status: { in: ["FINALIZED", "FEEDBACK_RECEIVED", "ADMIN_REJECTED"] },
+          academicYear: { active: true },
         },
       },
       select: {

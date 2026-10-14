@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { ROUTES } from "@/constants/routes";
-import type { CoordinatorSignatureGroup, PendingSignaturePlan } from "@/modules/admin/admin.service";
+import type { CoordinatorSignatureGroup, PendingSignaturePlan } from "@/modules/admin/admin-signature.service";
 import { signPlanAction, rejectPlanAction } from "./actions";
 import { useToast } from "@/components/ui/Toast";
 

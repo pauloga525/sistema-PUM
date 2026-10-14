@@ -4,6 +4,7 @@ import { exportService } from "@/modules/export/export.service";
 import { rateLimitService } from "@/modules/security/rate-limit.service";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/logger/logger";
+import { IdSchema } from "@/lib/validation/ids";
 
 const log = logger.child("API:export/zip");
 
@@ -29,21 +30,24 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const yearId      = searchParams.get("yearId")   ?? undefined;
   const periodId    = searchParams.get("periodId") ?? undefined;
-  const status      = (searchParams.get("status") as "FINALIZED" | "DRAFT" | undefined) ?? "FINALIZED";
+  const rawStatus   = searchParams.get("status");
+  const status      = rawStatus === "DRAFT" ? "DRAFT" : "FINALIZED";
   const planIdsRaw  = searchParams.get("planIds");
   const planIds     = planIdsRaw ? planIdsRaw.split(",").filter(Boolean) : undefined;
+  if (planIds?.some((id) => !IdSchema.safeParse(id).success)) {
+    return new NextResponse("Identificador de PUM inválido", { status: 400 });
+  }
 
   log.info("zip export request", { yearId, periodId, status, planCount: planIds?.length, adminId: session.user.id });
 
   try {
-    const result = await exportService.buildZip({ academicYearId: yearId, periodId, status, planIds });
+    const result = await exportService.streamZip({ academicYearId: yearId, periodId, status, planIds });
 
-    return new NextResponse(new Uint8Array(result.buffer), {
+    return new NextResponse(result.stream, {
       status: 200,
       headers: {
         "Content-Type": result.mimeType,
         "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(result.filename)}`,
-        "Content-Length": String(result.sizeBytes),
         "Cache-Control": "no-store",
       },
     });

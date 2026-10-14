@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
 import { hasMinRole } from "@/constants/levels";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminAssignmentsService } from "@/modules/admin/admin-assignments.service";
 import { AppError } from "@/lib/errors/app-error";
 import { ROUTES } from "@/constants/routes";
 import { IdSchema } from "@/lib/validation/ids";
@@ -34,7 +34,7 @@ export async function createAssignmentAction(
   }
 
   try {
-    await adminService.createAssignment({ teacherId, subjectId, levelId, academicYearId, periodId: null });
+    await adminAssignmentsService.createAssignment({ teacherId, subjectId, levelId, academicYearId, periodId: null });
     revalidatePath(ROUTES.ADMIN.ASSIGNMENTS);
     return { ok: true };
   } catch (e) {
@@ -58,7 +58,7 @@ export async function updateAssignmentAction(
   }
 
   try {
-    await adminService.updateAssignment(id, { subjectId, levelId, periodId });
+    await adminAssignmentsService.updateAssignment(id, { subjectId, levelId, periodId });
     revalidatePath(ROUTES.ADMIN.ASSIGNMENTS);
     return { ok: true };
   } catch (e) {
@@ -75,7 +75,7 @@ export async function removeAssignmentAction(
   const id = (formData.get("id") ?? "").toString().trim();
   if (!isId(id)) return { error: "ID de asignación requerido." };
   try {
-    const result = await adminService.removeAssignment(id, {
+    const result = await adminAssignmentsService.removeAssignment(id, {
       actorId:   session.user.id,
       actorName: session.user.name ?? session.user.email ?? "Admin",
       actorRole: "ADMIN",

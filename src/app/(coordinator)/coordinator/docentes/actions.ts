@@ -70,22 +70,17 @@ export async function createTeacherAssignmentAction(
     // co-asignado), vincular al nuevo docente como espectador (isEditor: false)
     // en cada uno. Sin esto, el docente no ve el PUM existente hasta que ocurra
     // otro evento (finalizar, reenviar, o cambio de editor) que sincronice el vínculo.
-    // upsert con update:{} => nunca sobrescribe un vínculo/editor ya existente.
+    // skipDuplicates => nunca sobrescribe un vínculo/editor ya existente.
     const existingPlans = await prisma.planification.findMany({
       where: { academicYearId, subjectId, levelId },
       select: { id: true },
     });
 
     if (existingPlans.length > 0) {
-      await Promise.all(
-        existingPlans.map((p) =>
-          prisma.planificationTeacher.upsert({
-            where: { planificationId_teacherId: { planificationId: p.id, teacherId } },
-            create: { planificationId: p.id, teacherId, isEditor: false },
-            update: {},
-          })
-        )
-      );
+      await prisma.planificationTeacher.createMany({
+        data: existingPlans.map((p) => ({ planificationId: p.id, teacherId, isEditor: false })),
+        skipDuplicates: true,
+      });
     }
 
     revalidatePath(ROUTES.COORDINATOR.DOCENTES);
@@ -202,22 +197,30 @@ export async function setPrimaryEditorAction(
         });
         const allTeacherIds = [...new Set(coAssigned.map((a) => a.teacherId))];
 
-        // Reasignar isEditor en todos los PUMs del combo
+        // Reasignar isEditor en todos los PUMs del combo. Orden obligatorio por
+        // el índice de editor único: primero se quita el editor actual, luego
+        // se vincula a quien falte y al final se designa el nuevo editor.
         const plans = await tx.planification.findMany({
           where: { academicYearId, subjectId, levelId },
           select: { id: true },
         });
+        const planIds = plans.map((p) => p.id);
 
-        for (const p of plans) {
-          await Promise.all(
-            allTeacherIds.map((tid) =>
-              tx.planificationTeacher.upsert({
-                where:  { planificationId_teacherId: { planificationId: p.id, teacherId: tid } },
-                create: { planificationId: p.id, teacherId: tid, isEditor: tid === targetAssignment.teacherId },
-                update: { isEditor: tid === targetAssignment.teacherId },
-              })
-            )
-          );
+        if (planIds.length > 0) {
+          await tx.planificationTeacher.updateMany({
+            where: { planificationId: { in: planIds }, isEditor: true, teacherId: { not: targetAssignment.teacherId } },
+            data:  { isEditor: false },
+          });
+          await tx.planificationTeacher.createMany({
+            data: planIds.flatMap((planificationId) =>
+              allTeacherIds.map((tid) => ({ planificationId, teacherId: tid, isEditor: false }))
+            ),
+            skipDuplicates: true,
+          });
+          await tx.planificationTeacher.updateMany({
+            where: { planificationId: { in: planIds }, teacherId: targetAssignment.teacherId },
+            data:  { isEditor: true },
+          });
         }
       } else {
         // Quitar rol de editor en todos los PUMs del combo para este docente
@@ -226,12 +229,10 @@ export async function setPrimaryEditorAction(
           select: { id: true },
         });
 
-        for (const p of plans) {
-          await tx.planificationTeacher.updateMany({
-            where: { planificationId: p.id, teacherId: targetAssignment.teacherId },
-            data:  { isEditor: false },
-          });
-        }
+        await tx.planificationTeacher.updateMany({
+          where: { planificationId: { in: plans.map((p) => p.id) }, teacherId: targetAssignment.teacherId },
+          data:  { isEditor: false },
+        });
       }
     });
 

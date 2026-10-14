@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminService } from "@/modules/admin/admin.service";
+import { adminAssignmentsService } from "@/modules/admin/admin-assignments.service";
+import { adminCatalogService } from "@/modules/admin/admin-catalog.service";
 import { ROUTES } from "@/constants/routes";
 import { YearSelector } from "@/components/admin/YearSelector";
 import { AssignmentsClient } from "@/components/admin/AssignmentsClient";
@@ -17,7 +18,7 @@ export default async function AdminAssignmentsPage({
 
   const { yearId: rawYearId } = await searchParams;
 
-  const years = await adminService.getAllYears();
+  const years = await adminCatalogService.getAllYears();
   if (years.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
@@ -42,7 +43,7 @@ export default async function AdminAssignmentsPage({
   const yearId       = rawYearId && years.find((y) => y.id === rawYearId) ? rawYearId : activeYear.id;
   const selectedYear = years.find((y) => y.id === yearId)!;
 
-  const assignments = await adminService.getAssignments(yearId);
+  const assignments = await adminAssignmentsService.getAssignments(yearId);
 
   return (
     <div className="flex-1 flex flex-col p-6 sm:p-8 max-w-7xl mx-auto w-full">
