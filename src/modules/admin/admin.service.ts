@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma/client";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
+import { userAuditService } from "@/modules/audit/user-audit.service";
 import { normalizePumRowData, normalizePlanMetadata, planificationService } from "@/modules/planification/planification.service";
 
 export type TeacherSortOption = "name_asc" | "name_desc" | "created_asc" | "created_desc" | "assign_asc" | "assign_desc";
@@ -521,12 +522,37 @@ export class AdminService {
     });
   }
 
-  async resetTeacherPassword(teacherId: string) {
-    const user = await prisma.user.findUnique({ where: { id: teacherId }, select: { cedula: true, name: true } });
+  async resetTeacherPassword(teacherId: string, actorId: string) {
+    const user = await prisma.user.findUnique({
+      where:  { id: teacherId },
+      select: { cedula: true, name: true, email: true, role: true },
+    });
     if (!user) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Docente no encontrado");
+    // Solo docentes: sin esto un ADMIN podría resetear (y tomar) la cuenta de un SUPERADMIN
+    if (user.role !== "TEACHER") {
+      await userAuditService.log({
+        eventType:   "PRIVILEGE_ESCALATION_BLOCKED",
+        result:      "FAILURE",
+        actorId,
+        actorRole:   "ADMIN",
+        targetId:    teacherId,
+        targetEmail: user.email,
+        targetRole:  user.role,
+        metadata:    { action: "resetTeacherPassword" },
+      });
+      throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Solo se puede restablecer la contraseña de docentes");
+    }
     if (!user.cedula) throw new AppError(ErrorCode.VAL_INVALID_INPUT, "El docente no tiene cédula registrada");
     const passwordHash = await bcrypt.hash(user.cedula, 10);
     await prisma.user.update({ where: { id: teacherId }, data: { passwordHash, forcePasswordChange: true } });
+    await userAuditService.log({
+      eventType:   "USER_PASSWORD_RESET",
+      actorId,
+      actorRole:   "ADMIN",
+      targetId:    teacherId,
+      targetEmail: user.email,
+      targetRole:  user.role,
+    });
   }
 
   async deleteTeacher(teacherId: string) {
@@ -690,11 +716,32 @@ export class AdminService {
     teacherId:       string;
     coordinatorArea: string;
     teacherIds:      string[];
+    actorId:         string;
   }) {
     if (!data.teacherId) {
       throw new AppError(ErrorCode.VAL_MISSING_FIELD, "Debes seleccionar un docente");
     }
-    return prisma.$transaction(async (tx) => {
+    // Solo docentes: sin esto se podía degradar a un ADMIN/SUPERADMIN a coordinador
+    const target = await prisma.user.findUnique({
+      where:  { id: data.teacherId },
+      select: { email: true, role: true },
+    });
+    if (!target) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "Docente no encontrado");
+    if (target.role !== "TEACHER") {
+      await userAuditService.log({
+        eventType:   "PRIVILEGE_ESCALATION_BLOCKED",
+        result:      "FAILURE",
+        actorId:     data.actorId,
+        actorRole:   "ADMIN",
+        targetId:    data.teacherId,
+        targetEmail: target.email,
+        targetRole:  target.role,
+        metadata:    { action: "promoteTeacherToCoordinator" },
+      });
+      throw new AppError(ErrorCode.AUTH_UNAUTHORIZED, "Solo se puede promover a docentes");
+    }
+
+    const promoted = await prisma.$transaction(async (tx) => {
       const user = await tx.user.update({
         where: { id: data.teacherId },
         data: {
@@ -714,6 +761,17 @@ export class AdminService {
       }
       return user;
     });
+
+    await userAuditService.log({
+      eventType:   "USER_ROLE_CHANGED",
+      actorId:     data.actorId,
+      actorRole:   "ADMIN",
+      targetId:    promoted.id,
+      targetEmail: promoted.email,
+      targetRole:  promoted.role,
+      metadata:    { from: target.role, to: "COORDINATOR" },
+    });
+    return promoted;
   }
 
   async addCoordinatorTeacher(coordinatorId: string, teacherId: string) {

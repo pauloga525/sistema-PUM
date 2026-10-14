@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { exportService } from "@/modules/export/export.service";
+import { coordinatorService } from "@/modules/coordinator/coordinator.service";
 import { rateLimitService } from "@/modules/security/rate-limit.service";
 import { AppError } from "@/lib/errors/app-error";
 import { logger } from "@/lib/logger/logger";
@@ -35,7 +36,12 @@ export async function GET(
   try {
     log.info("export request", { planId, format, userId: session.user.id });
 
-    const bypassOwnershipCheck = ["ADMIN", "COORDINATOR", "SUPERADMIN"].includes(session.user.role ?? "");
+    const role = session.user.role ?? "";
+    // El coordinador solo exporta los PUM que supervisa; ADMIN/SUPERADMIN ven todos
+    if (role === "COORDINATOR" && !(await coordinatorService._coordinatorCanAccessPlan(session.user.id, planId))) {
+      return new NextResponse("No autorizado", { status: 403 });
+    }
+    const bypassOwnershipCheck = ["ADMIN", "COORDINATOR", "SUPERADMIN"].includes(role);
 
     const result = await exportService.build(
       { planificationId: planId, format },

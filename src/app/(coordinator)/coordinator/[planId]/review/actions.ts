@@ -16,7 +16,8 @@ export async function updateSectionAction(
   const session = await auth();
   if (!session || session.user.role !== "COORDINATOR") return { success: false };
 
-  await coordinatorService.updateSectionState(reviewId, session.user.id, sectionKey, approved, comment);
+  const ok = await coordinatorService.updateSectionState(reviewId, session.user.id, sectionKey, approved, comment);
+  if (!ok) return { success: false };
   revalidatePath(ROUTES.COORDINATOR.RETROALIMENTACION);
   return { success: true };
 }
@@ -64,6 +65,13 @@ export async function getAuditHistoryAction(
   if (!session) redirect(ROUTES.LOGIN);
   // Accessible by coordinator and admin
   if (session.user.role !== "COORDINATOR" && session.user.role !== "ADMIN") {
+    return { success: false };
+  }
+
+  if (
+    session.user.role === "COORDINATOR" &&
+    !(await coordinatorService._coordinatorCanAccessPlan(session.user.id, planId))
+  ) {
     return { success: false };
   }
 

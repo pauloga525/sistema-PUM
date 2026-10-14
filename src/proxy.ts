@@ -11,6 +11,7 @@
  *   /teacher/*     → requiere login
  *   /coordinator/* → requiere login
  *   /admin/*       → requiere login + rol ADMIN
+ *   /plan-preview/* → requiere login + rol ADMIN
  *
  * Redirecciones especiales:
  *   forcePasswordChange=true → /teacher/change-password o /coordinator/change-password
@@ -46,6 +47,7 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
   const isCoordinatorPath           = nextUrl.pathname.startsWith("/coordinator");
   const isAdminPath                 = nextUrl.pathname.startsWith("/admin");
   const isSuperAdminPath            = nextUrl.pathname.startsWith("/superadmin");
+  const isPlanPreviewPath           = nextUrl.pathname.startsWith("/plan-preview");
   const isTeacherChangePassword     = nextUrl.pathname === "/teacher/change-password";
   const isCoordinatorChangePassword = nextUrl.pathname === "/coordinator/change-password";
   const isAuthApi                   = nextUrl.pathname.startsWith("/api/auth");
@@ -62,7 +64,7 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
   if (isAuthApi) return NextResponse.next();
 
   // Rutas protegidas — requieren login
-  if (!isLoggedIn && (isTeacherPath || isCoordinatorPath || isAdminPath || isSuperAdminPath)) {
+  if (!isLoggedIn && (isTeacherPath || isCoordinatorPath || isAdminPath || isSuperAdminPath || isPlanPreviewPath)) {
     const loginUrl = new URL("/login", base);
     loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
@@ -82,8 +84,8 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
     return NextResponse.redirect(new URL(destination, base));
   }
 
-  // Solo ADMIN y SUPERADMIN pueden acceder a rutas /admin/*
-  if (isLoggedIn && isAdminPath && role !== "ADMIN" && role !== "SUPERADMIN") {
+  // Solo ADMIN y SUPERADMIN pueden acceder a rutas /admin/* y /plan-preview/*
+  if (isLoggedIn && (isAdminPath || isPlanPreviewPath) && role !== "ADMIN" && role !== "SUPERADMIN") {
     return NextResponse.redirect(new URL("/teacher/year", base));
   }
 

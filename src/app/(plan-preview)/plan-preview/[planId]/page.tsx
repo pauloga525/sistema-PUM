@@ -1,6 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { hasMinRole } from "@/constants/levels";
+import type { UserRole } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
 import { adminService } from "@/modules/admin/admin.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -28,8 +31,11 @@ export default async function PlanPreviewPage({
 }) {
   const { planId } = await params;
 
-  // Auth is handled by the (plan-preview) layout — only ADMIN+ can reach this page.
+  // El layout no se re-ejecuta en todas las navegaciones: la página verifica la sesión por sí misma.
   // No status restriction: superadmin can inspect any plan regardless of workflow state.
+  const session = await auth();
+  if (!session || !hasMinRole(session.user.role as UserRole, "ADMIN")) redirect(ROUTES.LOGIN);
+
   const [planData, review] = await Promise.all([
     adminService.getPlanForAdmin(planId),
     coordinatorService.getReviewForTeacher(planId),

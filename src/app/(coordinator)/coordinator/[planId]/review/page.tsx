@@ -37,16 +37,16 @@ export default async function ReviewPage({
   if (!session) redirect(ROUTES.LOGIN);
   if (session.user.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
 
-  const [planData, review] = await Promise.all([
-    coordinatorService.getPlanForReview(planId, session.user.id),
-    coordinatorService.getOrCreateReview(session.user.id, planId),
-  ]);
+  // Secuencial: getOrCreateReview reasigna la revisión, solo debe correr con acceso confirmado
+  const planData = await coordinatorService.getPlanForReview(planId, session.user.id);
+  if (!planData) notFound();
 
-  const signatureBlock = planData?.status === "SIGNED"
+  const review = await coordinatorService.getOrCreateReview(session.user.id, planId);
+  if (!review) notFound();
+
+  const signatureBlock = planData.status === "SIGNED"
     ? await auditService.getSignatureBlock(planId)
     : null;
-
-  if (!planData) notFound();
 
   const publicDir = path.join(process.cwd(), "public");
   const hasLogoLeft  = fs.existsSync(path.join(publicDir, "logos", "logo-left.png"));

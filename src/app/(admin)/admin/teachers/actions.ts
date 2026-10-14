@@ -61,11 +61,11 @@ export async function resetTeacherPasswordAction(
   _prev: ResetPasswordState,
   formData: FormData
 ): Promise<ResetPasswordState> {
-  await requireAdmin();
+  const session = await requireAdmin();
   try {
     const teacherId = (formData.get("teacherId") as string ?? "").trim();
     if (!teacherId) return { error: "ID de docente no válido" };
-    await adminService.resetTeacherPassword(teacherId);
+    await adminService.resetTeacherPassword(teacherId, session.user.id);
     revalidatePath(ROUTES.ADMIN.TEACHERS);
     return { ok: true };
   } catch (e) {

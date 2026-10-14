@@ -12,6 +12,18 @@ export type TeacherAssignmentActionState =
   | { ok: false; error: string }
   | null;
 
+/**
+ * Materias que el coordinador puede asignar. Misma regla que el catálogo
+ * (getCatalogForAssignments): sin CoordinatorSubjectAssignment no hay restricción.
+ */
+async function coordinatorCanAssignSubject(coordinatorId: string, subjectId: string): Promise<boolean> {
+  const allowed = await prisma.coordinatorSubjectAssignment.findMany({
+    where:  { coordinatorId },
+    select: { subjectId: true },
+  });
+  return allowed.length === 0 || allowed.some((a) => a.subjectId === subjectId);
+}
+
 export async function createTeacherAssignmentAction(
   _prev: TeacherAssignmentActionState,
   formData: FormData,
@@ -28,12 +40,16 @@ export async function createTeacherAssignmentAction(
     return { ok: false, error: "Faltan campos requeridos" };
   }
 
-  // Verificar acceso: el coordinador puede asignarse a sí mismo sin restricción
+  // Verificar acceso: el coordinador puede asignarse a sí mismo, pero siempre
+  // limitado a sus materias (si no, se auto-asigna para controlar PUM ajenos)
   if (teacherId !== session.user.id) {
     const ca = await prisma.coordinatorAssignment.findUnique({
       where: { coordinatorId_teacherId: { coordinatorId: session.user.id, teacherId } },
     });
     if (!ca) return { ok: false, error: "No tienes acceso a este docente" };
+  }
+  if (!(await coordinatorCanAssignSubject(session.user.id, subjectId))) {
+    return { ok: false, error: "No tienes acceso a esta materia" };
   }
 
   try {
@@ -82,10 +98,17 @@ export async function removeTeacherAssignmentAction(
   const session = await auth();
   if (!session || session.user.role !== "COORDINATOR") return { ok: false };
 
-  // Verificar acceso: el coordinador puede gestionar sus propias asignaciones
-  if (teacherId !== session.user.id) {
+  // teacherId viene del cliente: el acceso se valida contra el dueño real de la asignación
+  void teacherId;
+  const assignment = await prisma.teacherAssignment.findUnique({
+    where:  { id: assignmentId },
+    select: { teacherId: true },
+  });
+  if (!assignment) return { ok: false, error: "Asignación no encontrada" };
+
+  if (assignment.teacherId !== session.user.id) {
     const ca = await prisma.coordinatorAssignment.findUnique({
-      where: { coordinatorId_teacherId: { coordinatorId: session.user.id, teacherId } },
+      where: { coordinatorId_teacherId: { coordinatorId: session.user.id, teacherId: assignment.teacherId } },
     });
     if (!ca) return { ok: false, error: "No tienes acceso a este docente" };
   }
@@ -133,6 +156,9 @@ export async function setPrimaryEditorAction(
 
     if (!targetAssignment) {
       return { ok: false, error: "Asignación no encontrada" };
+    }
+    if (!(await coordinatorCanAssignSubject(session.user.id, targetAssignment.subjectId))) {
+      return { ok: false, error: "No tienes acceso a esta materia" };
     }
 
     // Verificar que el coordinador tiene acceso al docente dueño de la asignación.

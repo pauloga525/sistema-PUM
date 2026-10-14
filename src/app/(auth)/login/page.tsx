@@ -15,6 +15,17 @@ const AUTH_ERROR_MESSAGES: Record<string, { title: string; description: string }
   },
 };
 
+/**
+ * Solo rutas internas: evita la redirección abierta (`?callbackUrl=https://evil.tld`).
+ * Se rechazan `//host` y `/\host` (los navegadores tratan `\` como `/`).
+ */
+function safeCallbackUrl(raw: string | undefined): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  // Barras invertidas o caracteres de control: el navegador puede reinterpretarlos como `//host`
+  if (raw.includes("\\") || /[\x00-\x1f]/.test(raw)) return "/";
+  return raw;
+}
+
 interface LoginPageProps {
   searchParams: Promise<{ error?: string; callbackUrl?: string }>;
 }
@@ -22,7 +33,7 @@ interface LoginPageProps {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const errorCode = params.error;
-  const callbackUrl = params.callbackUrl ?? "/";
+  const callbackUrl = safeCallbackUrl(params.callbackUrl);
 
   const errorInfo = errorCode
     ? (AUTH_ERROR_MESSAGES[errorCode] ?? AUTH_ERROR_MESSAGES.Default)

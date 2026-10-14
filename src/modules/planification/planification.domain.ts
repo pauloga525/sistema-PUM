@@ -2,6 +2,8 @@ import type { Planification } from "./planification.types";
 import { AppError } from "@/lib/errors/app-error";
 import { ErrorCode } from "@/lib/errors/error-codes";
 
+const EDITABLE_STATUSES: readonly string[] = ["DRAFT", "FEEDBACK_RECEIVED"];
+
 export function assertCanEdit(plan: Planification): void {
   if (!plan.isEditor) {
     throw new AppError(
@@ -10,7 +12,8 @@ export function assertCanEdit(plan: Planification): void {
     );
   }
 
-  if (plan.status === "FINALIZED" || plan.status === "APPROVED") {
+  // Lista blanca: cualquier otro estado (en revisión, firmado, rechazado por admin…) es de solo lectura
+  if (!EDITABLE_STATUSES.includes(plan.status)) {
     throw new AppError(
       ErrorCode.PLAN_ALREADY_FINALIZED,
       "Esta planificación ya fue finalizada y no puede modificarse"

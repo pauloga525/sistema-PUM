@@ -333,6 +333,10 @@ export const coordinatorService = {
   // ── Revisión de un PUM ────────────────────────────────────────────────────────
 
   async getOrCreateReview(coordinatorId: string, planificationId: string) {
+    // Acceso primero: más abajo se reasigna la revisión al visitante
+    const canAccess = await this._coordinatorCanAccessPlan(coordinatorId, planificationId);
+    if (!canAccess) return null;
+
     // Attempt create first; if two requests race, one gets P2002 and falls back to read
     let record: Awaited<ReturnType<typeof prisma.planReview.findUniqueOrThrow>> | null = null;
     let wasCreated = false;
@@ -407,7 +411,9 @@ export const coordinatorService = {
     sectionKey: string,
     approved: boolean,
     comment: string | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
+    if (!(await this._coordinatorCanAccessReview(coordinatorId, reviewId))) return false;
+
     // Use SELECT FOR UPDATE inside a transaction to prevent concurrent lost-update on sectionStates JSONB
     const result = await prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<Array<{
@@ -434,7 +440,7 @@ export const coordinatorService = {
       return { planificationId: locked.planificationId, prev };
     });
 
-    if (!result) return;
+    if (!result) return false;
     const { planificationId, prev } = result;
 
     let eventType: "SECTION_APPROVED" | "SECTION_APPROVAL_REMOVED" | "SECTION_COMMENTED" | null = null;
@@ -461,9 +467,12 @@ export const coordinatorService = {
         comment:   eventType === "SECTION_COMMENTED" ? (comment ?? null) : null,
       });
     }
+    return true;
   },
 
   async sendFeedback(reviewId: string, coordinatorId: string): Promise<boolean> {
+    if (!(await this._coordinatorCanAccessReview(coordinatorId, reviewId))) return false;
+
     const planificationId = await prisma.$transaction(async (tx) => {
       const review = await tx.planReview.findUnique({ where: { id: reviewId } });
       if (!review || review.coordinatorId !== coordinatorId) return null;
@@ -498,6 +507,8 @@ export const coordinatorService = {
   },
 
   async approvePlan(reviewId: string, coordinatorId: string): Promise<boolean> {
+    if (!(await this._coordinatorCanAccessReview(coordinatorId, reviewId))) return false;
+
     const planificationId = await prisma.$transaction(async (tx) => {
       const review = await tx.planReview.findUnique({ where: { id: reviewId } });
       if (!review || review.coordinatorId !== coordinatorId) return null;
@@ -653,6 +664,15 @@ export const coordinatorService = {
       },
     });
     return !!legacyLink;
+  },
+
+  async _coordinatorCanAccessReview(coordinatorId: string, reviewId: string): Promise<boolean> {
+    const review = await prisma.planReview.findUnique({
+      where:  { id: reviewId },
+      select: { planificationId: true },
+    });
+    if (!review) return false;
+    return this._coordinatorCanAccessPlan(coordinatorId, review.planificationId);
   },
 
   // ── Vista del plan para el coordinador ──────────────────────────────────────

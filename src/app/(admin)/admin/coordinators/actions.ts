@@ -73,7 +73,7 @@ export async function promoteTeacherToCoordinatorAction(
   }
 
   try {
-    await adminService.promoteTeacherToCoordinator({ teacherId, coordinatorArea, teacherIds });
+    await adminService.promoteTeacherToCoordinator({ teacherId, coordinatorArea, teacherIds, actorId: session.user.id });
     revalidatePath(ROUTES.ADMIN.COORDINATORS);
     return { ok: true };
   } catch (e: unknown) {
