@@ -1,3 +1,5 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
+import { USER_ROLE } from "@/constants/levels";
 import { auth } from "@/auth";
 import { getLogos } from "@/lib/assets/logos";
 import { redirect, notFound } from "next/navigation";
@@ -26,7 +28,7 @@ export default async function ReviewPage({
 
   const session = await auth();
   if (!session) redirect(ROUTES.LOGIN);
-  if (session.user.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
+  if (session.user.role !== USER_ROLE.COORDINATOR) redirect(ROUTES.LOGIN);
 
   // Secuencial: getOrCreateReview reasigna la revisión, solo debe correr con acceso confirmado
   const planData = await coordinatorService.getPlanForReview(planId, session.user.id);
@@ -35,7 +37,7 @@ export default async function ReviewPage({
   const review = await coordinatorService.getOrCreateReview(session.user.id, planId);
   if (!review) notFound();
 
-  const signatureBlock = planData.status === "SIGNED"
+  const signatureBlock = planData.status === PLANIFICATION_STATUS.SIGNED
     ? await auditService.getSignatureBlock(planId)
     : null;
 

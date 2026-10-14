@@ -1,3 +1,4 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 // Server component — no state needed
 const STAGES = [
   { key: "DRAFT",             label: "Borrador",           short: "1" },
@@ -89,7 +90,7 @@ export function PlanLifecycleBar({ status }: Props) {
       })}
 
       {/* Feedback sub-state label */}
-      {status === "FEEDBACK_RECEIVED" && (
+      {status === PLANIFICATION_STATUS.FEEDBACK_RECEIVED && (
         <span
           className="ml-3 inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
           style={{ background: "#fff7ed", color: "#b45309", border: "1px solid rgba(249,115,22,0.25)" }}
@@ -97,7 +98,7 @@ export function PlanLifecycleBar({ status }: Props) {
           con observaciones
         </span>
       )}
-      {status === "ADMIN_REJECTED" && (
+      {status === PLANIFICATION_STATUS.ADMIN_REJECTED && (
         <span
           className="ml-3 inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
           style={{ background: "#ffdad6", color: "#ba1a1a", border: "1px solid rgba(186,26,26,0.20)" }}

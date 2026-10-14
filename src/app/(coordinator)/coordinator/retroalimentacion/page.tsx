@@ -1,3 +1,4 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 import { Fragment } from "react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
@@ -14,7 +15,7 @@ type Filter = "in-review" | "feedback-sent" | "approved" | undefined;
 // ── Badges ─────────────────────────────────────────────────────────────────────
 
 function ReviewBadge({ status }: { status: "IN_REVIEW" | "FEEDBACK_SENT" | "APPROVED" }) {
-  if (status === "APPROVED") {
+  if (status === PLANIFICATION_STATUS.APPROVED) {
     return (
       <span
         className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
@@ -69,10 +70,10 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
 
 function PlanRow({ entry, index }: { entry: FinalizedPlanEntry; index: number }) {
   const isFeedbackSent      = entry.review.status === "FEEDBACK_SENT";
-  const isPendingSignature  = entry.planStatus === "PENDING_SIGNATURE";
-  const canSendForSignature = entry.planStatus === "APPROVED";
-  const isAdminRejected     = entry.planStatus === "ADMIN_REJECTED";
-  const isSigned            = entry.planStatus === "SIGNED";
+  const isPendingSignature  = entry.planStatus === PLANIFICATION_STATUS.PENDING_SIGNATURE;
+  const canSendForSignature = entry.planStatus === PLANIFICATION_STATUS.APPROVED;
+  const isAdminRejected     = entry.planStatus === PLANIFICATION_STATUS.ADMIN_REJECTED;
+  const isSigned            = entry.planStatus === PLANIFICATION_STATUS.SIGNED;
 
   return (
     <tr style={{ background: index % 2 === 0 ? "transparent" : "rgba(0,39,83,0.015)" }}>
@@ -298,7 +299,7 @@ export default async function RetroalimentacionPage({
           >
             {filter === "in-review" ? "Pendientes de revisión" : filter === "feedback-sent" ? "Retroalimentación enviada" : "Aprobados"}
           </span>
-          <Link href="/coordinator/retroalimentacion" className="text-xs text-pum-text-muted underline underline-offset-2 hover:text-pum-text">
+          <Link href={ROUTES.COORDINATOR.RETROALIMENTACION} className="text-xs text-pum-text-muted underline underline-offset-2 hover:text-pum-text">
             Ver todos
           </Link>
         </div>

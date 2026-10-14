@@ -1,3 +1,4 @@
+import { USER_ROLE } from "@/constants/levels";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
@@ -97,7 +98,7 @@ export default async function UserDetailPage({
             <dl className="space-y-3">
               <InfoRow label="Cédula" value={user.cedula ?? "—"} mono />
               <InfoRow label="Email" value={user.email} />
-              {user.role === "COORDINATOR" && user.coordinatorArea && (
+              {user.role === USER_ROLE.COORDINATOR && user.coordinatorArea && (
                 <InfoRow label="Área de coordinación" value={user.coordinatorArea} />
               )}
               <InfoRow label="Cambio de contraseña pendiente" value={user.forcePasswordChange ? "Sí" : "No"} />

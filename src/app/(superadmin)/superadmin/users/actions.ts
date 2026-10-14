@@ -1,4 +1,5 @@
 "use server";
+import { ROUTES } from "@/constants/routes";
 
 import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
@@ -32,7 +33,7 @@ export async function createUserAction(data: CreateUserInput): Promise<ActionRes
     const parsed = CreateUserSchema.safeParse(data);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
     const { user, tempPassword } = await superAdminService.createUser(session.user.id, parsed.data);
-    revalidatePath("/superadmin/users", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.USERS, "layout");
     return { success: true, data: { id: user.id, tempPassword } };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al crear el usuario" };
@@ -45,7 +46,7 @@ export async function updateUserAction(userId: string, data: UpdateUserInput): P
     const parsed = UpdateUserSchema.safeParse(data);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
     await superAdminService.updateUser(session.user.id, userId, parsed.data);
-    revalidatePath("/superadmin/users", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.USERS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al actualizar el usuario" };
@@ -58,7 +59,7 @@ export async function changeRoleAction(userId: string, newRole: string): Promise
     const parsed = ChangeRoleSchema.safeParse({ newRole });
     if (!parsed.success) return { success: false, error: "Rol inválido" };
     await superAdminService.changeRole(session.user.id, userId, parsed.data.newRole);
-    revalidatePath("/superadmin/users", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.USERS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al cambiar el rol" };
@@ -69,7 +70,7 @@ export async function deactivateUserAction(userId: string): Promise<ActionResult
   try {
     const session = await getSuperAdminSession();
     await superAdminService.deactivateUser(session.user.id, userId);
-    revalidatePath("/superadmin/users", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.USERS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al desactivar el usuario" };
@@ -80,7 +81,7 @@ export async function reactivateUserAction(userId: string): Promise<ActionResult
   try {
     const session = await getSuperAdminSession();
     await superAdminService.reactivateUser(session.user.id, userId);
-    revalidatePath("/superadmin/users", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.USERS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al reactivar el usuario" };
@@ -97,7 +98,7 @@ export async function resetPasswordAction(userId: string): Promise<ActionResult<
     );
     if (!rl.allowed) return { success: false, error: "Demasiados resets en poco tiempo. Intenta en una hora." };
     const result = await superAdminService.resetPassword(session.user.id, userId);
-    revalidatePath("/superadmin/users", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.USERS, "layout");
     return { success: true, data: result };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al restablecer la contraseña" };

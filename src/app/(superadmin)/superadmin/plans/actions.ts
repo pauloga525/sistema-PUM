@@ -1,4 +1,5 @@
 "use server";
+import { ROUTES } from "@/constants/routes";
 
 import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
@@ -33,7 +34,7 @@ export async function correctPlanStatusAction(
       planId,
       parsed.data,
     );
-    revalidatePath("/superadmin/plans", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.PLANS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al corregir el estado" };
@@ -48,7 +49,7 @@ export async function clearPlanDeadlineAction(planId: string): Promise<ActionRes
       session.user.name ?? session.user.email ?? "SuperAdmin",
       planId,
     );
-    revalidatePath("/superadmin/plans", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.PLANS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al quitar la restricción de fecha" };
@@ -65,7 +66,7 @@ export async function removeTeacherLinkAction(
       actorId:   session.user.id,
       actorName: session.user.name ?? session.user.email ?? "SuperAdmin",
     });
-    revalidatePath("/superadmin/plans", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.PLANS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al quitar el vínculo del docente" };
@@ -82,7 +83,7 @@ export async function setPlanEditorAction(
       actorId:   session.user.id,
       actorName: session.user.name ?? session.user.email ?? "SuperAdmin",
     });
-    revalidatePath("/superadmin/plans", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.PLANS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al designar al editor" };
@@ -103,7 +104,7 @@ export async function reassignCoordinatorAction(
       planId,
       parsed.data,
     );
-    revalidatePath("/superadmin/plans", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.PLANS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al reasignar coordinador" };

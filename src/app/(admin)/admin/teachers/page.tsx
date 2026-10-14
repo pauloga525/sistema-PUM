@@ -39,7 +39,7 @@ export default async function AdminTeachersPage({
   const { items, total, totalPages } = await adminUsersService.getTeachers({ search, status, sort, page });
 
   const hasFilters = search !== "" || status !== "all" || sort !== "name_asc";
-  const base       = "/admin/teachers";
+  const base       = ROUTES.ADMIN.TEACHERS;
   const current    = { search, status, sort, page: String(page) };
 
   const inputClass =

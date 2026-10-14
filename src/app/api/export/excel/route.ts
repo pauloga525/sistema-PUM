@@ -1,3 +1,5 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
+import { USER_ROLE } from "@/constants/levels";
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma/client";
@@ -41,7 +43,7 @@ interface ReportRow {
 export async function GET(request: NextRequest) {
   const session = await requireActiveSession();
   if (!session)                      return new NextResponse("No autenticado",   { status: 401 });
-  if (session.user.role !== "ADMIN") return new NextResponse("Acceso denegado",  { status: 403 });
+  if (session.user.role !== USER_ROLE.ADMIN) return new NextResponse("Acceso denegado",  { status: 403 });
 
   const rl = await rateLimitService.check(`export:excel:${session.user.id}`, 5, 5 * 60_000);
   if (!rl.allowed) {
@@ -257,10 +259,10 @@ export async function GET(request: NextRequest) {
 
   // Summary
   ws.addRow([]);
-  const signed   = rows.filter((r) => r.status === "SIGNED").length;
-  const pending  = rows.filter((r) => r.status === "PENDING_SIGNATURE").length;
+  const signed   = rows.filter((r) => r.status === PLANIFICATION_STATUS.SIGNED).length;
+  const pending  = rows.filter((r) => r.status === PLANIFICATION_STATUS.PENDING_SIGNATURE).length;
   const notStart = rows.filter((r) => r.status === "NOT_STARTED").length;
-  const draft    = rows.filter((r) => r.status === "DRAFT").length;
+  const draft    = rows.filter((r) => r.status === PLANIFICATION_STATUS.DRAFT).length;
 
   const summaryRow = ws.addRow([
     `Total: ${rows.length} registros`,

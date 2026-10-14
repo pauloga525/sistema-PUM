@@ -1,3 +1,4 @@
+import { USER_ROLE } from "@/constants/levels";
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveSession } from "@/lib/auth/session";
 import { exportService } from "@/modules/export/export.service";
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return new NextResponse("No autenticado", { status: 401 });
   }
-  if (session.user.role !== "ADMIN") {
+  if (session.user.role !== USER_ROLE.ADMIN) {
     return new NextResponse("Acceso denegado", { status: 403 });
   }
 

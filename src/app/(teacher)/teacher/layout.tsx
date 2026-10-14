@@ -1,3 +1,4 @@
+import { USER_ROLE } from "@/constants/levels";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -17,7 +18,7 @@ export default async function TeacherLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if (!session || session.user.role !== "TEACHER") redirect(ROUTES.LOGIN);
+  if (!session || session.user.role !== USER_ROLE.TEACHER) redirect(ROUTES.LOGIN);
 
   return (
     <AppShell

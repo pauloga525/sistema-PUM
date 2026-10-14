@@ -1,3 +1,4 @@
+import { USER_ROLE } from "@/constants/levels";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -18,7 +19,7 @@ export default async function CoordinatorLayout({
 }) {
   const session = await auth();
   if (!session) redirect(ROUTES.LOGIN);
-  if (session.user?.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
+  if (session.user?.role !== USER_ROLE.COORDINATOR) redirect(ROUTES.LOGIN);
 
   return (
     <AppShell

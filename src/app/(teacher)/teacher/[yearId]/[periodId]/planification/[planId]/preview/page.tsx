@@ -1,3 +1,4 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 import { auth } from "@/auth";
 import { getLogos } from "@/lib/assets/logos";
 import { redirect } from "next/navigation";
@@ -29,7 +30,7 @@ export default async function PreviewPage({
 }) {
   const { yearId, periodId, planId } = await params;
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   // Misma consulta (memoizada) que generateMetadata
   const plan = await loadPlanPreview(planId);
@@ -38,7 +39,7 @@ export default async function PreviewPage({
   }
   const { subject, level, year, period } = plan;
 
-  const signatureBlock = plan.status === "SIGNED"
+  const signatureBlock = plan.status === PLANIFICATION_STATUS.SIGNED
     ? await auditService.getSignatureBlock(planId)
     : null;
 
@@ -80,7 +81,7 @@ export default async function PreviewPage({
         }}
       >
         {/* Estado */}
-        {plan.status === "FINALIZED" && plan.finalizedAt && (
+        {plan.status === PLANIFICATION_STATUS.FINALIZED && plan.finalizedAt && (
           <p className="text-right mt-3" style={{ fontSize: "0.6rem", color: "#94a3b8" }}>
             Finalizado el{" "}
             {plan.finalizedAt.toLocaleDateString("es-EC", {

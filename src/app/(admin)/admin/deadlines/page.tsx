@@ -1,3 +1,4 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -21,7 +22,7 @@ function fmtDate(d: Date | null | undefined): string {
 }
 
 function displayStatus(plan: { status: string; editDeadlineAt: Date | null }) {
-  if (plan.status === "FINALIZED") return "FINALIZED";
+  if (plan.status === PLANIFICATION_STATUS.FINALIZED) return "FINALIZED";
   if (plan.editDeadlineAt && plan.editDeadlineAt < new Date()) return "OVERDUE";
   return "DRAFT";
 }
@@ -83,7 +84,7 @@ export default async function AdminDeadlinesPage({
     ? await adminAssignmentsService.getPlanificationsForPeriod(yearId, periodId)
     : [];
 
-  const draftCount = plans.filter((p) => p.status !== "FINALIZED").length;
+  const draftCount = plans.filter((p) => p.status !== PLANIFICATION_STATUS.FINALIZED).length;
 
   return (
     <div className="flex-1 flex flex-col p-6 sm:p-8 max-w-7xl mx-auto w-full">
@@ -225,7 +226,7 @@ export default async function AdminDeadlinesPage({
                     {plans.map((plan, i) => {
                       const status  = displayStatus({ status: plan.status, editDeadlineAt: plan.editDeadlineAt });
                       const badge   = STATUS_BADGE[status];
-                      const isEditable = status !== "FINALIZED";
+                      const isEditable = status !== PLANIFICATION_STATUS.FINALIZED;
                       const deadlineStr = toDateInput(plan.editDeadlineAt);
                       const isOverdue   = status === "OVERDUE";
 

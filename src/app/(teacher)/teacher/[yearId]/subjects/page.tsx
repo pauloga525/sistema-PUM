@@ -15,14 +15,14 @@ export const metadata = { title: "Mis materias — PUM Web" };
 async function openPlanification(formData: FormData) {
   "use server";
   const session = await requireActiveSession();
-  if (!session) redirect("/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   const yearId    = formData.get("yearId")    as string;
   const periodId  = formData.get("periodId")  as string;
   const subjectId = formData.get("subjectId") as string;
   const levelId   = formData.get("levelId")   as string;
 
-  if (!yearId || !periodId || !subjectId || !levelId) redirect("/teacher/year");
+  if (!yearId || !periodId || !subjectId || !levelId) redirect(ROUTES.TEACHER.YEAR);
 
   const { planId } = await planificationService.getOrCreatePlanification(
     session.user.id, yearId, periodId, subjectId, levelId
@@ -64,7 +64,7 @@ export default async function SubjectsYearPage({
 }) {
   const { yearId } = await params;
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   const year = await prisma.academicYear.findUnique({ where: { id: yearId } });
   if (!year) notFound();

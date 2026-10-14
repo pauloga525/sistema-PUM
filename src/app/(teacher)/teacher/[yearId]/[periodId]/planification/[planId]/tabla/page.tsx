@@ -1,3 +1,4 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma/client";
@@ -58,7 +59,7 @@ export default async function PlanTablaPage({
 }) {
   const { yearId, periodId, planId } = await params;
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   let plan;
   try {
@@ -78,11 +79,11 @@ export default async function PlanTablaPage({
     redirect(ROUTES.TEACHER.subjects(yearId, periodId));
   }
 
-  const isFeedbackReceived = plan!.status === "FEEDBACK_RECEIVED";
-  const isApproved         = plan!.status === "APPROVED";
-  const isPendingSignature = plan!.status === "PENDING_SIGNATURE";
-  const isSigned           = plan!.status === "SIGNED";
-  const isAdminRejected    = plan!.status === "ADMIN_REJECTED";
+  const isFeedbackReceived = plan!.status === PLANIFICATION_STATUS.FEEDBACK_RECEIVED;
+  const isApproved         = plan!.status === PLANIFICATION_STATUS.APPROVED;
+  const isPendingSignature = plan!.status === PLANIFICATION_STATUS.PENDING_SIGNATURE;
+  const isSigned           = plan!.status === PLANIFICATION_STATUS.SIGNED;
+  const isAdminRejected    = plan!.status === PLANIFICATION_STATUS.ADMIN_REJECTED;
   // All post-submission states are read-only; only DRAFT and FEEDBACK_RECEIVED are editable
   const isFinalized = ["FINALIZED", "APPROVED", "PENDING_SIGNATURE", "SIGNED", "ADMIN_REJECTED"].includes(plan!.status);
   // Non-editors also get a read-only view
@@ -213,7 +214,7 @@ export default async function PlanTablaPage({
       )}
 
       {/* Finalized notice (waiting for review) */}
-      {plan!.status === "FINALIZED" && (
+      {plan!.status === PLANIFICATION_STATUS.FINALIZED && (
         <div
           className="rounded-xl px-4 py-3 mb-6"
           style={{ background: "#e0f5ee", border: "1px solid rgba(13,138,94,0.20)" }}

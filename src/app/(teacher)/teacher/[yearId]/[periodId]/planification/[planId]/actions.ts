@@ -1,4 +1,6 @@
 "use server";
+import { USER_ROLE } from "@/constants/levels";
+import { ROUTES } from "@/constants/routes";
 
 import { requireActiveSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma/client";
@@ -22,7 +24,7 @@ export async function saveRowsAction(
   data: SavePlanificationRowsInput
 ): Promise<ActionResult> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
+  if (!session || session.user.role !== USER_ROLE.TEACHER) return { success: false, error: "No autenticado" };
 
   const result = SavePlanificationRowsSchema.safeParse(data);
   if (!result.success) {
@@ -34,7 +36,7 @@ export async function saveRowsAction(
 
   try {
     await planificationService.saveRows(result.data, session.user.id);
-    revalidatePath("/teacher", "layout");
+    revalidatePath(ROUTES.TEACHER.ROOT, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     const msg = e instanceof AppError ? e.message : "Error al guardar. Intenta de nuevo.";
@@ -46,7 +48,7 @@ export async function saveMetadataAction(
   data: SaveMetadataInput
 ): Promise<ActionResult> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
+  if (!session || session.user.role !== USER_ROLE.TEACHER) return { success: false, error: "No autenticado" };
 
   const result = SaveMetadataSchema.safeParse(data);
   if (!result.success) {
@@ -58,7 +60,7 @@ export async function saveMetadataAction(
 
   try {
     await planificationService.saveMetadata(result.data, session.user.id);
-    revalidatePath("/teacher", "layout");
+    revalidatePath(ROUTES.TEACHER.ROOT, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     const msg = e instanceof AppError ? e.message : "Error al guardar los datos de la unidad.";
@@ -71,7 +73,7 @@ export async function clearCoordinatorFeedbackAction(
   keys: string[]
 ): Promise<void> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "TEACHER") return;
+  if (!session || session.user.role !== USER_ROLE.TEACHER) return;
 
   const parsed = ClearFeedbackSchema.safeParse({ planId, keys });
   if (!parsed.success) return;
@@ -90,7 +92,7 @@ export async function clearCoordinatorFeedbackAction(
 
 export async function finalizeAction(planificationId: string): Promise<ActionResult> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "TEACHER") return { success: false, error: "No autenticado" };
+  if (!session || session.user.role !== USER_ROLE.TEACHER) return { success: false, error: "No autenticado" };
 
   const result = FinalizePlanificationSchema.safeParse({
     planificationId,
@@ -105,7 +107,7 @@ export async function finalizeAction(planificationId: string): Promise<ActionRes
 
   try {
     await planificationService.finalize(result.data, session.user.id);
-    revalidatePath("/teacher", "layout");
+    revalidatePath(ROUTES.TEACHER.ROOT, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     const msg = e instanceof AppError ? e.message : "Error al finalizar. Intenta de nuevo.";

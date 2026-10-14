@@ -1,4 +1,5 @@
 "use server";
+import { ROUTES } from "@/constants/routes";
 
 import { revalidatePath } from "next/cache";
 import { requireActiveSession } from "@/lib/auth/session";
@@ -24,7 +25,7 @@ export async function resolveErrorAction(
   try {
     const session = await getSuperAdminSession();
     await errorMonitorService.resolveError(session.user.id, errorId, note);
-    revalidatePath("/superadmin/errors", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.ERRORS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al resolver" };
@@ -35,7 +36,7 @@ export async function reopenErrorAction(errorId: string): Promise<ActionResult> 
   try {
     await getSuperAdminSession();
     await errorMonitorService.reopenError(errorId);
-    revalidatePath("/superadmin/errors", "layout");
+    revalidatePath(ROUTES.SUPERADMIN.ERRORS, "layout");
     return { success: true, data: undefined };
   } catch (e) {
     return { success: false, error: e instanceof AppError ? e.message : "Error al reabrir" };

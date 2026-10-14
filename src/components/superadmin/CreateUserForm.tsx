@@ -1,4 +1,5 @@
 "use client";
+import { USER_ROLE } from "@/constants/levels";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -37,7 +38,7 @@ export function CreateUserForm() {
         email: form.email,
         cedula: form.cedula,
         role: form.role as "TEACHER" | "COORDINATOR" | "ADMIN" | "SUPERADMIN",
-        coordinatorArea: form.role === "COORDINATOR" ? (form.coordinatorArea || undefined) : undefined,
+        coordinatorArea: form.role === USER_ROLE.COORDINATOR ? (form.coordinatorArea || undefined) : undefined,
       });
       if (result.success) {
         setTempPassword(result.data.tempPassword);
@@ -126,7 +127,7 @@ export function CreateUserForm() {
         </select>
       </div>
 
-      {form.role === "COORDINATOR" && (
+      {form.role === USER_ROLE.COORDINATOR && (
         <div>
           <label className={LABEL_CLASS}>Área de coordinación</label>
           <input

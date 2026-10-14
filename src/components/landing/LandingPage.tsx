@@ -1,3 +1,4 @@
+import { ROUTES } from "@/constants/routes";
 // Componente de servidor: solo los carruseles son de cliente.
 import { HeroCarousel } from "./HeroCarousel";
 import { MapCarousel } from "./MapCarousel";
@@ -80,7 +81,7 @@ function Navbar() {
         <span className="font-semibold text-slate-900 text-lg tracking-tight">PUM Web</span>
       </div>
       <a
-        href="/login"
+        href={ROUTES.LOGIN}
         className="bg-slate-900 text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-slate-700 active:scale-95 transition-all"
       >
         Ingresar al sistema
@@ -128,7 +129,7 @@ function Hero() {
           </p>
 
           <a
-            href="/login"
+            href={ROUTES.LOGIN}
             className="inline-flex items-center gap-2 bg-amber-400 text-slate-900 px-7 py-3 rounded-full font-semibold hover:bg-amber-300 active:scale-95 transition-all text-base shadow-lg"
           >
             Comenzar →

@@ -1,3 +1,4 @@
+import { ROUTES } from "@/constants/routes";
 import { redirect } from "next/navigation";
 
 export default async function PeriodPage({
@@ -6,5 +7,5 @@ export default async function PeriodPage({
   params: Promise<{ yearId: string }>;
 }) {
   const { yearId } = await params;
-  redirect(`/teacher/${yearId}/subjects`);
+  redirect(ROUTES.TEACHER.subjectsYear(yearId));
 }

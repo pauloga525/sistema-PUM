@@ -12,7 +12,7 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { hasMinRole, type UserRole } from "@/constants/levels";
+import { hasMinRole, type UserRole, USER_ROLE } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
 import { getMaintenanceMode } from "@/modules/system/system-settings.service";
 
@@ -25,7 +25,7 @@ export async function requireActiveSession(
   const { role, forcePasswordChange } = session.user;
 
   // Mismo alcance que el proxy: solo Docentes y Coordinadores.
-  if (role === "TEACHER" || role === "COORDINATOR") {
+  if (role === USER_ROLE.TEACHER || role === USER_ROLE.COORDINATOR) {
     if (forcePasswordChange && !options.allowForcePasswordChange) return null;
     if ((await getMaintenanceMode()).enabled) return null;
   }

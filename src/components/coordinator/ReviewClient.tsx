@@ -1,4 +1,5 @@
 "use client";
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 
 import { useOptimistic, useState, useTransition } from "react";
 import { REVIEW_SECTION_KEYS, type AnySectionKey, type SectionState, type SectionStates, type ReviewStatus } from "@/constants/review";
@@ -86,7 +87,7 @@ export function ReviewClient({
   const [history, setHistory]               = useState<AuditHistoryItem[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const isApproved     = status === "APPROVED";
+  const isApproved     = status === PLANIFICATION_STATUS.APPROVED;
   const isFeedbackSent = status === "FEEDBACK_SENT";
   const isLocked       = isApproved || isFeedbackSent;
 

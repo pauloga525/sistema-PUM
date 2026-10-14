@@ -1,3 +1,4 @@
+import { USER_ROLE } from "@/constants/levels";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/constants/routes";
@@ -9,7 +10,7 @@ export const metadata = { title: "Coordinadores — Admin PUM" };
 
 export default async function CoordinatorsPage() {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") redirect(ROUTES.LOGIN);
+  if (!session || session.user.role !== USER_ROLE.ADMIN) redirect(ROUTES.LOGIN);
 
   const activeYear = await adminCatalogService.getActiveYear();
   const [coordinators, teachers, subjects] = await Promise.all([

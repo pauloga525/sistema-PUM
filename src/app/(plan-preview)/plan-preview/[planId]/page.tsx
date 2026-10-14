@@ -1,3 +1,4 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 import { notFound, redirect } from "next/navigation";
 import { getLogos } from "@/lib/assets/logos";
 import { auth } from "@/auth";
@@ -34,7 +35,7 @@ export default async function PlanPreviewPage({
 
   const { left: hasLogoLeft, right: hasLogoRight } = getLogos();
 
-  const isSigned = planData.status === "SIGNED";
+  const isSigned = planData.status === PLANIFICATION_STATUS.SIGNED;
   const signatureBlock = isSigned
     ? await auditService.getSignatureBlock(planId)
     : null;

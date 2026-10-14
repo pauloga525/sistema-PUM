@@ -43,7 +43,7 @@ export default async function SubjectsPage({
 }) {
   const { yearId, periodId } = await params;
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   const [year, period, subjects] = await Promise.all([
     prisma.academicYear.findUnique({ where: { id: yearId } }),
@@ -149,7 +149,7 @@ export default async function SubjectsPage({
                   onCreate={async () => {
                     "use server";
                     const s2 = await requireActiveSession();
-                    if (!s2) redirect("/login");
+                    if (!s2) redirect(ROUTES.LOGIN);
                     const { planId } = await planificationService.getOrCreatePlanification(
                       s2.user.id, yearId, periodId, s.subject.id, s.level.id
                     );

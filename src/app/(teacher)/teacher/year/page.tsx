@@ -10,7 +10,7 @@ export const metadata = { title: "Años lectivos — PUM Web" };
 
 export default async function YearPage() {
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   const cookieStore = await cookies();
   const showOnboarding = !cookieStore.has("pum_onboarded");

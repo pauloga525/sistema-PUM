@@ -1,3 +1,4 @@
+import { USER_ROLE } from "@/constants/levels";
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveSession } from "@/lib/auth/session";
 import { exportService } from "@/modules/export/export.service";
@@ -38,7 +39,7 @@ export async function GET(
 
     const role = session.user.role ?? "";
     // El coordinador solo exporta los PUM que supervisa; ADMIN/SUPERADMIN ven todos
-    if (role === "COORDINATOR" && !(await coordinatorService._coordinatorCanAccessPlan(session.user.id, planId))) {
+    if (role === USER_ROLE.COORDINATOR && !(await coordinatorService._coordinatorCanAccessPlan(session.user.id, planId))) {
       return new NextResponse("No autorizado", { status: 403 });
     }
     const bypassOwnershipCheck = ["ADMIN", "COORDINATOR", "SUPERADMIN"].includes(role);

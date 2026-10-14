@@ -1,3 +1,4 @@
+import { ROUTES } from "@/constants/routes";
 /**
  * Página "Sin asignaciones" — Docente sin materias asignadas
  *
@@ -19,7 +20,7 @@ export default async function EmptyPage() {
   const session = await auth();
 
   if (!session) {
-    redirect("/login");
+    redirect(ROUTES.LOGIN);
   }
 
   return (

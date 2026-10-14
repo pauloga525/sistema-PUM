@@ -1,7 +1,8 @@
+import { PLANIFICATION_STATUS } from "@/constants/planification";
 import { auth } from "@/auth";
 import { getLogos } from "@/lib/assets/logos";
 import { redirect, notFound } from "next/navigation";
-import { hasMinRole } from "@/constants/levels";
+import { hasMinRole, USER_ROLE } from "@/constants/levels";
 import { ROUTES } from "@/constants/routes";
 import { adminSignatureService } from "@/modules/admin/admin-signature.service";
 import { coordinatorService } from "@/modules/coordinator/coordinator.service";
@@ -26,7 +27,7 @@ export default async function AdminPlanPreviewPage({
   if (!session) redirect(ROUTES.LOGIN);
   if (!hasMinRole(session.user.role, "ADMIN")) redirect(ROUTES.LOGIN);
 
-  const isSuperAdmin = session.user.role === "SUPERADMIN";
+  const isSuperAdmin = session.user.role === USER_ROLE.SUPERADMIN;
 
   const [planData, review] = await Promise.all([
     adminSignatureService.getPlanForAdmin(planId),
@@ -36,13 +37,13 @@ export default async function AdminPlanPreviewPage({
 
   // ADMIN can only act on plans pending signature or already signed.
   // SUPERADMIN can inspect any plan regardless of status.
-  if (!isSuperAdmin && planData.status !== "PENDING_SIGNATURE" && planData.status !== "SIGNED") notFound();
+  if (!isSuperAdmin && planData.status !== PLANIFICATION_STATUS.PENDING_SIGNATURE && planData.status !== PLANIFICATION_STATUS.SIGNED) notFound();
 
   const { left: hasLogoLeft, right: hasLogoRight } = getLogos();
 
-  const isSigned    = planData.status === "SIGNED";
+  const isSigned    = planData.status === PLANIFICATION_STATUS.SIGNED;
   // Admin action controls (sign/reject) only make sense on plans awaiting signature
-  const canAdminAct = planData.status === "PENDING_SIGNATURE";
+  const canAdminAct = planData.status === PLANIFICATION_STATUS.PENDING_SIGNATURE;
 
   const signatureBlock = isSigned
     ? await auditService.getSignatureBlock(planId)

@@ -1,3 +1,4 @@
+import { ROUTES } from "@/constants/routes";
 /**
  * Configuración principal de Auth.js v5 para PUM Web.
  *
@@ -215,8 +216,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
 
   pages: {
-    signIn: "/login",
-    error: "/login",
+    signIn: ROUTES.LOGIN,
+    error: ROUTES.LOGIN,
   },
 
   callbacks: {

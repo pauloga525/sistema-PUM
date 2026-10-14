@@ -1,4 +1,5 @@
 "use server";
+import { USER_ROLE } from "@/constants/levels";
 
 import { requireActiveSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
@@ -34,7 +35,7 @@ export async function createTeacherAssignmentAction(
   formData: FormData,
 ): Promise<TeacherAssignmentActionState> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "COORDINATOR") redirect(ROUTES.LOGIN);
+  if (!session || session.user.role !== USER_ROLE.COORDINATOR) redirect(ROUTES.LOGIN);
 
   const parsed = CreateTeacherAssignmentSchema.safeParse({
     teacherId:      formData.get("teacherId"),
@@ -96,7 +97,7 @@ export async function removeTeacherAssignmentAction(
   teacherId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "COORDINATOR") return { ok: false };
+  if (!session || session.user.role !== USER_ROLE.COORDINATOR) return { ok: false };
   if (!IdSchema.safeParse(assignmentId).success) return { ok: false, error: "Asignación no encontrada" };
 
   // teacherId viene del cliente: el acceso se valida contra el dueño real de la asignación
@@ -144,7 +145,7 @@ export async function setPrimaryEditorAction(
   setAsEditor: boolean = true,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "COORDINATOR") return { ok: false };
+  if (!session || session.user.role !== USER_ROLE.COORDINATOR) return { ok: false };
   if (!IdSchema.safeParse(assignmentId).success) return { ok: false, error: "Asignación no encontrada" };
 
   // teacherId se mantiene como parámetro para compatibilidad con el componente,

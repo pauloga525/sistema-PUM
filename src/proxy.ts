@@ -1,3 +1,5 @@
+import { USER_ROLE } from "@/constants/levels";
+import { ROUTES } from "@/constants/routes";
 /**
  * Proxy de Next.js 16 — Protección de rutas de PUM Web.
  *
@@ -76,14 +78,14 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
   // o de las cabeceras de Cloudflare Tunnel.
   const base = publicBase(req);
 
-  const isLoginPage                 = nextUrl.pathname === "/login";
-  const isTeacherPath               = nextUrl.pathname.startsWith("/teacher");
-  const isCoordinatorPath           = nextUrl.pathname.startsWith("/coordinator");
-  const isAdminPath                 = nextUrl.pathname.startsWith("/admin");
-  const isSuperAdminPath            = nextUrl.pathname.startsWith("/superadmin");
+  const isLoginPage                 = nextUrl.pathname === ROUTES.LOGIN;
+  const isTeacherPath               = nextUrl.pathname.startsWith(ROUTES.TEACHER.ROOT);
+  const isCoordinatorPath           = nextUrl.pathname.startsWith(ROUTES.COORDINATOR.ROOT);
+  const isAdminPath                 = nextUrl.pathname.startsWith(ROUTES.ADMIN.ROOT);
+  const isSuperAdminPath            = nextUrl.pathname.startsWith(ROUTES.SUPERADMIN.ROOT);
   const isPlanPreviewPath           = nextUrl.pathname.startsWith("/plan-preview");
-  const isTeacherChangePassword     = nextUrl.pathname === "/teacher/change-password";
-  const isCoordinatorChangePassword = nextUrl.pathname === "/coordinator/change-password";
+  const isTeacherChangePassword     = nextUrl.pathname === ROUTES.TEACHER.CHANGE_PASSWORD;
+  const isCoordinatorChangePassword = nextUrl.pathname === ROUTES.COORDINATOR.CHANGE_PASSWORD;
   const isAuthApi                   = nextUrl.pathname.startsWith("/api/auth");
   const role                        = session?.user?.role;
 
@@ -92,14 +94,14 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
   // sesión no se consulta nada — cero impacto de rendimiento para ellos.
   const maybeAffectedByMaintenance =
     isLoggedIn &&
-    (role === "TEACHER" || role === "COORDINATOR") &&
+    (role === USER_ROLE.TEACHER || role === USER_ROLE.COORDINATOR) &&
     (isLoginPage || isTeacherPath || isCoordinatorPath);
 
   if (isAuthApi) return NextResponse.next();
 
   // Rutas protegidas — requieren login
   if (!isLoggedIn && (isTeacherPath || isCoordinatorPath || isAdminPath || isSuperAdminPath || isPlanPreviewPath)) {
-    const loginUrl = new URL("/login", base);
+    const loginUrl = new URL(ROUTES.LOGIN, base);
     loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -111,38 +113,38 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
       return NextResponse.redirect(new URL("/mantenimiento", base));
     }
     const destination =
-      role === "SUPERADMIN"  ? "/superadmin/dashboard"           :
-      role === "ADMIN"       ? "/admin/dashboard"                :
-      role === "COORDINATOR" ? "/coordinator/retroalimentacion"  :
-      "/teacher/year";
+      role === USER_ROLE.SUPERADMIN  ? ROUTES.SUPERADMIN.DASHBOARD           :
+      role === USER_ROLE.ADMIN       ? ROUTES.ADMIN.DASHBOARD                :
+      role === USER_ROLE.COORDINATOR ? ROUTES.COORDINATOR.RETROALIMENTACION  :
+      ROUTES.TEACHER.YEAR;
     return NextResponse.redirect(new URL(destination, base));
   }
 
   // Solo ADMIN y SUPERADMIN pueden acceder a rutas /admin/* y /plan-preview/*
-  if (isLoggedIn && (isAdminPath || isPlanPreviewPath) && role !== "ADMIN" && role !== "SUPERADMIN") {
-    return NextResponse.redirect(new URL("/teacher/year", base));
+  if (isLoggedIn && (isAdminPath || isPlanPreviewPath) && role !== USER_ROLE.ADMIN && role !== USER_ROLE.SUPERADMIN) {
+    return NextResponse.redirect(new URL(ROUTES.TEACHER.YEAR, base));
   }
 
   // Solo SUPERADMIN puede acceder a rutas /superadmin/*
-  if (isLoggedIn && isSuperAdminPath && role !== "SUPERADMIN") {
-    return NextResponse.redirect(new URL("/login", base));
+  if (isLoggedIn && isSuperAdminPath && role !== USER_ROLE.SUPERADMIN) {
+    return NextResponse.redirect(new URL(ROUTES.LOGIN, base));
   }
 
   // Solo COORDINATOR y SUPERADMIN pueden acceder a /coordinator/*
-  if (isLoggedIn && isCoordinatorPath && role !== "COORDINATOR" && role !== "SUPERADMIN") {
+  if (isLoggedIn && isCoordinatorPath && role !== USER_ROLE.COORDINATOR && role !== USER_ROLE.SUPERADMIN) {
     const dest =
-      role === "ADMIN" ? "/admin/dashboard" :
-      role === "TEACHER" ? "/teacher/year" :
-      "/login";
+      role === USER_ROLE.ADMIN ? ROUTES.ADMIN.DASHBOARD :
+      role === USER_ROLE.TEACHER ? ROUTES.TEACHER.YEAR :
+      ROUTES.LOGIN;
     return NextResponse.redirect(new URL(dest, base));
   }
 
   // Solo TEACHER y SUPERADMIN pueden acceder a /teacher/*
-  if (isLoggedIn && isTeacherPath && role !== "TEACHER" && role !== "SUPERADMIN") {
+  if (isLoggedIn && isTeacherPath && role !== USER_ROLE.TEACHER && role !== USER_ROLE.SUPERADMIN) {
     const dest =
-      role === "ADMIN"       ? "/admin/dashboard"               :
-      role === "COORDINATOR" ? "/coordinator/retroalimentacion" :
-      "/login";
+      role === USER_ROLE.ADMIN       ? ROUTES.ADMIN.DASHBOARD               :
+      role === USER_ROLE.COORDINATOR ? ROUTES.COORDINATOR.RETROALIMENTACION :
+      ROUTES.LOGIN;
     return NextResponse.redirect(new URL(dest, base));
   }
 
@@ -156,12 +158,12 @@ export default auth(async (req: NextRequest & { auth: { user: { id: string; role
 
   // Docentes con primer login deben cambiar su contraseña antes de continuar
   if (isLoggedIn && isTeacherPath && !isTeacherChangePassword && session?.user?.forcePasswordChange) {
-    return NextResponse.redirect(new URL("/teacher/change-password", base));
+    return NextResponse.redirect(new URL(ROUTES.TEACHER.CHANGE_PASSWORD, base));
   }
 
   // Coordinadores con primer login deben cambiar su contraseña antes de continuar
   if (isLoggedIn && isCoordinatorPath && !isCoordinatorChangePassword && session?.user?.forcePasswordChange) {
-    return NextResponse.redirect(new URL("/coordinator/change-password", base));
+    return NextResponse.redirect(new URL(ROUTES.COORDINATOR.CHANGE_PASSWORD, base));
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");

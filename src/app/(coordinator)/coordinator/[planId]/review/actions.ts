@@ -1,4 +1,5 @@
 "use server";
+import { USER_ROLE } from "@/constants/levels";
 
 import { requireActiveSession } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
@@ -14,7 +15,7 @@ export async function updateSectionAction(
   comment: string | null,
 ): Promise<{ success: boolean }> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "COORDINATOR") return { success: false };
+  if (!session || session.user.role !== USER_ROLE.COORDINATOR) return { success: false };
 
   const parsed = UpdateSectionSchema.safeParse({ reviewId, sectionKey, approved, comment });
   if (!parsed.success) return { success: false };
@@ -33,7 +34,7 @@ export async function sendFeedbackAction(
   planId: string,
 ): Promise<{ success: boolean }> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "COORDINATOR") return { success: false };
+  if (!session || session.user.role !== USER_ROLE.COORDINATOR) return { success: false };
   if (!IdSchema.safeParse(reviewId).success || !IdSchema.safeParse(planId).success) return { success: false };
 
   try {
@@ -52,7 +53,7 @@ export async function approvePlanAction(
   planId: string,
 ): Promise<{ success: boolean }> {
   const session = await requireActiveSession();
-  if (!session || session.user.role !== "COORDINATOR") return { success: false };
+  if (!session || session.user.role !== USER_ROLE.COORDINATOR) return { success: false };
   if (!IdSchema.safeParse(reviewId).success || !IdSchema.safeParse(planId).success) return { success: false };
 
   try {

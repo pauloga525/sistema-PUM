@@ -1,4 +1,5 @@
 "use server";
+import { ROUTES } from "@/constants/routes";
 
 import bcrypt from "bcryptjs";
 import { signOut } from "@/auth";
@@ -81,9 +82,9 @@ export async function changePasswordAction(
   // Forzar re-login: el JWT actual queda inválido porque cambió la huella de
   // la contraseña (lo mismo pasa con las sesiones abiertas en otros equipos).
   try {
-    await signOut({ redirectTo: "/login" });
+    await signOut({ redirectTo: ROUTES.LOGIN });
   } catch (e) {
-    if ((e as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) redirect("/login");
+    if ((e as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) redirect(ROUTES.LOGIN);
     return { error: "Contraseña actualizada. Por favor inicia sesión con tu nueva contraseña." };
   }
 
