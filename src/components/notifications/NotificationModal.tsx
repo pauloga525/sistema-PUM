@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import type { PumNotification } from "@/modules/notifications/notifications.service";
+import { Dialog } from "@/components/ui/Dialog";
 
 const STORAGE_KEY = "pum_notifications_seen_v1";
 
@@ -99,101 +100,94 @@ export function NotificationModal({ notifications }: Props) {
     return acc;
   }, {});
 
+  // Solo se cierra con "Entendido" (marca las novedades como vistas), como antes
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.50)", backdropFilter: "blur(4px)" }}
-    >
-      <div
-        className="w-full max-w-lg rounded-2xl flex flex-col overflow-hidden"
-        style={{
-          background: "rgba(255,255,255,0.98)",
-          border: "1px solid rgba(195,198,210,0.70)",
-          boxShadow: "0 24px 64px rgba(0,39,83,0.22)",
-          maxHeight: "80vh",
-        }}
-      >
-        {/* Header */}
-        <div
-          className="px-6 py-4 flex items-center gap-3 flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(0,39,83,0.08)" }}
-        >
-          <div
+    <Dialog
+      open
+      onOpenChange={() => {}}
+      dismissible={false}
+      size="lg"
+      title={
+        <span className="flex items-center gap-3">
+          <span
             className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
             style={{ background: "#dce8ff" }}
+            aria-hidden="true"
           >
             🔔
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-pum-text">Novedades en tus PUMs</p>
-            <p className="text-xs text-pum-text-muted mt-0.5">
-              {unseen.length} {unseen.length === 1 ? "novedad" : "novedades"} sin revisar
-            </p>
-          </div>
-        </div>
-
-        {/* Notification list */}
-        <div className="overflow-y-auto flex-1 p-4 flex flex-col gap-2">
-          {Object.entries(groups).map(([type, items]) => {
-            const cfg = TYPE_CONFIG[type as PumNotification["type"]];
-            return (
-              <div
-                key={type}
-                className="rounded-xl p-4"
-                style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
-              >
-                <div className="flex items-start gap-2 mb-2">
-                  <span className="text-base leading-none mt-0.5">{cfg.icon}</span>
-                  <p className="text-xs font-semibold" style={{ color: cfg.color }}>
-                    {cfg.title}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5 ml-6">
-                  {items.map((n) => (
-                    <div key={n.id} className="flex items-start gap-1.5">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1"
-                        style={{ background: cfg.dot }}
-                      />
-                      <div>
-                        <p className="text-xs font-medium" style={{ color: cfg.color }}>
-                          {n.subjectName}
-                          {n.levelCode && (
-                            <span className="font-normal"> · {n.levelCode}</span>
-                          )}
-                          {n.teacherName && (
-                            <span className="font-normal"> · {n.teacherName}</span>
-                          )}
-                        </p>
-                        <p className="text-[11px]" style={{ color: cfg.color, opacity: 0.75 }}>
-                          {n.periodName} — {n.yearLabel}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          </span>
+          Novedades en tus PUMs
+        </span>
+      }
+      description={
+        <span className="block text-xs">
+          {unseen.length} {unseen.length === 1 ? "novedad" : "novedades"} sin revisar
+        </span>
+      }
+    >
+      {/* Notification list */}
+      <div className="flex flex-col gap-2">
+        {Object.entries(groups).map(([type, items]) => {
+          const cfg = TYPE_CONFIG[type as PumNotification["type"]];
+          return (
+            <div
+              key={type}
+              className="rounded-xl p-4"
+              style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
+            >
+              <div className="flex items-start gap-2 mb-2">
+                <span className="text-base leading-none mt-0.5" aria-hidden="true">{cfg.icon}</span>
+                <p className="text-xs font-semibold" style={{ color: cfg.color }}>
+                  {cfg.title}
+                </p>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Footer */}
-        <div
-          className="px-6 py-4 flex justify-end flex-shrink-0"
-          style={{ borderTop: "1px solid rgba(0,39,83,0.08)" }}
-        >
-          <button
-            onClick={handleDismiss}
-            className="text-sm font-semibold px-5 py-2 rounded-xl text-white transition-colors"
-            style={{
-              background: "linear-gradient(135deg, #002753 0%, #003d7a 100%)",
-              boxShadow: "0 2px 8px rgba(0,39,83,0.25)",
-            }}
-          >
-            Entendido
-          </button>
-        </div>
+              <div className="flex flex-col gap-1.5 ml-6">
+                {items.map((n) => (
+                  <div key={n.id} className="flex items-start gap-1.5">
+                    <span
+                      aria-hidden="true"
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1"
+                      style={{ background: cfg.dot }}
+                    />
+                    <div>
+                      <p className="text-xs font-medium" style={{ color: cfg.color }}>
+                        {n.subjectName}
+                        {n.levelCode && (
+                          <span className="font-normal"> · {n.levelCode}</span>
+                        )}
+                        {n.teacherName && (
+                          <span className="font-normal"> · {n.teacherName}</span>
+                        )}
+                      </p>
+                      <p className="text-[11px]" style={{ color: cfg.color, opacity: 0.75 }}>
+                        {n.periodName} — {n.yearLabel}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+
+      {/* Footer */}
+      <div
+        className="mt-4 pt-4 flex justify-end"
+        style={{ borderTop: "1px solid rgba(0,39,83,0.08)" }}
+      >
+        <button
+          type="button"
+          onClick={handleDismiss}
+          className="text-sm font-semibold px-5 py-2 rounded-xl text-white transition-colors"
+          style={{
+            background: "linear-gradient(135deg, #002753 0%, #003d7a 100%)",
+            boxShadow: "0 2px 8px rgba(0,39,83,0.25)",
+          }}
+        >
+          Entendido
+        </button>
+      </div>
+    </Dialog>
   );
 }

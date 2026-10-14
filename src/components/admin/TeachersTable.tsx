@@ -8,6 +8,7 @@ import {
   type DeleteTeacherState,
 } from "@/app/(admin)/admin/teachers/actions";
 import { TempPasswordNotice } from "@/components/shared/TempPasswordNotice";
+import { Dialog } from "@/components/ui/Dialog";
 
 interface Teacher {
   id:                  string;
@@ -35,6 +36,9 @@ interface ModalState { kind: ModalKind; id: string; name: string | null }
 
 export function TeachersTable({ teachers }: Props) {
   const [modal, setModal] = useState<ModalState | null>(null);
+  // Se cierra sin borrar `modal`, así el contenido no cambia durante la animación de salida
+  const [modalOpen, setModalOpen] = useState(false);
+  const closeModal = () => setModalOpen(false);
 
   const [resetState, resetAction, isResetPending] = useActionState<ResetPasswordState, FormData>(
     resetTeacherPasswordAction, null
@@ -42,7 +46,7 @@ export function TeachersTable({ teachers }: Props) {
   const [deleteState, deleteAction, isDeletePending] = useActionState<DeleteTeacherState, FormData>(
     async (prev, formData) => {
       const result = await deleteTeacherAction(prev, formData);
-      if (result?.ok) setModal(null);
+      if (result?.ok) setModalOpen(false);
       return result;
     },
     null,
@@ -52,10 +56,12 @@ export function TeachersTable({ teachers }: Props) {
   // así la contraseña temporal de un reset anterior no reaparece al abrir otro docente
   const [resetBaseline, setResetBaseline] = useState<ResetPasswordState>(null);
   const resetResult = resetState !== resetBaseline ? resetState : null;
+  const showingPassword = modal?.kind === "reset" && !!resetResult?.ok && !!resetResult.tempPassword;
 
   const openModal = (kind: ModalKind, teacher: Teacher) => {
     setResetBaseline(resetState);
     setModal({ kind, id: teacher.id, name: teacher.name });
+    setModalOpen(true);
   };
 
   return (
@@ -195,148 +201,124 @@ export function TeachersTable({ teachers }: Props) {
       </div>
 
       {/* ── Modal resetear contraseña ── */}
-      {modal?.kind === "reset" && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.40)", backdropFilter: "blur(4px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
-            style={{
-              background: "rgba(255,255,255,0.97)",
-              border: "1px solid rgba(195,198,210,0.80)",
-              boxShadow: "0 16px 48px rgba(0,39,83,0.20)",
-            }}
-          >
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: "#fff3cd" }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#664d03" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-            </div>
-
-            <h3 className="text-base font-semibold text-pum-text text-center mb-1">
-              Resetear contraseña
-            </h3>
-            <p className="text-sm text-pum-text-muted text-center mb-5">
-              La contraseña de{" "}
-              <span className="font-semibold text-pum-text">{modal.name ?? "este docente"}</span>{" "}
-              se reemplazará por una contraseña temporal. El docente deberá cambiarla al iniciar sesión.
-            </p>
-
-            {resetResult?.error && (
-              <p className="text-xs font-medium rounded-lg px-3 py-2 mb-3 text-center" style={{ background: "#ffdad6", color: "#ba1a1a" }}>
-                {resetResult.error}
-              </p>
-            )}
-
-            {resetResult?.ok && resetResult.tempPassword ? (
-              <div className="flex flex-col gap-4">
-                <TempPasswordNotice password={resetResult.tempPassword} title="Contraseña restablecida." />
-                <button
-                  type="button"
-                  onClick={() => setModal(null)}
-                  className="text-sm font-semibold text-white rounded-xl py-2 cursor-pointer"
-                  style={{ background: "#002753" }}
-                >
-                  Listo
-                </button>
-              </div>
-            ) : (
-            <form action={resetAction} className="flex gap-3">
-              <input type="hidden" name="teacherId" value={modal.id} />
-              <button
-                type="button"
-                onClick={() => setModal(null)}
-                disabled={isResetPending}
-                className="flex-1 text-sm font-medium text-pum-text-muted border border-pum-border rounded-xl py-2 cursor-pointer hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isResetPending}
-                className="flex-1 text-sm font-semibold text-white rounded-xl py-2 cursor-pointer disabled:opacity-60"
-                style={{ background: "#002753" }}
-              >
-                {isResetPending ? "Reseteando…" : "Confirmar"}
-              </button>
-            </form>
-            )}
+      <Dialog
+        open={modalOpen && modal?.kind === "reset"}
+        onOpenChange={(open) => { if (!open) closeModal(); }}
+        size="sm"
+        // La contraseña temporal se muestra una sola vez: no se cierra con Esc ni clic fuera
+        dismissible={!isResetPending && !showingPassword}
+        icon={
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff3cd" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#664d03" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
           </div>
-        </div>
-      )}
+        }
+        title={<span className="block text-center">Resetear contraseña</span>}
+        description={
+          <span className="block text-center">
+            La contraseña de{" "}
+            <span className="font-semibold text-pum-text">{modal?.name ?? "este docente"}</span>{" "}
+            se reemplazará por una contraseña temporal. El docente deberá cambiarla al iniciar sesión.
+          </span>
+        }
+      >
+        {resetResult?.error && (
+          <p role="alert" className="text-xs font-medium rounded-lg px-3 py-2 mb-3 text-center" style={{ background: "#ffdad6", color: "#ba1a1a" }}>
+            {resetResult.error}
+          </p>
+        )}
+
+        {showingPassword && resetResult?.tempPassword ? (
+          <div className="flex flex-col gap-4">
+            <TempPasswordNotice password={resetResult.tempPassword} title="Contraseña restablecida." />
+            <button
+              type="button"
+              onClick={closeModal}
+              className="text-sm font-semibold text-white rounded-xl py-2 cursor-pointer"
+              style={{ background: "#002753" }}
+            >
+              Listo
+            </button>
+          </div>
+        ) : (
+          <form action={resetAction} className="flex gap-3">
+            <input type="hidden" name="teacherId" value={modal?.id ?? ""} />
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={isResetPending}
+              className="flex-1 text-sm font-medium text-pum-text-muted border border-pum-border rounded-xl py-2 cursor-pointer hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isResetPending}
+              className="flex-1 text-sm font-semibold text-white rounded-xl py-2 cursor-pointer disabled:opacity-60"
+              style={{ background: "#002753" }}
+            >
+              {isResetPending ? "Reseteando…" : "Confirmar"}
+            </button>
+          </form>
+        )}
+      </Dialog>
 
       {/* ── Modal eliminar docente ── */}
-      {modal?.kind === "delete" && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.40)", backdropFilter: "blur(4px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
-            style={{
-              background: "rgba(255,255,255,0.97)",
-              border: "1px solid rgba(195,198,210,0.80)",
-              boxShadow: "0 16px 48px rgba(0,39,83,0.20)",
-            }}
-          >
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: "#fdecea" }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6M14 11v6" />
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-              </svg>
-            </div>
-
-            <h3 className="text-base font-semibold text-pum-text text-center mb-1">
-              Eliminar docente
-            </h3>
-            <p className="text-sm text-pum-text-muted text-center mb-1">
-              ¿Estás seguro de que deseas eliminar a{" "}
-              <span className="font-semibold text-pum-text">{modal.name ?? "este docente"}</span>?
-            </p>
-            <p className="text-xs text-center mb-5" style={{ color: "#ba1a1a" }}>
-              Se desactivará la cuenta y se le quitarán sus asignaciones. Los PUM que elaboró se conservan; un SuperAdmin puede reactivar la cuenta.
-            </p>
-
-            {deleteState?.error && (
-              <p className="text-xs font-medium rounded-lg px-3 py-2 mb-3 text-center" style={{ background: "#ffdad6", color: "#ba1a1a" }}>
-                {deleteState.error}
-              </p>
-            )}
-
-            <form action={deleteAction} className="flex gap-3">
-              <input type="hidden" name="teacherId" value={modal.id} />
-              <button
-                type="button"
-                onClick={() => setModal(null)}
-                disabled={isDeletePending}
-                className="flex-1 text-sm font-medium text-pum-text-muted border border-pum-border rounded-xl py-2 cursor-pointer hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isDeletePending}
-                className="flex-1 text-sm font-semibold text-white rounded-xl py-2 cursor-pointer disabled:opacity-60"
-                style={{ background: "#ba1a1a" }}
-              >
-                {isDeletePending ? "Eliminando…" : "Eliminar"}
-              </button>
-            </form>
+      <Dialog
+        open={modalOpen && modal?.kind === "delete"}
+        onOpenChange={(open) => { if (!open) closeModal(); }}
+        size="sm"
+        dismissible={!isDeletePending}
+        icon={
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fdecea" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
           </div>
-        </div>
-      )}
+        }
+        title={<span className="block text-center">Eliminar docente</span>}
+        description={
+          <span className="block text-center">
+            ¿Estás seguro de que deseas eliminar a{" "}
+            <span className="font-semibold text-pum-text">{modal?.name ?? "este docente"}</span>?
+          </span>
+        }
+      >
+        <p className="text-xs text-center mb-5" style={{ color: "#ba1a1a" }}>
+          Se desactivará la cuenta y se le quitarán sus asignaciones. Los PUM que elaboró se conservan; un SuperAdmin puede reactivar la cuenta.
+        </p>
+
+        {deleteState?.error && (
+          <p role="alert" className="text-xs font-medium rounded-lg px-3 py-2 mb-3 text-center" style={{ background: "#ffdad6", color: "#ba1a1a" }}>
+            {deleteState.error}
+          </p>
+        )}
+
+        <form action={deleteAction} className="flex gap-3">
+          <input type="hidden" name="teacherId" value={modal?.id ?? ""} />
+          <button
+            type="button"
+            onClick={closeModal}
+            disabled={isDeletePending}
+            className="flex-1 text-sm font-medium text-pum-text-muted border border-pum-border rounded-xl py-2 cursor-pointer hover:bg-gray-50 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isDeletePending}
+            className="flex-1 text-sm font-semibold text-white rounded-xl py-2 cursor-pointer disabled:opacity-60"
+            style={{ background: "#ba1a1a" }}
+          >
+            {isDeletePending ? "Eliminando…" : "Eliminar"}
+          </button>
+        </form>
+      </Dialog>
     </>
   );
 }

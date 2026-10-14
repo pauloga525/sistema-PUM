@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useMemo, useState, useTransition } from "react";
-import { createPortal } from "react-dom";
 import {
   createTeacherAssignmentAction,
   removeTeacherAssignmentAction,
@@ -9,6 +8,7 @@ import {
   type TeacherAssignmentActionState,
 } from "@/app/(coordinator)/coordinator/docentes/actions";
 import type { AssignedTeacher } from "@/modules/coordinator/coordinator.types";
+import { Dialog } from "@/components/ui/Dialog";
 
 // ── Tipos del catálogo ────────────────────────────────────────────────────────
 
@@ -33,6 +33,40 @@ const INPUT: React.CSSProperties = {
 function AddAssignmentModal({
   teacher,
   catalog,
+  open,
+  onClose,
+}: {
+  teacher: AssignedTeacher;
+  catalog: CatalogData;
+  open:    boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => { if (!next) onClose(); }}
+      title="Nueva asignación"
+      description={<span className="text-xs">{teacher.name ?? teacher.email}</span>}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Cerrar"
+        className="absolute right-5 top-5 text-pum-text-disabled hover:text-pum-text cursor-pointer"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      {/* El formulario se desmonta al cerrar: cada apertura empieza limpia */}
+      <AddAssignmentForm teacher={teacher} catalog={catalog} onClose={onClose} />
+    </Dialog>
+  );
+}
+
+function AddAssignmentForm({
+  teacher,
+  catalog,
   onClose,
 }: {
   teacher: AssignedTeacher;
@@ -43,127 +77,98 @@ function AddAssignmentModal({
   const [yearId,    setYearId]    = useState(activeYear?.id ?? "");
   const [subjectId, setSubjectId] = useState("");
   const [levelId,   setLevelId]   = useState("");
-  const [formKey,   setFormKey]   = useState(0);
 
   const [state, formAction, isPending] = useActionState<TeacherAssignmentActionState, FormData>(
     async (prev, formData) => {
       const result = await createTeacherAssignmentAction(prev, formData);
-      if (result?.ok) {
-        onClose();
-        setFormKey((k) => k + 1);
-      }
+      if (result?.ok) onClose();
       return result;
     },
     null,
   );
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
-        style={{
-          background: "rgba(255,255,255,0.97)",
-          border:     "1px solid rgba(195,198,210,0.80)",
-          boxShadow:  "0 16px 48px rgba(0,39,83,0.18)",
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-sm font-semibold text-pum-text">Nueva asignación</h3>
-            <p className="text-xs text-pum-text-muted mt-0.5">{teacher.name ?? teacher.email}</p>
-          </div>
-          <button type="button" onClick={onClose} className="text-pum-text-disabled hover:text-pum-text cursor-pointer">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
+  return (
+    <form action={formAction} className="flex flex-col gap-3">
+      <input type="hidden" name="teacherId" value={teacher.id} />
 
-        <form key={formKey} action={formAction} className="flex flex-col gap-3">
-          <input type="hidden" name="teacherId" value={teacher.id} />
-
-          {/* Año lectivo */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-pum-text-muted">Año lectivo</label>
-            <select
-              name="academicYearId"
-              value={yearId}
-              onChange={(e) => setYearId(e.target.value)}
-              required style={INPUT} className="px-3 py-2 text-sm outline-none"
-            >
-              <option value="">— Seleccionar año —</option>
-              {catalog.years.map((y) => (
-                <option key={y.id} value={y.id}>
-                  {y.label}{y.active ? " (activo)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Materia */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-pum-text-muted">Materia</label>
-            <select
-              name="subjectId"
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              required style={INPUT} className="px-3 py-2 text-sm outline-none"
-            >
-              <option value="">— Seleccionar materia —</option>
-              {catalog.subjects.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Nivel */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-pum-text-muted">Nivel</label>
-            <select
-              name="levelId"
-              value={levelId}
-              onChange={(e) => setLevelId(e.target.value)}
-              required style={INPUT} className="px-3 py-2 text-sm outline-none"
-            >
-              <option value="">— Seleccionar nivel —</option>
-              {catalog.levels.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Error */}
-          {state && !state.ok && (
-            <p className="text-xs font-medium rounded-lg px-3 py-2" style={{ background: "#ffdad6", color: "#ba1a1a" }}>
-              {state.error}
-            </p>
-          )}
-
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm text-pum-text-muted hover:text-pum-text cursor-pointer px-3 py-1.5"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isPending || !yearId || !subjectId || !levelId}
-              className="pum-navy-btn text-sm font-semibold text-white px-5 py-2 rounded-xl cursor-pointer disabled:opacity-60"
-            >
-              {isPending ? "Guardando…" : "Agregar"}
-            </button>
-          </div>
-        </form>
+      {/* Año lectivo */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${teacher.id}-year`} className="text-xs font-medium text-pum-text-muted">Año lectivo</label>
+        <select
+          id={`${teacher.id}-year`}
+          name="academicYearId"
+          value={yearId}
+          onChange={(e) => setYearId(e.target.value)}
+          required style={INPUT} className="px-3 py-2 text-sm outline-none"
+        >
+          <option value="">— Seleccionar año —</option>
+          {catalog.years.map((y) => (
+            <option key={y.id} value={y.id}>
+              {y.label}{y.active ? " (activo)" : ""}
+            </option>
+          ))}
+        </select>
       </div>
-    </div>,
-    document.body,
+
+      {/* Materia */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${teacher.id}-subject`} className="text-xs font-medium text-pum-text-muted">Materia</label>
+        <select
+          id={`${teacher.id}-subject`}
+          name="subjectId"
+          value={subjectId}
+          onChange={(e) => setSubjectId(e.target.value)}
+          required style={INPUT} className="px-3 py-2 text-sm outline-none"
+        >
+          <option value="">— Seleccionar materia —</option>
+          {catalog.subjects.map((s) => (
+            <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Nivel */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${teacher.id}-level`} className="text-xs font-medium text-pum-text-muted">Nivel</label>
+        <select
+          id={`${teacher.id}-level`}
+          name="levelId"
+          value={levelId}
+          onChange={(e) => setLevelId(e.target.value)}
+          required style={INPUT} className="px-3 py-2 text-sm outline-none"
+        >
+          <option value="">— Seleccionar nivel —</option>
+          {catalog.levels.map((l) => (
+            <option key={l.id} value={l.id}>{l.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Error */}
+      {state && !state.ok && (
+        <p role="alert" className="text-xs font-medium rounded-lg px-3 py-2" style={{ background: "#ffdad6", color: "#ba1a1a" }}>
+          {state.error}
+        </p>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-sm text-pum-text-muted hover:text-pum-text cursor-pointer px-3 py-1.5"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={isPending || !yearId || !subjectId || !levelId}
+          className="pum-navy-btn text-sm font-semibold text-white px-5 py-2 rounded-xl cursor-pointer disabled:opacity-60"
+        >
+          {isPending ? "Guardando…" : "Agregar"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -368,13 +373,12 @@ function TeacherCard({ teacher, catalog, isSelf }: { teacher: AssignedTeacher; c
       )}
 
       {/* Modal agregar */}
-      {addOpen && (
-        <AddAssignmentModal
-          teacher={teacher}
-          catalog={catalog}
-          onClose={() => setAddOpen(false)}
-        />
-      )}
+      <AddAssignmentModal
+        teacher={teacher}
+        catalog={catalog}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+      />
     </div>
   );
 }
