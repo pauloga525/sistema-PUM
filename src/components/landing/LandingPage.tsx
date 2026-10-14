@@ -1,14 +1,6 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-
-const SLIDES = [
-  { src: "/img/slide1.png", label: "Planificación de módulos centralizada" },
-  { src: "/img/slide2.png", label: "Revisión y retroalimentación por coordinadores" },
-  { src: "/img/slide3.png", label: "Exportación oficial en PDF y DOCX" },
-  { src: "/img/slide4.png", label: "Comunidad educativa salesiana" },
-];
+// Componente de servidor: solo los carruseles son de cliente.
+import { HeroCarousel } from "./HeroCarousel";
+import { MapCarousel } from "./MapCarousel";
 
 const PASOS = [
   {
@@ -78,21 +70,6 @@ const SEDES = [
   { nombre: "Campus Yanuncay",          direccion: "Av. Don Bosco y Felipe II, Cuenca",         telefono: "072-814-274 / 072-882-606" },
 ];
 
-const MAPS = [
-  {
-    label: "Campus Carlos Crespi",
-    src: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3980!2d-79.00649746935194!3d-2.890576190306007!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x91cd199217c41347%3A0x45d6ec59a2beec86!2sUnidad%20Educativa%20T%C3%A9cnico%20Salesiano%20-%20Campus%20Carlos%20Crespi!5e0!3m2!1ses!2sec!4v1780678109926!5m2!1ses!2sec",
-  },
-  {
-    label: "Campus María Auxiliadora",
-    src: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3980!2d-79.00609740393985!3d-2.8919010227969015!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x91cd199645d42d79%3A0xa07c641345f081e6!2sUnidad%20Educativa%20T%C3%A9cnico%20Salesiano%20-%20Campus%20Mar%C3%ADa%20Auxiliadora!5e0!3m2!1ses!2sec!4v1780678220852!5m2!1ses!2sec",
-  },
-  {
-    label: "Campus Yanuncay",
-    src: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3980!2d-79.01642203237041!3d-2.9156254561750115!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x91cd187974d0ee41%3A0x5ee9dceea7b23bcd!2sUnidad%20Educativa%20T%C3%A9cnico%20Salesiano!5e0!3m2!1ses!2sec!4v1780678241925!5m2!1ses!2sec",
-  },
-];
-
 // ── Navbar ──────────────────────────────────────────────────────────────────
 
 function Navbar() {
@@ -115,16 +92,6 @@ function Navbar() {
 // ── Hero ─────────────────────────────────────────────────────────────────────
 
 function Hero() {
-  const [current, setCurrent] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});
-
-  useEffect(() => {
-    if (paused) return;
-    const t = setInterval(() => setCurrent((p) => (p + 1) % SLIDES.length), 3000);
-    return () => clearInterval(t);
-  }, [paused]);
-
   return (
     <section className="relative overflow-hidden bg-slate-900 py-14 md:py-20">
       <style>{`
@@ -170,55 +137,7 @@ function Hero() {
 
         {/* Carrusel derecho */}
         <div className="flex-1 w-full">
-          <div
-            className="relative w-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10 bg-slate-800"
-            style={{ aspectRatio: "16/9" }}
-            onMouseEnter={() => setPaused(true)}
-            onMouseLeave={() => setPaused(false)}
-          >
-            {SLIDES.map((slide, i) => (
-              imgErrors[i] ? (
-                <div
-                  key={i}
-                  className="absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-700"
-                  style={{ opacity: i === current ? 1 : 0 }}
-                >
-                  <span className="text-5xl mb-3">🎓</span>
-                  <p className="text-slate-300 text-sm text-center px-4">{slide.label}</p>
-                </div>
-              ) : (
-                <img
-                  key={i}
-                  src={slide.src}
-                  alt={slide.label}
-                  onError={() => setImgErrors((e) => ({ ...e, [i]: true }))}
-                  className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
-                  style={{ opacity: i === current ? 1 : 0 }}
-                />
-              )
-            ))}
-
-            {/* Overlay con label */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 pt-10 pb-3">
-              <p className="text-white text-xs font-medium">{SLIDES[current].label}</p>
-            </div>
-
-            {/* Indicadores */}
-            <div className="absolute bottom-3 right-4 flex gap-1.5 items-center">
-              {SLIDES.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrent(i)}
-                  className="rounded-full transition-all duration-300"
-                  style={{
-                    width: i === current ? 20 : 8,
-                    height: 8,
-                    backgroundColor: i === current ? "#fbbf24" : "rgba(255,255,255,0.45)",
-                  }}
-                />
-              ))}
-            </div>
-          </div>
+          <HeroCarousel />
         </div>
       </div>
     </section>
@@ -346,8 +265,6 @@ const SOCIAL_LINKS = [
 ];
 
 function Footer() {
-  const [currentMap, setCurrentMap] = useState(0);
-
   return (
     <footer className="bg-slate-900 text-white px-4 md:px-8 py-10">
       <div className="max-w-6xl mx-auto">
@@ -414,55 +331,7 @@ function Footer() {
               <h4 className="font-semibold text-amber-400 text-sm uppercase tracking-wider mb-3">
                 Ubícanos
               </h4>
-              {/* Cabecera: nombre + flechas */}
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-white text-xs font-medium">{MAPS[currentMap].label}</p>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setCurrentMap((i) => (i - 1 + MAPS.length) % MAPS.length)}
-                    aria-label="Mapa anterior"
-                    className="w-6 h-6 rounded-full bg-slate-800 hover:bg-amber-400 hover:text-slate-900 text-slate-400 flex items-center justify-center transition-colors"
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentMap((i) => (i + 1) % MAPS.length)}
-                    aria-label="Mapa siguiente"
-                    className="w-6 h-6 rounded-full bg-slate-800 hover:bg-amber-400 hover:text-slate-900 text-slate-400 flex items-center justify-center transition-colors"
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
-              {/* Iframe */}
-              <div className="rounded-xl overflow-hidden" style={{ height: 180 }}>
-                <iframe
-                  key={currentMap}
-                  src={MAPS[currentMap].src}
-                  width="100%"
-                  height="180"
-                  style={{ border: 0, display: "block" }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title={MAPS[currentMap].label}
-                />
-              </div>
-              {/* Dots */}
-              <div className="flex justify-center gap-2 mt-3">
-                {MAPS.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentMap(i)}
-                    aria-label={`Ver mapa ${MAPS[i].label}`}
-                    className="h-2 rounded-full transition-all duration-300"
-                    style={{
-                      width: i === currentMap ? 20 : 8,
-                      backgroundColor: i === currentMap ? "#f59e0b" : "#475569",
-                    }}
-                  />
-                ))}
-              </div>
+              <MapCarousel />
             </div>
           </div>
         </div>
