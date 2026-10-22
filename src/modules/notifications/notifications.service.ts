@@ -103,7 +103,20 @@ export const notificationsService = {
       },
     });
 
-    return planLinks.map(({ planification: p, teacher }) => {
+    // Un PUM puede tener varios docentes co-asignados bajo el mismo
+    // coordinador (p. ej. un PUM con 5 docentes) — sin deduplicar, cada
+    // vínculo generaba una notificación con el mismo id "{planId}:tipo",
+    // produciendo keys duplicadas en React. Nos quedamos con una sola
+    // entrada por PUM, priorizando el nombre del docente editor.
+    const byPlanId = new Map<string, (typeof planLinks)[number]>();
+    for (const link of planLinks) {
+      const existing = byPlanId.get(link.planification.id);
+      if (!existing || (link.isEditor && !existing.isEditor)) {
+        byPlanId.set(link.planification.id, link);
+      }
+    }
+
+    return Array.from(byPlanId.values()).map(({ planification: p, teacher }) => {
       const type: PumNotification["type"] =
         p.status === "ADMIN_REJECTED" ? "admin_rejected" : "pending_review";
       return {
