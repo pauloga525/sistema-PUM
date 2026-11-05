@@ -65,6 +65,13 @@ export interface PlanFilters {
 
 const PAGE_SIZE = 20;
 
+/** Estado de PlanReview coherente con cada estado del PUM. */
+function reviewStatusFor(status: PlanStatus): ReviewStatus {
+  if (status === "APPROVED" || status === "PENDING_SIGNATURE" || status === "SIGNED") return "APPROVED";
+  if (status === "FEEDBACK_RECEIVED") return "FEEDBACK_SENT";
+  return "IN_REVIEW";
+}
+
 interface CoordinatorRef { id: string; name: string | null; email: string }
 
 /**
@@ -183,16 +190,17 @@ export const superAdminPlanService = {
 
     // Oculta vínculos huérfanos (docentes removidos cuya asignación ya no
     // está activa) en un solo query batch; los PUM ya SIGNED no se filtran
-    // (registro histórico permanente). Ver planification.service.ts.
-    const allTeacherIds = [...new Set(rows.flatMap((r) => r.teachers.map((t) => t.teacherId)))];
-    const activeAssignments = allTeacherIds.length > 0
-      ? await prisma.teacherAssignment.findMany({
-          where: { teacherId: { in: allTeacherIds }, active: true },
-          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
-        })
-      : [];
-    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
-    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
+    // (registro histórico permanente). Ver teacher-links.ts.
+    const isActive = await loadActiveLinkChecker(rows);
+
+    // Coordinador por defecto (vía asignación de materia) para los PUM que
+    // aún no tienen PlanReview — ver resolveDefaultCoordinators.
+    const defaultCoordinators = await resolveDefaultCoordinators(
+      rows.map((r) => ({
+        id: r.id, subjectId: r.subjectId, levelId: r.levelId, academicYearId: r.academicYearId,
+        teachers: r.teachers.map((t) => ({ teacherId: t.teacherId, isEditor: t.isEditor })),
+      })),
+    );
 
     return {
       total,
