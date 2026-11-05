@@ -15,7 +15,7 @@ Producción:
 git push main ──► CI (tipos, lint, pruebas, build) ──verde──► Deploy (.github/workflows/deploy.yml)
                                                                 1. next build en modo standalone
                                                                 2. prisma migrate deploy (Supabase)
-                                                                3. subida por FTP (solo lo que cambió)
+                                                                3. subida por FTPS con lftp
                                                                 4. tmp/restart.txt → Passenger reinicia
                                                                 5. GET /api/health
 ```
@@ -106,8 +106,8 @@ despliegue.
 
 ### 6. Primer despliegue
 
-*Actions → Deploy → Run workflow* (rama `main`). La primera subida tarda más
-porque sube todo `node_modules`; las siguientes solo suben lo que cambió.
+*Actions → Deploy → Run workflow* (rama `main`). La subida usa `lftp` por FTPS
+(~2 500 archivos, ~60 MB, en paralelo y con reintentos) y tarda unos minutos.
 Después, crear el primer SuperAdmin directamente en la base y desde su panel el
 resto de cuentas.
 

@@ -4,13 +4,13 @@
 # (o a mano desde la pestaña Actions sobre main):
 #   1. compila Next.js en modo "standalone" (server.js + node_modules mínimos)
 #   2. aplica las migraciones de Prisma sobre la base de producción
-#   3. sube el paquete por FTP a la carpeta de la app (solo archivos cambiados)
+#   3. sube el paquete por FTPS (lftp) a la carpeta de la app
 #   4. sube tmp/restart.txt, que hace que Passenger reinicie la app
 #   5. comprueba /api/health
 # Configuración paso a paso en docs/deployment.md.
 #
 # Secrets (Settings → Environments → production):
-#   FTP_SERVER     host FTP (ej. ftp.academico.uets.edu.ec)
+#   FTP_SERVER     host FTP: academico.uets.edu.ec (sin ftp:// ni barra)
 #   FTP_USERNAME   cuenta FTP cuya carpeta raíz es la de la app (ej. pum-app)
 #   FTP_PASSWORD
 #   DATABASE_URL   la misma conexión que usa la app (Supabase, session pooler)
@@ -123,22 +123,43 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma migrate deploy
 
+      # lftp en lugar de FTP-Deploy-Action: esa acción corta el canal de datos
+      # TLS con el Pure-FTPd de HostGator ("tlsv1 alert decode error").
+      # lftp reintenta solo si la conexión se cae y sube en paralelo.
       - name: Subir por FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
-          local-dir: .next/standalone/
-          server-dir: ${{ vars.FTP_SERVER_DIR || './' }}
-          # Por defecto la acción excluye node_modules; aquí hace falta subirlo.
-          exclude: |
-            **/.git*
-            **/.git*/**
-          log-level: minimal
-          # El handshake TLS de HostGator puede tardar más que los 30 s por defecto
-          timeout: 120000
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+          FTP_SERVER_DIR: ${{ vars.FTP_SERVER_DIR || '.' }}
+        run: |
+          sudo apt-get install -y -qq lftp > /dev/null
+          tls=true; [ "$FTP_PROTOCOL" = "ftp" ] && tls=false
+          host="${FTP_SERVER#ftp://}"; host="${host#ftps://}"; host="${host%%/*}"
+          cd .next/standalone
+          # Orden: dependencias y archivos, luego .next (borrando chunks viejos)
+          # y al final tmp/restart.txt, para que Passenger reinicie con todo subido.
+          lftp -u "$FTP_USERNAME" --env-password "$host" <<EOF
+          set cmd:fail-exit true
+          set ftp:ssl-allow $tls
+          set ftp:ssl-force $tls
+          set ftp:ssl-protect-data $tls
+          set ssl:verify-certificate no
+          set ftp:passive-mode true
+          set net:timeout 30
+          set net:max-retries 8
+          set net:reconnect-interval-base 5
+          set net:reconnect-interval-max 30
+          set mirror:parallel-transfer-count 6
+          cd "$FTP_SERVER_DIR"
+          mirror -R --no-perms --verbose=1 --exclude-glob .next/ --exclude-glob tmp/ . .
+          mirror -R --no-perms --verbose=1 --delete .next .next
+          mkdir -p -f tmp
+          put -O tmp tmp/restart.txt
+          bye
+          EOF
+          echo "Subida completa"
 
       - name: Verificar /api/health
         if: vars.APP_URL != ''
