@@ -19,7 +19,7 @@ function createPrismaClient(): PrismaClient {
     statement_timeout: STATEMENT_TIMEOUT_MS,
     query_timeout: STATEMENT_TIMEOUT_MS + 5_000,
     // Identifica las conexiones de la app en pg_stat_activity
-    application_name: process.env.DATABASE_APP_NAME ?? "pum-web",
+    application_name: process.env.DATABASE_APP_NAME ?? "postgres",
   });
   const adapter = new PrismaPg(pool);
 
