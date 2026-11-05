@@ -1,0 +1,134 @@
+# Despliegue a HostGator (cPanel → Application Manager / Passenger) por FTP.
+#
+# Corre solo cuando el workflow CI termina en verde para un push a main
+# (o a mano desde la pestaña Actions sobre main):
+#   1. compila Next.js en modo "standalone" (server.js + node_modules mínimos)
+#   2. aplica las migraciones de Prisma sobre la base de producción
+#   3. sube el paquete por FTP a la carpeta de la app (solo archivos cambiados)
+#   4. sube tmp/restart.txt, que hace que Passenger reinicie la app
+#   5. comprueba /api/health
+# Configuración paso a paso en docs/deployment.md.
+#
+# Secrets (Settings → Environments → production):
+#   FTP_SERVER     host FTP (ej. ftp.academico.uets.edu.ec)
+#   FTP_USERNAME   cuenta FTP cuya carpeta raíz es la de la app (ej. pum-app)
+#   FTP_PASSWORD
+#   DATABASE_URL   la misma conexión que usa la app (Supabase, session pooler)
+# Variables (opcionales):
+#   APP_URL         https://pum.academico.uets.edu.ec (para verificar /api/health)
+#   NODE_VERSION    versión de Node del servidor (22)
+#   FTP_SERVER_DIR  carpeta destino dentro de la cuenta FTP (./)
+#   FTP_PROTOCOL    ftps | ftp (ftps)
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Nunca dos despliegues a la vez; tampoco cancelar uno a medias.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Desplegar a HostGator
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Misma versión mayor que el servidor: los módulos nativos (sharp) y el
+      # código generado dependen de ella.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ vars.NODE_VERSION || '22' }}
+          cache: npm
+
+      - name: Verificar secrets
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          for v in FTP_SERVER FTP_USERNAME FTP_PASSWORD DATABASE_URL; do
+            [ -n "${!v}" ] || { echo "::error::Falta el secret $v en el entorno production"; exit 1; }
+          done
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Compilar (standalone)
+        env:
+          BUILD_STANDALONE: "1"
+          # El build no se conecta a la base; prisma.config.ts solo necesita que exista.
+          DATABASE_URL: postgresql://build:build@localhost:5432/build
+        run: npm run build
+
+      - name: Armar paquete
+        run: |
+          OUT=.next/standalone
+          test -f "$OUT/server.js" || { echo "::error::No se generó .next/standalone/server.js"; exit 1; }
+          # server.js no copia estos archivos; la app los lee desde process.cwd()
+          cp -r public "$OUT/"
+          mkdir -p "$OUT/.next" && cp -r .next/static "$OUT/.next/"
+          mkdir -p "$OUT/src" && cp -r src/templates "$OUT/src/"
+          cp deploy/hostgator/app.js "$OUT/app.js"
+          # Nunca subir variables de entorno: viven en cPanel
+          rm -f "$OUT"/.env*
+          # FTP no maneja enlaces simbólicos: reemplazarlos por copias
+          find "$OUT" -type l | while read -r link; do
+            target=$(readlink -f "$link"); rm "$link"; cp -r "$target" "$link"
+          done
+          # Cambia en cada despliegue → Passenger reinicia la app
+          mkdir -p "$OUT/tmp" && echo "${{ github.sha }} $(date -u +%FT%TZ)" > "$OUT/tmp/restart.txt"
+          du -sh "$OUT"
+
+      - name: Aplicar migraciones
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Subir por FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+          local-dir: .next/standalone/
+          server-dir: ${{ vars.FTP_SERVER_DIR || './' }}
+          # Por defecto la acción excluye node_modules; aquí hace falta subirlo.
+          exclude: |
+            **/.git*
+            **/.git*/**
+          log-level: minimal
+
+      - name: Verificar /api/health
+        if: vars.APP_URL != ''
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS "$APP_URL/api/health"; then echo; echo "OK"; exit 0; fi
+            echo "Intento $i: aún no responde"; sleep 15
+          done
+          echo "::error::$APP_URL/api/health no respondió. Revisar el log de la app en cPanel."
+          exit 1

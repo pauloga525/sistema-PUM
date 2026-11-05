@@ -1,3 +1,6 @@
 # Las migraciones de Prisma se identifican por checksum: mismo contenido
 # (y finales de línea) en Windows y en el servidor.
 prisma/migrations/** text eol=lf
+
+# Scripts que corren en el servidor Linux (CRLF rompe bash)
+*.sh text eol=lf

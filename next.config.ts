@@ -31,6 +31,10 @@ const extraDevOrigins: string[] = [
 ].filter(Boolean);
 
 const nextConfig: NextConfig = {
+  // Paquete autónomo (.next/standalone con server.js) para el hosting de
+  // cPanel/Passenger. Solo lo activa el workflow de despliegue: con
+  // "standalone", `next start` (desarrollo, CI, E2E) deja de funcionar.
+  output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
   reactStrictMode: true,
   devIndicators: false,
   allowedDevOrigins: extraDevOrigins,
