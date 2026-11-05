@@ -79,10 +79,24 @@ function trackToSubnivel(track: string): string {
   return track;
 }
 
+/**
+ * Elimina caracteres de control inválidos en XML 1.0 (todo excepto \t \n \r
+ * por debajo de 0x20, más el carácter de reemplazo Unicode U+FFFE/U+FFFF).
+ * Texto pegado desde PDFs u otras fuentes a veces trae estos caracteres
+ * invisibles. Sin esto, el .docx se genera "bien" (ZIP válido, tamaño
+ * correcto) pero con word/document.xml inválido — Word lo rechaza al abrir
+ * sin que el servidor detecte ningún error (la librería docx no valida
+ * legalidad XML, solo arma el árbol de nodos y comprime).
+ */
+const XML_ILLEGAL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F￾￿]/g;
+function sanitizeXmlText(text: string): string {
+  return text.replace(XML_ILLEGAL_CHARS, "");
+}
+
 function textPatch(text: string) {
   return {
     type: PatchType.PARAGRAPH,
-    children: [new TextRun({ text: text || "", font: FONT, size: 24 })],
+    children: [new TextRun({ text: sanitizeXmlText(text || ""), font: FONT, size: 24 })],
   };
 }
 
@@ -99,7 +113,7 @@ function listPatch(items: string[]) {
     children: nonEmpty.map(
       (text) =>
         new Paragraph({
-          children: [new TextRun({ text: `• ${text}`, font: FONT, size: 24 })],
+          children: [new TextRun({ text: `• ${sanitizeXmlText(text)}`, font: FONT, size: 24 })],
         })
     ),
   };
@@ -188,7 +202,7 @@ function simpleCell(text: string, widthPct: number, isShaded: boolean): TableCel
 
 /** Splits text on \n and emits TextRun + break pairs so Word preserves line breaks. */
 function textRuns(text: string, size: number, color: string): TextRun[] {
-  return text.split("\n").flatMap((seg, i) =>
+  return sanitizeXmlText(text).split("\n").flatMap((seg, i) =>
     i === 0
       ? [new TextRun({ text: seg, size, font: FONT, color })]
       : [new TextRun({ break: 1 }), new TextRun({ text: seg, size, font: FONT, color })]
@@ -338,13 +352,13 @@ function signatureCell(paragraphs: Paragraph[], widthPct: number, isRight = fals
 
 function signatureText(text: string, bold = false, color = COLOR_TEXT): Paragraph {
   return new Paragraph({
-    children: [new TextRun({ text: text || "—", size: 22, font: FONT, bold, color })],
+    children: [new TextRun({ text: sanitizeXmlText(text || "—"), size: 22, font: FONT, bold, color })],
     spacing: { after: 40 },
   });
 }
 
 function buildSignatureTable(data: SignatureBlockData): Table {
-  const teacherNamesStr = data.teacherNames.length > 0 ? data.teacherNames.join(", ") : "—";
+  const teacherNamesStr = sanitizeXmlText(data.teacherNames.length > 0 ? data.teacherNames.join(", ") : "—");
 
   const headerRow = new TableRow({
     children: [
@@ -466,6 +480,36 @@ async function setSideMargins(docxBuffer: Buffer, mm: number): Promise<Buffer> {
   return zip.generateAsync({ type: "nodebuffer" }) as Promise<Buffer>;
 }
 
+// ── Validación final antes de entregar el archivo ─────────────────────────────
+// La librería `docx` arma el árbol de nodos y comprime, pero no valida que el
+// XML resultante sea legal — si algo quedó mal (p. ej. un caracter de control
+// que se filtró, o un "&" sin escapar), el .docx se genera "bien" (ZIP válido,
+// tamaño correcto) pero Word lo rechaza al abrir, sin que el servidor detecte
+// ningún error. Esta validación convierte esa falla silenciosa en un error
+// explícito y registrado (queda en SuperAdmin → Errores con su stack trace),
+// en vez de entregarle al usuario un archivo que parece descargarse bien pero
+// no abre.
+async function assertValidDocx(buffer: Buffer): Promise<void> {
+  const zip = await JSZip.loadAsync(buffer); // lanza si el buffer no es un ZIP válido
+  const docXmlFile = zip.file("word/document.xml");
+  if (!docXmlFile) {
+    throw new Error("El .docx generado no contiene word/document.xml — archivo corrupto.");
+  }
+  const xml = await docXmlFile.async("string");
+
+  const illegalChar = xml.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/);
+  if (illegalChar) {
+    throw new Error(
+      `El .docx generado contiene un carácter de control inválido en el XML (código ${illegalChar[0].charCodeAt(0)}, posición ${illegalChar.index}).`
+    );
+  }
+
+  const looseAmpersand = xml.match(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)/);
+  if (looseAmpersand) {
+    throw new Error(`El .docx generado tiene un "&" sin escapar en el XML (posición ${looseAmpersand.index}).`);
+  }
+}
+
 // ── DocxBuilder ───────────────────────────────────────────────────────────────
 
 export class DocxBuilder {
@@ -554,7 +598,9 @@ export class DocxBuilder {
     });
 
     // Solo ajusta márgenes laterales a 1 cm; top/bottom/header del template se preservan
-    return setSideMargins(patched as Buffer, 10);
+    const result = await setSideMargins(patched as Buffer, 10);
+    await assertValidDocx(result);
+    return result;
   }
 }
 

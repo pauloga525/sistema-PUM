@@ -65,11 +65,81 @@ export interface PlanFilters {
 
 const PAGE_SIZE = 20;
 
-/** Estado de PlanReview coherente con cada estado del PUM. */
-function reviewStatusFor(status: PlanStatus): ReviewStatus {
-  if (status === "APPROVED" || status === "PENDING_SIGNATURE" || status === "SIGNED") return "APPROVED";
-  if (status === "FEEDBACK_RECEIVED") return "FEEDBACK_SENT";
-  return "IN_REVIEW";
+interface CoordinatorRef { id: string; name: string | null; email: string }
+
+/**
+ * Resuelve el "coordinador por defecto" de un lote de PUM a partir de la
+ * asignación de materia (no de PlanReview), para no depender de que el
+ * coordinador ya haya abierto ese PUM puntual a revisar.
+ *
+ * Un coordinador queda vinculado a una materia+nivel+año en cuanto asigna
+ * a un docente — es coordinador de los 3 trimestres de ese combo, no solo
+ * de aquellos cuya revisión ya inició. Antes de este fix, superadmin-plan
+ * .service.ts sacaba el coordinador ÚNICAMENTE de PlanReview, que solo
+ * existe para el trimestre que el coordinador ya abrió — por eso un PUM
+ * de un trimestre aún no revisado aparecía como "Sin asignar".
+ *
+ * Mismo patrón de dos fuentes que coordinator.service.ts#getFinalizedPlans:
+ *   1. TeacherAssignment.coordinatorId (modelo nuevo, por materia+nivel+año).
+ *   2. CoordinatorAssignment (legado, por docente) + CoordinatorSubjectAssignment
+ *      para no filtrar materias que ese coordinador no tiene permitidas.
+ */
+async function resolveDefaultCoordinators(
+  plans: Array<{
+    id: string;
+    subjectId: string;
+    levelId: string;
+    academicYearId: string;
+    teachers: Array<{ teacherId: string; isEditor: boolean }>;
+  }>,
+): Promise<Map<string, CoordinatorRef>> {
+  const result = new Map<string, CoordinatorRef>();
+  const allTeacherIds = [...new Set(plans.flatMap((p) => p.teachers.map((t) => t.teacherId)))];
+  if (allTeacherIds.length === 0) return result;
+  const allSubjectIds = [...new Set(plans.map((p) => p.subjectId))];
+
+  const [direct, legacyLinks, subjectScope] = await Promise.all([
+    prisma.teacherAssignment.findMany({
+      where: { teacherId: { in: allTeacherIds }, active: true, coordinatorId: { not: null } },
+      select: {
+        teacherId: true, subjectId: true, levelId: true, academicYearId: true,
+        coordinator: { select: { id: true, name: true, email: true } },
+      },
+    }),
+    prisma.coordinatorAssignment.findMany({
+      where:  { teacherId: { in: allTeacherIds } },
+      select: { teacherId: true, coordinator: { select: { id: true, name: true, email: true } } },
+    }),
+    prisma.coordinatorSubjectAssignment.findMany({
+      where:  { subjectId: { in: allSubjectIds } },
+      select: { coordinatorId: true, subjectId: true },
+    }),
+  ]);
+
+  const directKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
+  const directMap = new Map(direct.map((d) => [directKey(d.subjectId, d.levelId, d.academicYearId, d.teacherId), d.coordinator]));
+  const legacyByTeacher = new Map(legacyLinks.map((l) => [l.teacherId, l.coordinator]));
+  const allowedPairs = new Set(subjectScope.map((s) => `${s.coordinatorId}|${s.subjectId}`));
+
+  for (const plan of plans) {
+    const editor = plan.teachers.find((t) => t.isEditor);
+    const orderedTeachers = editor ? [editor, ...plan.teachers.filter((t) => t !== editor)] : plan.teachers;
+
+    let found: CoordinatorRef | null = null;
+    for (const t of orderedTeachers) {
+      const d = directMap.get(directKey(plan.subjectId, plan.levelId, plan.academicYearId, t.teacherId));
+      if (d) { found = d; break; }
+    }
+    if (!found) {
+      for (const t of orderedTeachers) {
+        const legacy = legacyByTeacher.get(t.teacherId);
+        if (legacy && allowedPairs.has(`${legacy.id}|${plan.subjectId}`)) { found = legacy; break; }
+      }
+    }
+    if (found) result.set(plan.id, found);
+  }
+
+  return result;
 }
 
 export const superAdminPlanService = {
@@ -111,8 +181,18 @@ export const superAdminPlanService = {
       }),
     ]);
 
-    // Vínculos huérfanos: una sola consulta para todo el lote (ver teacher-links.ts)
-    const isActive = await loadActiveLinkChecker(rows);
+    // Oculta vínculos huérfanos (docentes removidos cuya asignación ya no
+    // está activa) en un solo query batch; los PUM ya SIGNED no se filtran
+    // (registro histórico permanente). Ver planification.service.ts.
+    const allTeacherIds = [...new Set(rows.flatMap((r) => r.teachers.map((t) => t.teacherId)))];
+    const activeAssignments = allTeacherIds.length > 0
+      ? await prisma.teacherAssignment.findMany({
+          where: { teacherId: { in: allTeacherIds }, active: true },
+          select: { teacherId: true, subjectId: true, levelId: true, academicYearId: true },
+        })
+      : [];
+    const activeKey = (s: string, l: string, y: string, t: string) => `${s}|${l}|${y}|${t}`;
+    const activeSet = new Set(activeAssignments.map((a) => activeKey(a.subjectId, a.levelId, a.academicYearId, a.teacherId)));
 
     return {
       total,
@@ -120,6 +200,7 @@ export const superAdminPlanService = {
       plans: rows.map((r) => {
         const visibleTeachers = visibleTeacherLinks(r, r.teachers, isActive);
         const editor = (visibleTeachers.find((t) => t.isEditor) ?? visibleTeachers[0])?.teacher;
+        const defaultCoord = defaultCoordinators.get(r.id) ?? null;
         return {
           id:              r.id,
           status:          r.status,
@@ -130,8 +211,8 @@ export const superAdminPlanService = {
           yearLabel:       r.academicYear.label,
           periodName:      r.period.name,
           periodNumber:    r.period.number,
-          coordinatorName: r.review?.coordinator.name ?? null,
-          coordinatorId:   r.review?.coordinatorId ?? null,
+          coordinatorName: r.review?.coordinator.name ?? defaultCoord?.name ?? null,
+          coordinatorId:   r.review?.coordinatorId ?? defaultCoord?.id ?? null,
           updatedAt:       r.updatedAt.toISOString(),
         };
       }),
@@ -159,6 +240,15 @@ export const superAdminPlanService = {
     if (!p) throw new AppError(ErrorCode.DB_RECORD_NOT_FOUND, "PUM no encontrado");
     const visibleTeachers = await filterActiveTeacherLinks(p, p.teachers);
     const editor = (visibleTeachers.find((t) => t.isEditor) ?? visibleTeachers[0])?.teacher;
+
+    // Coordinador por defecto (vía asignación de materia) si aún no hay
+    // PlanReview — ver resolveDefaultCoordinators.
+    const defaultCoordinators = await resolveDefaultCoordinators([{
+      id: p.id, subjectId: p.subjectId, levelId: p.levelId, academicYearId: p.academicYearId,
+      teachers: p.teachers.map((t) => ({ teacherId: t.teacherId, isEditor: t.isEditor })),
+    }]);
+    const defaultCoord = defaultCoordinators.get(p.id) ?? null;
+
     return {
       id:               p.id,
       status:           p.status,
@@ -168,9 +258,9 @@ export const superAdminPlanService = {
       levelName:        p.level.name,
       yearLabel:        p.academicYear.label,
       periodName:       p.period.name,
-      coordinatorName:  p.review?.coordinator.name ?? null,
-      coordinatorEmail: p.review?.coordinator.email ?? null,
-      coordinatorId:    p.review?.coordinatorId ?? null,
+      coordinatorName:  p.review?.coordinator.name ?? defaultCoord?.name ?? null,
+      coordinatorEmail: p.review?.coordinator.email ?? defaultCoord?.email ?? null,
+      coordinatorId:    p.review?.coordinatorId ?? defaultCoord?.id ?? null,
       reviewId:         p.review?.id ?? null,
       editDeadlineAt:   p.editDeadlineAt?.toISOString() ?? null,
       createdAt:        p.createdAt.toISOString(),
