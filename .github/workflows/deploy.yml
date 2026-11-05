@@ -15,7 +15,7 @@
 #   FTP_PASSWORD
 #   DATABASE_URL   la misma conexión que usa la app (Supabase, session pooler)
 # Variables (opcionales):
-#   APP_URL         https://pum.academico.uets.edu.ec (para verificar /api/health)
+#   APP_URL         https://academico.uets.edu.ec (para verificar /api/health)
 #   NODE_VERSION    versión de Node del servidor (22)
 #   FTP_SERVER_DIR  carpeta destino dentro de la cuenta FTP (./)
 #   FTP_PROTOCOL    ftps | ftp (ftps)

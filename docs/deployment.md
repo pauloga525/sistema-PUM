@@ -1,78 +1,151 @@
 # Despliegue — PUM Web
 
-**Última actualización:** 2026-10-14
+**Última actualización:** 2026-11-05
 
-La app es un servidor Node.js (`next start`) más PostgreSQL. El acceso público
-llega por Cloudflare Tunnel (por eso la IP del cliente se toma de
-`cf-connecting-ip`).
+Producción:
 
-## Requisitos del servidor
+- **App:** HostGator, hosting compartido con cPanel → *Application Manager*
+  (Phusion Passenger), en `https://academico.uets.edu.ec`.
+- **Base de datos:** PostgreSQL en Supabase (conexión *Session pooler*).
+- **Despliegue:** automático con GitHub Actions al hacer push a `main`.
 
-- Node.js 24 y npm
-- PostgreSQL 15+ accesible desde el servidor de la app
-- Un gestor de procesos que reinicie la app si se cae (systemd en Linux; NSSM o
-  PM2 en Windows)
+## Flujo
 
-## Variables de entorno
+```
+git push main ──► CI (tipos, lint, pruebas, build) ──verde──► Deploy (.github/workflows/deploy.yml)
+                                                                1. next build en modo standalone
+                                                                2. prisma migrate deploy (Supabase)
+                                                                3. subida por FTP (solo lo que cambió)
+                                                                4. tmp/restart.txt → Passenger reinicia
+                                                                5. GET /api/health
+```
 
-Ver `.env.example`. En producción, como mínimo:
+La app se compila en GitHub, no en HostGator: el hosting compartido tiene poca
+memoria para `next build`. El paquete `standalone` ya trae sus `node_modules`,
+así que en cPanel **no** hace falta *Run NPM Install*.
+
+---
+
+## Configuración inicial (una sola vez)
+
+### 1. Dominio
+
+El PUM se publica en `academico.uets.edu.ec` (dominio ya existente en la cuenta,
+carpeta `/home1/uets/academico.uets.edu.ec`). La web de Angular vive en
+`/home1/uets/public_html` y no se toca. Antes de registrar la app, revisar que
+`academico.uets.edu.ec/public_html` no tenga nada en uso: el Application Manager
+toma el control de ese dominio.
+
+### 2. Carpeta y cuenta FTP de la app
+
+- cPanel → *File Manager*: crear en el directorio home (`/home1/uets`) una
+  carpeta **vacía** `pum-app`, al mismo nivel que `academico.uets.edu.ec` y
+  fuera de cualquier `public_html` (todo lo que está en `public_html` se puede
+  descargar desde el navegador).
+- cPanel → *FTP Accounts*: crear una cuenta (ej. `deploy-pum`) cuyo directorio
+  sea **`pum-app`**. Así GitHub Actions solo puede escribir en esa carpeta.
+
+### 3. Registrar la app (cPanel → Application Manager → Register Application)
+
+| Campo | Valor |
+|---|---|
+| Application Name | `Sistema-PUM` |
+| Deployment Domain | `academico.uets.edu.ec` |
+| Base Application URL | `/` |
+| Application Path | `pum-app` |
+| Deployment Environment | Producción |
+
+Variables de entorno:
 
 | Variable | Valor |
 |---|---|
-| `NODE_ENV` | `production` (lo fija `npm start`) |
-| `DATABASE_URL` | Conexión a PostgreSQL |
-| `AUTH_SECRET` | 32+ caracteres aleatorios; la app no arranca sin él |
-| `AUTH_URL` | URL pública exacta (ej. `https://pum.colegio.edu.ec`) |
-| `INSTITUTION_NAME` | Nombre en documentos y encabezados |
+| `NODE_ENV` | `production` |
+| `DATABASE_URL` | `postgresql://postgres.<id>:<clave>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require` |
+| `DATABASE_POOL_MAX` | `5` (el plan gratuito de Supabase tiene pocas conexiones) |
+| `AUTH_SECRET` | `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `AUTH_URL` | `https://academico.uets.edu.ec` |
+| `INSTITUTION_NAME` | Nombre oficial de la institución |
 
-Nunca definir `ENABLE_DEV_USERS` en producción (de todos modos se ignora).
+cPanel no acepta tildes, espacios ni `${` en los valores: usar contraseñas solo
+con letras y números (o codificar `$`→`%24`, `@`→`%40`, `#`→`%23`). Nunca
+definir `ENABLE_DEV_USERS`.
 
-## Primer despliegue
+El archivo de arranque es `app.js` (lo genera el workflow a partir de
+`deploy/hostgator/app.js`). Activar SSL para el dominio en cPanel → *SSL/TLS
+Status* (AutoSSL).
+
+### 4. Versión de Node
+
+Next.js 16 necesita **Node 20.9 o mayor**. Confirmarla con `node -v` en la
+*Terminal* de cPanel o con el soporte de HostGator, y poner la misma versión
+mayor en la variable `NODE_VERSION` de GitHub (paso 5).
+
+### 5. GitHub
+
+Repo → *Settings → Environments → New environment* → `production`. Opcional:
+*Deployment branches* = `main` y *Required reviewers* para aprobar cada
+despliegue.
+
+**Secrets** del entorno:
+
+| Secret | Valor |
+|---|---|
+| `FTP_SERVER` | host FTP (cPanel → *FTP Accounts* → *Configure FTP Client*) |
+| `FTP_USERNAME` | la cuenta del paso 2, ej. `deploy-pum@academico.uets.edu.ec` |
+| `FTP_PASSWORD` | su contraseña |
+| `DATABASE_URL` | la misma de cPanel (para aplicar migraciones) |
+
+**Variables** del entorno:
+
+| Variable | Valor |
+|---|---|
+| `APP_URL` | `https://academico.uets.edu.ec` (verificación de `/api/health`) |
+| `NODE_VERSION` | versión mayor de Node del servidor, ej. `20` o `22` (por defecto `22`) |
+| `FTP_PROTOCOL` | `ftps` (por defecto); `ftp` solo si el servidor no acepta TLS |
+| `FTP_SERVER_DIR` | `./` (por defecto) si la cuenta FTP ya apunta a `pum-app` |
+
+### 6. Primer despliegue
+
+*Actions → Deploy → Run workflow* (rama `main`). La primera subida tarda más
+porque sube todo `node_modules`; las siguientes solo suben lo que cambió.
+Después, crear el primer SuperAdmin directamente en la base y desde su panel el
+resto de cuentas.
+
+---
+
+## Operación
+
+| Tarea | Cómo |
+|---|---|
+| Desplegar | `git push` a `main` (o *Run workflow*) |
+| Ver errores de la app | cPanel → Application Manager, o `~/logs` / `pum-app/stderr.log` según el servidor |
+| Reiniciar | Application Manager → *Restart*, o volver a correr el workflow |
+| Volver a una versión anterior | *Actions → Deploy → Run workflow* no sirve para commits viejos: hacer `git revert` del cambio y push a `main` |
+| Respaldo de la base | Supabase hace respaldos diarios (plan de pago) o `pg_dump` con la URL del session pooler |
+
+- Las migraciones se aplican **antes** de subir el código nuevo; durante la
+  subida la versión anterior puede convivir unos minutos con el esquema nuevo.
+  Las migraciones deben ser compatibles hacia atrás (agregar antes que borrar).
+- Passenger puede detener la app si nadie la usa un tiempo: la primera visita
+  tarda unos segundos y las limpiezas diarias de `src/instrumentation.ts` pueden
+  no correr todos los días.
+
+## Compilar y probar en local
 
 ```bash
-git clone <repo> pum-web && cd pum-web
 npm ci
-cp .env.example .env            # completar
-npm run db:deploy               # crea el esquema
+npx prisma generate
 npm run build
-npm start                       # escucha en el puerto 3000 (PORT para cambiarlo)
+npm start          # http://localhost:3000, con el .env local
 ```
 
-Crear el primer SuperAdmin directamente en la base o con un script local
-(no versionado), y desde su panel crear el resto de cuentas.
+Para probar el mismo paquete que se sube a HostGator (PowerShell):
 
-## Actualizar una versión
-
-```bash
-pg_dump "$DATABASE_URL" > respaldo-$(date +%F).sql   # 1. respaldo
-git pull
-npm ci
-npm run db:deploy                                    # 2. migraciones pendientes
-npm run build
-# 3. reiniciar el proceso (systemctl restart pum-web, pm2 restart pum-web, …)
-```
-
-Si la base se creó con `prisma db push` (antes de las migraciones), seguir una
-sola vez el procedimiento de `docs/database.md` → *Adoptar migraciones en una
-base existente*.
-
-## Ejemplo: servicio systemd
-
-```ini
-# /etc/systemd/system/pum-web.service
-[Unit]
-Description=PUM Web
-After=network.target postgresql.service
-
-[Service]
-WorkingDirectory=/opt/pum-web
-EnvironmentFile=/opt/pum-web/.env
-ExecStart=/usr/bin/npm start
-Restart=on-failure
-User=pum
-
-[Install]
-WantedBy=multi-user.target
+```powershell
+$env:BUILD_STANDALONE = "1"; npm run build
+Copy-Item -Recurse .next/static .next/standalone/.next/
+Copy-Item deploy/hostgator/app.js .next/standalone/
+cd .next/standalone; node --env-file=../../.env app.js
 ```
 
 ## Verificación
@@ -81,9 +154,3 @@ WantedBy=multi-user.target
   (503 si no).
 - Tras actualizar, las sesiones abiertas siguen válidas salvo que cambie
   `AUTH_SECRET`.
-
-## Tareas programadas
-
-No hace falta cron: al arrancar, `src/instrumentation.ts` programa la limpieza
-diaria de `rate_limits`, auditoría de usuarios (730 días) y log de errores (180
-días). El historial de los PUM no se purga.
